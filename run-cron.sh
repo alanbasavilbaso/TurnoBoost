@@ -5,6 +5,6 @@
 while [ true ]
     do
         echo "Running the cron scheduler..."
-        php bin/console cron:start [--blocking] --no-interaction &
+        php bin/console cron:start --blocking --no-interaction &
         sleep 60
     done
