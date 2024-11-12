@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "de820743dd761fe81e6b8981466163a4",
+    "content-hash": "2c227f7d84ada7042eb2e10150f651c3",
     "packages": [
         {
             "name": "composer/semver",
@@ -86,6 +86,124 @@
                 }
             ],
             "time": "2024-09-19T14:15:21+00:00"
+        },
+        {
+            "name": "cron/cron",
+            "version": "1.0.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Cron/Cron.git",
+                "reference": "8136af94e47a0073b20b3ffe9692af5ad17a3f39"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Cron/Cron/zipball/8136af94e47a0073b20b3ffe9692af5ad17a3f39",
+                "reference": "8136af94e47a0073b20b3ffe9692af5ad17a3f39",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.0",
+                "symfony/process": ">=v2.4.2"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "4.0.*@dev"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "1.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-0": {
+                    "Cron": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Dries De Peuter",
+                    "email": "dries@nousefreak.be",
+                    "homepage": "http://nousefreak.be"
+                }
+            ],
+            "description": "Cronjobs",
+            "support": {
+                "issues": "https://github.com/Cron/Cron/issues",
+                "source": "https://github.com/Cron/Cron/tree/master"
+            },
+            "time": "2014-06-13T17:59:05+00:00"
+        },
+        {
+            "name": "cron/cron-bundle",
+            "version": "3.1.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Cron/Symfony-Bundle.git",
+                "reference": "99d16c135ddeff9bb96ddced8fedae4b82e7ee97"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Cron/Symfony-Bundle/zipball/99d16c135ddeff9bb96ddced8fedae4b82e7ee97",
+                "reference": "99d16c135ddeff9bb96ddced8fedae4b82e7ee97",
+                "shasum": ""
+            },
+            "require": {
+                "cron/cron": "^1.0.1",
+                "doctrine/collections": "*",
+                "doctrine/dbal": "*",
+                "doctrine/orm": ">=2.4.5",
+                "doctrine/persistence": "*",
+                "ext-pcntl": "*",
+                "ext-posix": "*",
+                "php": ">=8.1",
+                "symfony/config": "^5.0|^6.0|^7.0",
+                "symfony/console": "^5.0|^6.0|^7.0",
+                "symfony/dependency-injection": "^5.0|^6.0|^7.0",
+                "symfony/http-kernel": "^5.0|^6.0|^7.0",
+                "symfony/process": "^5.0|^6.0|^7.0"
+            },
+            "require-dev": {
+                "doctrine/doctrine-bundle": "*",
+                "monolog/monolog": "*",
+                "phpunit/phpunit": "^10",
+                "symfony/security-csrf": "^5.0|^6.0|^7.0",
+                "symfony/translation": "^5.0|^6.0|^7.0",
+                "symfony/yaml": "^5.0|^6.0|^7.0"
+            },
+            "type": "symfony-bundle",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cron\\CronBundle\\": ""
+                },
+                "exclude-from-classmap": [
+                    "/Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Dries De Peuter",
+                    "email": "dries@nousefreak.be"
+                }
+            ],
+            "description": "Symfony cron",
+            "support": {
+                "issues": "https://github.com/Cron/Symfony-Bundle/issues",
+                "source": "https://github.com/Cron/Symfony-Bundle/tree/3.1.1"
+            },
+            "time": "2024-04-27T23:22:26+00:00"
         },
         {
             "name": "doctrine/cache",
