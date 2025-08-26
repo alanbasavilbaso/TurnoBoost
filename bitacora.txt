@@ -1,0 +1,5 @@
+symfony server:start
+symfony server:start
+
+
+composer install   

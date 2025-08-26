@@ -1,0 +1,46 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Test Controller{% endblock %}
+
+{% block body %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">🚀 Controller de Prueba - TurnoBoost</h2>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-success" role="alert">
+                        <h4 class="alert-heading">¡Éxito!</h4>
+                        <p>{{ message }}</p>
+                        <hr>
+                        <p class="mb-0">Timestamp: {{ timestamp|date('Y-m-d H:i:s') }}</p>
+                    </div>
+                    
+                    <h5>Rutas disponibles:</h5>
+                    <ul class="list-group">
+                        <li class="list-group-item">
+                            <strong>Vista HTML:</strong> 
+                            <a href="{{ path('app_test') }}" class="btn btn-sm btn-outline-primary ms-2">/test</a>
+                        </li>
+                        <li class="list-group-item">
+                            <strong>API JSON:</strong> 
+                            <a href="{{ path('app_test_json') }}" class="btn btn-sm btn-outline-success ms-2">/test/json</a>
+                        </li>
+                    </ul>
+                    
+                    <div class="mt-4">
+                        <h6>Información del proyecto:</h6>
+                        <ul>
+                            <li><strong>Proyecto:</strong> TurnoBoost</li>
+                            <li><strong>Framework:</strong> Symfony</li>
+                            <li><strong>Entorno:</strong> {{ app.environment }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
