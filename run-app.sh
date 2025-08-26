@@ -20,11 +20,6 @@ php bin/console cache:clear --env=prod --no-debug
 echo "Running migrations..."
 php bin/console doctrine:migrations:migrate --no-interaction --env=prod
 
-# Process nginx config
-echo "Processing nginx configuration..."
-node /app/assets/scripts/prestart.mjs /app/assets/nginx.template.conf /nginx.conf
-
-# Start services
-echo "Starting PHP-FPM and Nginx..."
-php-fpm -y /app/assets/php-fpm.conf &
-nginx -c /nginx.conf
+# Start PHP built-in server
+echo "Starting PHP server..."
+php -S 0.0.0.0:${PORT:-8080} -t public/
