@@ -24,18 +24,8 @@ class ClinicType extends AbstractType
                 'attr' => [
                     'class' => 'form-control',
                     'placeholder' => 'Ingrese el nombre de la clínica'
-                ],
-                'constraints' => [
-                    new NotBlank([
-                        'message' => 'El nombre de la clínica es obligatorio'
-                    ]),
-                    new Length([
-                        'min' => 2,
-                        'max' => 255,
-                        'minMessage' => 'El nombre debe tener al menos {{ limit }} caracteres',
-                        'maxMessage' => 'El nombre no puede exceder {{ limit }} caracteres'
-                    ])
                 ]
+                // Eliminé las constraints
             ])
             ->add('address', TextareaType::class, [
                 'label' => 'Dirección',
@@ -43,51 +33,24 @@ class ClinicType extends AbstractType
                     'class' => 'form-control',
                     'placeholder' => 'Ingrese la dirección completa',
                     'rows' => 3
-                ],
-                'constraints' => [
-                    new NotBlank([
-                        'message' => 'La dirección es obligatoria'
-                    ]),
-                    new Length([
-                        'min' => 10,
-                        'max' => 500,
-                        'minMessage' => 'La dirección debe tener al menos {{ limit }} caracteres',
-                        'maxMessage' => 'La dirección no puede exceder {{ limit }} caracteres'
-                    ])
                 ]
+                // Eliminé las constraints
             ])
             ->add('phone', TelType::class, [
                 'label' => 'Teléfono',
                 'attr' => [
                     'class' => 'form-control',
                     'placeholder' => 'Ej: +1234567890'
-                ],
-                'constraints' => [
-                    new NotBlank([
-                        'message' => 'El teléfono es obligatorio'
-                    ]),
-                    new Length([
-                        'min' => 8,
-                        'max' => 20,
-                        'minMessage' => 'El teléfono debe tener al menos {{ limit }} dígitos',
-                        'maxMessage' => 'El teléfono no puede exceder {{ limit }} caracteres'
-                    ])
                 ]
+                // Eliminé las constraints
             ])
             ->add('email', EmailType::class, [
                 'label' => 'Email',
                 'attr' => [
                     'class' => 'form-control',
                     'placeholder' => 'clinica@ejemplo.com'
-                ],
-                'constraints' => [
-                    new NotBlank([
-                        'message' => 'El email es obligatorio'
-                    ]),
-                    new Email([
-                        'message' => 'Por favor ingrese un email válido'
-                    ])
                 ]
+                // Eliminé las constraints
             ]);
             // Eliminé el botón submit automático
     }
@@ -96,6 +59,7 @@ class ClinicType extends AbstractType
     {
         $resolver->setDefaults([
             'data_class' => Clinic::class,
+            'validation_groups' => false, // Deshabilita la validación automática
         ]);
         // Eliminé la opción submit_label ya que no se usa
     }

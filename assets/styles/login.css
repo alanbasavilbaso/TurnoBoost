@@ -1,0 +1,90 @@
+/* Estilos específicos para la página de login */
+
+/* Solo aplicar flexbox al body en la página de login */
+body.login-page {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    margin: 0 !important; /* Anular el margin global */
+    padding: 0 !important;
+}
+
+/* Anular el margin-top global para el container de login */
+body.login-page .container {
+    margin-top: 0 !important;
+}
+
+.login-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    padding: 2rem;
+    max-width: 450px; /* Aumentado para mejor legibilidad */
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* Responsive padding para móviles */
+@media (max-width: 576px) {
+    .login-card {
+        margin: 1rem;
+        padding: 1.5rem;
+        max-width: none;
+        width: calc(100% - 2rem);
+    }
+    
+    .login-header h1 {
+        font-size: 1.8rem;
+    }
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.login-header h1 {
+    color: #333;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.login-header p {
+    color: #666;
+    margin: 0;
+}
+
+.login-card .form-control {
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+    padding: 12px 15px;
+    margin-bottom: 1rem;
+    font-size: 1rem; /* Asegurar tamaño legible en móviles */
+}
+
+.login-card .form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.login-card .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-weight: 600;
+    margin-top: 1rem;
+    width: 100%; /* Botón de ancho completo */
+    font-size: 1.1rem;
+}
+
+.login-card .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.login-card .alert {
+    border-radius: 10px;
+    margin-bottom: 1rem;
+}

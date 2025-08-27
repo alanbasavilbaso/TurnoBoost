@@ -5,6 +5,8 @@ namespace App\Entity;
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Symfony\Component\Validator\Constraints as Assert;
+
 
 #[ORM\Entity]
 #[ORM\Table(name: 'clinics')]
@@ -16,15 +18,38 @@ class Clinic
     private ?int $id = null;
 
     #[ORM\Column(type: 'string', length: 255)]
+    #[Assert\NotBlank(message: 'El nombre de la clínica es obligatorio')]
+    #[Assert\Length(
+        min: 2,
+        max: 255,
+        minMessage: 'El nombre debe tener al menos {{ limit }} caracteres',
+        maxMessage: 'El nombre no puede exceder {{ limit }} caracteres'
+    )]
     private string $name;
 
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    #[Assert\NotBlank(message: 'La dirección es obligatoria')]
+    #[Assert\Length(
+        min: 10,
+        max: 500,
+        minMessage: 'La dirección debe tener al menos {{ limit }} caracteres',
+        maxMessage: 'La dirección no puede exceder {{ limit }} caracteres'
+    )]
     private ?string $address = null;
 
     #[ORM\Column(type: 'string', length: 50, nullable: true)]
+    #[Assert\NotBlank(message: 'El teléfono es obligatorio')]
+    #[Assert\Length(
+        min: 8,
+        max: 20,
+        minMessage: 'El teléfono debe tener al menos {{ limit }} dígitos',
+        maxMessage: 'El teléfono no puede exceder {{ limit }} caracteres'
+    )]
     private ?string $phone = null;
 
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    #[Assert\NotBlank(message: 'El email es obligatorio')]
+    #[Assert\Email(message: 'Por favor ingrese un email válido')]
     private ?string $email = null;
 
     // NUEVA RELACIÓN: Usuario que creó la clínica

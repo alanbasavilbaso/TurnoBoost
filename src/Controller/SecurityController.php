@@ -79,19 +79,25 @@ class SecurityController extends AbstractController
         }
         
         $form = $this->createForm(ClinicType::class, $clinic);
-        // Eliminé la opción submit_label
         
         $form->handleRequest($request);
         
-        if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->persist($clinic);
-            $entityManager->flush();
-            
-            $this->addFlash('success', 
-                $clinic->getId() ? 'Empresa actualizada correctamente.' : 'Empresa creada correctamente.'
-            );
-            
-            return $this->redirectToRoute('app_index');
+        if ($form->isSubmitted()) {
+            if ($form->isValid()) {
+                $entityManager->persist($clinic);
+                $entityManager->flush();
+                
+                $this->addFlash('success', 
+                    $clinic->getId() ? 'Empresa actualizada correctamente.' : 'Empresa creada correctamente.'
+                );
+                
+                return $this->redirectToRoute('app_index');
+            } else {
+                // Manejar errores de validación como mensajes flash
+                foreach ($form->getErrors(true) as $error) {
+                    $this->addFlash('error', $error->getMessage());
+                }
+            }
         }
         
         return $this->render('security/my_company.html.twig', [
