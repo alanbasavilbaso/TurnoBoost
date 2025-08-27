@@ -1,5 +1,6 @@
 // Manejo de horarios de disponibilidad
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM fully loaded and parsed');
     // Generar opciones de tiempo cada 30 minutos desde 00:00 hasta 23:30
     function generateTimeOptions() {
         const options = [];
@@ -271,4 +272,67 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+});
+
+// JavaScript específico para el formulario de profesionales
+$(document).ready(function() {
+    console.log('Inicializando Select2...');
+    
+    // Verificar si Select2 está disponible y si el elemento existe
+    if (typeof $.fn.select2 !== 'undefined' && $('#services-select').length > 0) {
+        // Destruir instancia previa si existe
+        if ($('#services-select').hasClass('select2-hidden-accessible')) {
+            try {
+                $('#services-select').select2('destroy');
+            } catch (e) {
+                console.warn('Error al destruir Select2:', e);
+            }
+        }
+        // Inicializar Select2 con configuración simple
+        $('#services-select').select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Buscar y seleccionar servicios...',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() {
+                    return "No se encontraron servicios";
+                },
+                searching: function() {
+                    return "Buscando servicios...";
+                }
+            }
+        });
+        
+        // Manejar cambios y sincronizar con el formulario original
+        $('#services-select').on('change', function() {
+            syncWithOriginalForm();
+        });
+        
+    } else {
+        console.error('Select2 no está disponible o el elemento #services-select no existe');
+    }
+    
+    function syncWithOriginalForm() {
+        var selectedValues = $('#services-select').val() || [];
+        console.log('Valores seleccionados:', selectedValues);
+        
+        // Remover todos los campos previos de servicios
+        $('input[name^="professional[services]"]').remove();
+        
+        // Crear un campo hidden individual para cada servicio seleccionado
+        selectedValues.forEach(function(value) {
+            var hiddenInput = $('<input type="hidden" name="professional[services][]" value="' + value + '">');
+            $('#services-select').closest('form').append(hiddenInput);
+        });
+        
+        console.log('Campos hidden creados:', selectedValues.length, 'servicios');
+    }
+});
+
+// Para SPAs - reinicializar en navegación
+document.addEventListener('turbo:load', function() {
+    if (typeof $ !== 'undefined' && $('#services-select').length) {
+        $(document).ready();
+    }
 });

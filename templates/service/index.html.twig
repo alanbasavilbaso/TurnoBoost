@@ -218,5 +218,5 @@
 
 {% block javascripts %}
     {{ parent() }}
-    {{ importmap('scripts/service-modal.js') }}
+    <script src="{{ asset('scripts/service-modal.js') }}"></script>
 {% endblock %}

@@ -2,18 +2,6 @@
 
 {% block title %}Profesionales - {{ clinic.name }}{% endblock %}
 
-{% block stylesheets %}
-    {{ parent() }}
-    <style>
-        .form-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            padding: 2rem;
-        }
-    </style>
-{% endblock %}
-
 {% block body %}
 <div class="container-fluid">
     <!-- Header -->
@@ -174,5 +162,5 @@
 
 {% block javascripts %}
     {{ parent() }}
-    {{ importmap('scripts/professional-modal.js') }}
+    <script src="{{ asset('scripts/professional-modal.js') }}"></script>
 {% endblock %}
