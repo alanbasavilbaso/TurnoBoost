@@ -25,4 +25,12 @@ return [
     '@hotwired/turbo' => [
         'version' => '7.3.0',
     ],
+    'scripts/service-modal.js' => [
+        'path' => './assets/scripts/service-modal.js',
+        'entrypoint' => true,
+    ],
+    'scripts/professional-modal.js' => [
+        'path' => './assets/scripts/professional-modal.js',
+        'entrypoint' => true,
+    ],
 ];

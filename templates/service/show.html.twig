@@ -1,0 +1,103 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ service.name }} - Servicios{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">{{ service.name }}</h4>
+                    <span class="badge {{ service.active ? 'bg-success' : 'bg-secondary' }}">
+                        {{ service.active ? 'Activo' : 'Inactivo' }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Descripción</h6>
+                            <p>{{ service.description ?: 'Sin descripción' }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Duración</h6>
+                            <p>{{ service.defaultDurationMinutes }} minutos</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Precio</h6>
+                            <p class="h5 text-primary">${{ service.price|number_format(2, '.', ',') }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Fecha de creación</h6>
+                            <p>{{ service.createdAt|date('d/m/Y H:i') }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Última actualización</h6>
+                            <p>{{ service.updatedAt ? service.updatedAt|date('d/m/Y H:i') : 'Nunca' }}</p>
+                        </div>
+                    </div>
+
+                    {% if service.professionalServices|length > 0 %}
+                    <div class="mt-4">
+                        <h6 class="text-muted">Profesionales que ofrecen este servicio</h6>
+                        <div class="row">
+                            {% for professionalService in service.professionalServices %}
+                            <div class="col-md-4 mb-2">
+                                <div class="card card-body py-2">
+                                    <small class="text-muted">{{ professionalService.professional.user.firstName }} {{ professionalService.professional.user.lastName }}</small>
+                                    <small>Precio: ${{ professionalService.price|number_format(2, '.', ',') }}</small>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <a href="{{ path('app_service_edit', {'id': service.id}) }}" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> Editar
+                    </a>
+                    <a href="{{ path('app_service_index') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </a>
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación para eliminar -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                ¿Está seguro que desea eliminar el servicio "{{ service.name }}"?
+                {% if service.appointments|length > 0 %}
+                <div class="alert alert-warning mt-2">
+                    <strong>Atención:</strong> Este servicio tiene {{ service.appointments|length }} cita(s) asociada(s). No se puede eliminar.
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                {% if service.appointments|length == 0 %}
+                <form method="post" action="{{ path('app_service_delete', {'id': service.id}) }}" style="display: inline;">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ service.id) }}">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

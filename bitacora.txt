@@ -3,3 +3,223 @@ symfony server:start
 
 
 composer install   
+
+
+## 3. Generar la migración
+Una vez que hayas creado las entidades, genera la migración:
+
+    php bin/console make:migration
+
+    Esto creará un archivo de migración en el directorio migrations/ que contendrá
+     el SQL necesario para crear las tablas y enums.
+
+
+## 4. Ejecutar la migración
+Ejecuta la migración para aplicar los cambios a la base de datos:
+
+    php bin/console doctrine:migrations:migrate
+
+
+
+php bin/console doctrine:schema:drop --force
+php bin/console doctrine:migrations:version --delete --all
+php bin/console doctrine:migrations:migrate --no-interaction
+php bin/console doctrine:schema:validate
+
+-- ENUMS
+CREATE TYPE role_enum AS ENUM ('admin', 'profesional', 'recepcionista', 'paciente');
+CREATE TYPE status_enum AS ENUM ('scheduled', 'confirmed', 'cancelled', 'no_show', 'completed');
+CREATE TYPE notif_type_enum AS ENUM ('whatsapp', 'sms', 'email');
+CREATE TYPE notif_status_enum AS ENUM ('pending', 'sent', 'failed');
+
+-- CLINICS
+CREATE TABLE clinics (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    address VARCHAR(255),
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- USERS
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role role_enum NOT NULL,
+    clinic_id INT REFERENCES clinics(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- PROFESSIONALS
+CREATE TABLE professionals (
+    id SERIAL PRIMARY KEY,
+    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    specialty VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(50),
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- PATIENTS
+CREATE TABLE patients (
+    id SERIAL PRIMARY KEY,
+    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- SERVICES (catálogo de servicios)
+CREATE TABLE services (
+    id SERIAL PRIMARY KEY,
+    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    default_duration_minutes INT NOT NULL,
+    price NUMERIC(10,2),
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- RELACIÓN PROFESIONAL ↔ SERVICIOS
+CREATE TABLE professional_services (
+    id SERIAL PRIMARY KEY,
+    professional_id INT REFERENCES professionals(id) NOT NULL,
+    service_id INT REFERENCES services(id) NOT NULL,
+    custom_duration_minutes INT,
+    custom_price NUMERIC(10,2)
+);
+
+-- APPOINTMENTS
+CREATE TABLE appointments (
+    id SERIAL PRIMARY KEY,
+    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    professional_id INT REFERENCES professionals(id) NOT NULL,
+    patient_id INT REFERENCES patients(id),
+    service_id INT REFERENCES services(id),
+    scheduled_at TIMESTAMP NOT NULL,
+    duration_minutes INT NOT NULL,
+    status status_enum DEFAULT 'scheduled' NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- DISPONIBILIDAD SEMANAL DEL PROFESIONAL
+CREATE TABLE professional_availability (
+    id SERIAL PRIMARY KEY,
+    professional_id INT REFERENCES professionals(id) NOT NULL,
+    weekday INT NOT NULL, -- 0=Lunes ... 6=Domingo
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL
+);
+
+-- BLOQUEOS DE AGENDA
+CREATE TABLE schedule_blocks (
+    id SERIAL PRIMARY KEY,
+    professional_id INT REFERENCES professionals(id) NOT NULL,
+    start_datetime TIMESTAMP NOT NULL,
+    end_datetime TIMESTAMP NOT NULL,
+    reason TEXT
+);
+
+-- NOTIFICATIONS
+CREATE TABLE notifications (
+    id SERIAL PRIMARY KEY,
+    appointment_id INT REFERENCES appointments(id) NOT NULL,
+    type notif_type_enum NOT NULL,
+    template_used VARCHAR(255),
+    sent_at TIMESTAMP,
+    status notif_status_enum DEFAULT 'pending' NOT NULL
+);
+
+-- FEEDBACK
+CREATE TABLE feedback (
+    id SERIAL PRIMARY KEY,
+    appointment_id INT UNIQUE REFERENCES appointments(id) NOT NULL,
+    rating INT,
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- MARKETING POSTS
+CREATE TABLE marketing_posts (
+    id SERIAL PRIMARY KEY,
+    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    professional_id INT REFERENCES professionals(id),
+    content TEXT NOT NULL,
+    image_url VARCHAR(255),
+    generated_for TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices útiles
+CREATE INDEX idx_appointments_professional_date ON appointments(professional_id, scheduled_at);
+CREATE INDEX idx_patients_clinic ON patients(clinic_id);
+CREATE INDEX idx_notifications_appointment ON notifications(appointment_id);
+CREATE INDEX idx_services_clinic ON services(clinic_id);
+CREATE INDEX idx_prof_availability_professional ON professional_availability(professional_id);
+CREATE INDEX idx_schedule_blocks_professional ON schedule_blocks(professional_id);
+CREATE INDEX idx_marketing_posts_clinic ON marketing_posts(clinic_id);
+
+
+
+
+🏗 Orden recomendado de configuración
+1️⃣ Horario laboral (agenda base)
+
+2️⃣ Servicios que ofrece
+
+Por qué segundo:
+
+La duración del servicio define cuánto ocupa cada turno y cómo se llenan los huecos.
+
+Qué configurar:
+
+Nombre del servicio
+
+Duración (ej: 20, 35, 45 min)
+
+Precio opcional
+
+Extra UX: permitir duplicar un servicio para otros profesionales o copiar duración default.
+3️⃣ Información personal del profesional
+
+Por qué último:
+
+Es información de contacto / identidad.
+
+No afecta la agenda directamente, solo se muestra en turnos, recordatorios y métricas.
+
+Qué incluir:
+
+Nombre, foto, especialidad
+
+Email, teléfono
+
+Foto/logo para marketing / posts
+
+
+✅ Flujo recomendado en la UI
+
+Paso 1 – Horario laboral: “Definí tu agenda base semanal”
+
+Paso 2 – Servicios: “Qué tratamientos ofrecés y cuánto duran”
+
+Paso 3 – Información personal: “Tus datos y cómo te ven los pacientes”
+
+Paso 4 – Bloqueos / excepciones (opcional): “Feriados o vacaciones”
+
+Paso 5 – Confirmación y guardar

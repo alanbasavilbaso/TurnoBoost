@@ -1,0 +1,178 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Profesionales - {{ clinic.name }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        .form-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-user-md text-primary me-2"></i>
+                        Profesionales
+                    </h1>
+                    <p class="text-muted mb-0">{{ clinic.name }}</p>
+                </div>
+                <div>
+                    <a href="{{ path('app_index') }}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-arrow-left"></i> Volver al Dashboard
+                    </a>
+                    <a href="{{ path('app_professional_new') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Agregar Profesional
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Messages -->
+    {% for type, messages in app.flashes %}
+        {% for message in messages %}
+            <div class="alert alert-{{ type == 'error' ? 'danger' : type }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endfor %}
+
+    <!-- Professionals List -->
+    {% if professionals|length > 0 %}
+        <div class="row">
+            {% for professional in professionals %}
+                <div class="col-md-12 col-lg-12 mb-4">
+                    <div class="card h-100 {{ not professional.active ? 'border-secondary' : '' }}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <h5 class="card-title mb-0">
+                                    {{ professional.name }}
+                                    {% if not professional.active %}
+                                        <span class="badge bg-secondary ms-2">Inactivo</span>
+                                    {% else %}
+                                        <span class="badge bg-success ms-2">Activo</span>
+                                    {% endif %}
+                                </h5>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ path('app_professional_show', {id: professional.id}) }}" class="btn btn-sm btn-outline-primary" title="Ver Detalles">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ path('app_professional_edit', {id: professional.id}) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            type="button" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#deleteModal" 
+                                            data-professional-id="{{ professional.id }}" 
+                                            data-professional-name="{{ professional.name }}" 
+                                            data-delete-url="{{ path('app_professional_delete', {'id': professional.id}) }}" 
+                                            data-csrf-token="{{ csrf_token('delete' ~ professional.id) }}"
+                                            title="Eliminar">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            {% if professional.specialty %}
+                                <p class="text-muted mb-2">
+                                    <i class="fas fa-stethoscope me-1"></i>
+                                    {{ professional.specialty }}
+                                </p>
+                            {% endif %}
+                            
+                            {% if professional.email %}
+                                <p class="text-muted mb-2">
+                                    <i class="fas fa-envelope me-1"></i>
+                                    <a href="mailto:{{ professional.email }}" class="text-decoration-none">{{ professional.email }}</a>
+                                </p>
+                            {% endif %}
+                            
+                            {% if professional.phone %}
+                                <p class="text-muted mb-2">
+                                    <i class="fas fa-phone me-1"></i>
+                                    <a href="tel:{{ professional.phone }}" class="text-decoration-none">{{ professional.phone }}</a>
+                                </p>
+                            {% endif %}
+                            
+                        </div>
+                    
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="form-card text-center">
+                    <i class="fas fa-user-md fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No hay profesionales registrados</h4>
+                    <p class="text-muted mb-4">Comience agregando profesionales a su clínica</p>
+                    <a href="{{ path('app_professional_new') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Agregar Profesional
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                    Confirmar Eliminación
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="mb-3">
+                    <i class="fas fa-user-times fa-3x text-danger mb-3"></i>
+                </div>
+                <h6 class="mb-3">¿Está seguro de eliminar al profesional?</h6>
+                <p class="text-muted mb-0">
+                    <strong id="professionalName"></strong>
+                </p>
+                <small class="text-muted">Esta acción no se puede deshacer.</small>
+            </div>
+            <div class="modal-footer border-0 justify-content-center">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                </button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    <input type="hidden" name="_token" id="deleteToken">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i> Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Define the URL template for JavaScript
+    window.professionalDeleteUrl = '{{ path('app_professional_delete', {id: '__ID__'}) }}';
+</script>
+<!-- Remover el script inline y la función confirmDelete -->
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {{ importmap('scripts/professional-modal.js') }}
+{% endblock %}

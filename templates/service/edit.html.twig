@@ -1,0 +1,84 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Editar {{ service.name }}{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Editar Servicio: {{ service.name }}</h4>
+                </div>
+                <div class="card-body">
+                    {{ form_start(form) }}
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            {{ form_label(form.name, 'Nombre del servicio', {'label_attr': {'class': 'form-label'}}) }}
+                            {{ form_widget(form.name, {'attr': {'class': 'form-control', 'placeholder': 'Ej: Consulta general'}}) }}
+                            {{ form_errors(form.name) }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            {{ form_label(form.description, 'Descripción', {'label_attr': {'class': 'form-label'}}) }}
+                            {{ form_widget(form.description, {'attr': {'class': 'form-control', 'rows': 3, 'placeholder': 'Descripción del servicio...'}}) }}
+                            {{ form_errors(form.description) }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form_label(form.defaultDurationMinutes, 'Duración (minutos)', {'label_attr': {'class': 'form-label'}}) }}
+                            {{ form_widget(form.defaultDurationMinutes, {'attr': {'class': 'form-control', 'placeholder': '30'}}) }}
+                            {{ form_errors(form.defaultDurationMinutes) }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form_label(form.price, 'Precio', {'label_attr': {'class': 'form-label'}}) }}
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                {{ form_widget(form.price, {'attr': {'class': 'form-control', 'placeholder': '0.00', 'step': '0.01'}}) }}
+                            </div>
+                            {{ form_errors(form.price) }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <div class="form-check">
+                                {{ form_widget(form.active, {'attr': {'class': 'form-check-input'}}) }}
+                                {{ form_label(form.active, 'Servicio activo', {'label_attr': {'class': 'form-check-label'}}) }}
+                            </div>
+                            {{ form_errors(form.active) }}
+                        </div>
+                    </div>
+                    
+                    {% if service.appointments|length > 0 %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Información:</strong> Este servicio tiene {{ service.appointments|length }} cita(s) asociada(s).
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <a href="{{ path('app_service_show', {'id': service.id}) }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Cancelar
+                            </a>
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Guardar Cambios
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {{ form_end(form) }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

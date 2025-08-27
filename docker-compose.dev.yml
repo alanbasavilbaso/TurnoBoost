@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    container_name: turnoboost_postgres
+    environment:
+      POSTGRES_DB: symfony_dev
+      POSTGRES_USER: symfony
+      POSTGRES_PASSWORD: symfony123
+    ports:
+      - "5433:5432"  # Cambiar de 5432 a 5433
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -1,0 +1,108 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ is_edit ? 'Editar Servicio' : 'Nuevo Servicio' }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        .form-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-concierge-bell text-primary me-2"></i>
+                        {{ is_edit ? 'Editar Servicio' : 'Nuevo Servicio' }}
+                    </h1>
+                </div>
+                <a href="{{ path('app_service_index') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </a>
+            </div>
+
+            <!-- Flash Messages -->
+            {% for type, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ type == 'error' ? 'danger' : type }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endfor %}
+
+            <!-- Form -->
+            <div class="form-card">
+                {{ form_start(form) }}
+                
+                <!-- Información del Servicio -->
+                <h4 class="mb-3">
+                    <i class="fas fa-info-circle text-primary me-2"></i>
+                    Información del Servicio
+                </h4>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        {{ form_label(form.name) }}
+                        {{ form_widget(form.name) }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        {{ form_label(form.defaultDurationMinutes) }}
+                        {{ form_widget(form.defaultDurationMinutes) }}
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        {{ form_label(form.price) }}
+                        {{ form_widget(form.price) }}
+                    </div>
+                    <div class="col-md-6 mb-3 d-flex align-items-end">
+                        <div class="form-check">
+                            {{ form_widget(form.active) }}
+                            {{ form_label(form.active) }}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    {{ form_label(form.description) }}
+                    {{ form_widget(form.description) }}
+                </div>
+                
+                {% if is_edit and service.appointments|length > 0 %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Nota:</strong> Este servicio tiene {{ service.appointments|length }} cita(s) asociada(s). 
+                        Los cambios en precio y duración no afectarán las citas existentes.
+                    </div>
+                {% endif %}
+                
+                <!-- Hidden fields -->
+                {{ form_widget(form._token) }}
+                
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <a href="{{ path('app_service_index') }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {{ is_edit ? 'Actualizar' : 'Crear' }} Servicio
+                    </button>
+                </div>
+                
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
