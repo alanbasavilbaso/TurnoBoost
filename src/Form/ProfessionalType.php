@@ -17,12 +17,14 @@ use Symfony\Component\Validator\Constraints\Email;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Constraints\Regex;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 
 class ProfessionalType extends AbstractType
 {
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $clinic = $options['clinic'] ?? null;
+        $isEdit = $options['is_edit'] ?? false;
         
         $builder
             ->add('name', TextType::class, [
@@ -104,8 +106,8 @@ class ProfessionalType extends AbstractType
         ];
         
         foreach ($days as $dayNumber => $dayName) {
-            // Domingo (6) desactivado por defecto
-            $defaultEnabled = $dayNumber !== 6;
+            // Solo establecer valor por defecto si NO es edición
+            $defaultEnabled = !$isEdit && $dayNumber !== 6;
             
             $builder
                 ->add("availability_{$dayNumber}_enabled", CheckboxType::class, [
@@ -118,53 +120,44 @@ class ProfessionalType extends AbstractType
                     ],
                     'label_attr' => [
                         'class' => 'form-check-label'
-                    ],
-                    'data' => $defaultEnabled
+                    ]
+                    // Eliminar completamente la línea 'data' => ...
                 ]);
                 
-            // Permitir hasta 2 rangos horarios por día con inputs de texto
+            // Permitir hasta 2 rangos horarios por día con selects de tiempo
             for ($range = 1; $range <= 2; $range++) {
+                // Generar opciones de tiempo de 00:00 a 23:45 en intervalos de 15 minutos
+                $timeOptions = [];
+                for ($hour = 0; $hour < 24; $hour++) {
+                    for ($minute = 0; $minute < 60; $minute += 15) {
+                        $timeValue = sprintf('%02d:%02d', $hour, $minute);
+                        $timeOptions[$timeValue] = $timeValue;
+                    }
+                }
+                
                 $builder
-                    ->add("availability_{$dayNumber}_range{$range}_start", TextType::class, [
-                        'label' => "Rango {$range} - Inicio",
+                    ->add("availability_{$dayNumber}_range{$range}_start", ChoiceType::class, [
+                        'label' => 'Inicio',
                         'required' => false,
                         'mapped' => false,
+                        'choices' => $timeOptions,
+                        'placeholder' => 'Seleccionar hora',
                         'attr' => [
-                            'class' => 'form-control time-input',
+                            'class' => 'form-control time-select',
                             'data-day' => $dayNumber,
-                            'data-range' => $range,
-                            'placeholder' => 'HH:MM',
-                            'maxlength' => '5',
-                            'pattern' => '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$',
-                            'title' => 'Formato 24 horas (ej: 09:00)'
-                        ],
-                        'data' => $range === 1 ? '09:00' : '',
-                        'constraints' => [
-                            new Regex([
-                                'pattern' => '/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/',
-                                'message' => 'El formato debe ser HH:MM (00:00 - 23:59)'
-                            ])
+                            'data-range' => $range
                         ]
                     ])
-                    ->add("availability_{$dayNumber}_range{$range}_end", TextType::class, [
-                        'label' => "Rango {$range} - Fin",
+                    ->add("availability_{$dayNumber}_range{$range}_end", ChoiceType::class, [
+                        'label' => 'Fin',
                         'required' => false,
                         'mapped' => false,
+                        'choices' => $timeOptions,
+                        'placeholder' => 'Seleccionar hora',
                         'attr' => [
-                            'class' => 'form-control time-input',
+                            'class' => 'form-control time-select',
                             'data-day' => $dayNumber,
-                            'data-range' => $range,
-                            'placeholder' => 'HH:MM',
-                            'maxlength' => '5',
-                            'pattern' => '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$',
-                            'title' => 'Formato 24 horas (ej: 18:00)'
-                        ],
-                        'data' => $range === 1 ? '18:00' : '',
-                        'constraints' => [
-                            new Regex([
-                                'pattern' => '/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/',
-                                'message' => 'El formato debe ser HH:MM (00:00 - 23:59)'
-                            ])
+                            'data-range' => $range
                         ]
                     ]);
             }
@@ -205,8 +198,10 @@ class ProfessionalType extends AbstractType
         $resolver->setDefaults([
             'data_class' => Professional::class,
             'clinic' => null,
+            'is_edit' => false,
         ]);
         
         $resolver->setAllowedTypes('clinic', ['null', 'App\\Entity\\Clinic']);
+        $resolver->setAllowedTypes('is_edit', 'bool');
     }
 }

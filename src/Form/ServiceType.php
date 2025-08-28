@@ -3,8 +3,12 @@
 namespace App\Form;
 
 use App\Entity\Service;
+use App\Entity\DeliveryTypeEnum;
+use App\Entity\ServiceTypeEnum;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\MoneyType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
@@ -13,7 +17,6 @@ use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\NotBlank;
-use Symfony\Component\Validator\Constraints\Positive;
 use Symfony\Component\Validator\Constraints\Type;
 use Symfony\Component\Validator\Constraints\Range;
 
@@ -87,6 +90,56 @@ class ServiceType extends AbstractType
                 'setter' => function (Service &$service, ?float $price): void {
                     $service->setPriceFromFloat($price);
                 }
+            ])
+            // NUEVOS CAMPOS CON BOTONES DE RADIO
+            ->add('onlineBookingEnabled', CheckboxType::class, [
+                'label' => 'Reserva online disponible',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input'
+                ],
+                'help' => 'Permitir que los clientes reserven este servicio en línea'
+            ])
+            ->add('reminderNote', TextareaType::class, [
+                'label' => 'Aclaraciones para recordatorios',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-control',
+                    'rows' => 3,
+                    'placeholder' => 'Notas adicionales para recordatorios de citas...'
+                ],
+                'help' => 'Esta nota se incluirá en los recordatorios de citas'
+            ])
+            ->add('deliveryType', ChoiceType::class, [
+                'label' => 'Modalidad de prestación',
+                'choices' => [
+                    'Presencial' => DeliveryTypeEnum::IN_PERSON,
+                    'Online' => DeliveryTypeEnum::ONLINE,
+                ],
+                'expanded' => true,
+                'multiple' => false,
+                'attr' => [
+                    'class' => 'delivery-type-options'
+                ],
+                'label_attr' => [
+                    'class' => 'form-label fw-bold'
+                ]
+            ])
+            ->add('serviceType', ChoiceType::class, [
+                'label' => 'Tipo de servicio',
+                'choices' => [
+                    'Regular' => ServiceTypeEnum::REGULAR,
+                    'Por cupos' => ServiceTypeEnum::QUOTA_BASED,
+                    'Recurrente' => ServiceTypeEnum::RECURRING,
+                ],
+                'expanded' => true,
+                'multiple' => false,
+                'attr' => [
+                    'class' => 'service-type-options'
+                ],
+                'label_attr' => [
+                    'class' => 'form-label fw-bold'
+                ]
             ])
             ->add('active', CheckboxType::class, [
                 'label' => 'Servicio Activo',

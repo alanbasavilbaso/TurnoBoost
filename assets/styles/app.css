@@ -37,3 +37,55 @@ body {
 .btn-secondary {
     border-radius: 10px;
 }
+
+/* Estilos para botones de radio como botones con check */
+.delivery-type-options,
+.service-type-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.delivery-type-options input[type="radio"],
+.service-type-options input[type="radio"] {
+    display: none;
+}
+
+.delivery-type-options label,
+.service-type-options label {
+    display: inline-block;
+    padding: 8px 16px;
+    background-color: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    font-weight: 500;
+    margin: 0;
+}
+
+.delivery-type-options label:hover,
+.service-type-options label:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.delivery-type-options input[type="radio"]:checked + label,
+.service-type-options input[type="radio"]:checked + label {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+}
+
+.delivery-type-options input[type="radio"]:checked + label::after,
+.service-type-options input[type="radio"]:checked + label::after {
+    content: '✓';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-weight: bold;
+    font-size: 14px;
+}

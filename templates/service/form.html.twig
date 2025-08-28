@@ -67,6 +67,40 @@
                     {{ form_label(form.description) }}
                     {{ form_widget(form.description) }}
                 </div>
+
+                <!-- Configuración de Reservas -->
+                <h4 class="mb-3 mt-4">
+                    <i class="fas fa-cogs text-primary me-2"></i>
+                    Configuración de Reservas
+                </h4>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        {{ form_label(form.deliveryType) }}
+                        {{ form_widget(form.deliveryType) }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        {{ form_label(form.serviceType) }}
+                        {{ form_widget(form.serviceType) }}
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <div class="form-check">
+                            {{ form_widget(form.onlineBookingEnabled) }}
+                            {{ form_label(form.onlineBookingEnabled) }}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    {{ form_label(form.reminderNote) }}
+                    {{ form_widget(form.reminderNote) }}
+                    <div class="form-text">
+                        Texto adicional que se incluirá en los recordatorios de citas para este servicio.
+                    </div>
+                </div>
                 
                 {% if is_edit and service.appointments|length > 0 %}
                     <div class="alert alert-info">

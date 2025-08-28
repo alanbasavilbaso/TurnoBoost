@@ -54,8 +54,17 @@ class ProfessionalController extends AbstractController
         $professional->setUpdatedAt(new \DateTime());
         
         $form = $this->createForm(ProfessionalType::class, $professional, [
-            'clinic' => $clinic
+            'clinic' => $clinic,
+            'is_edit' => false
         ]);
+         // Establecer valores por defecto para nuevo profesional
+        for ($day = 0; $day <= 6; $day++) {
+            if ($day !== 6) { // No domingo
+                $form->get("availability_{$day}_enabled")->setData(true);
+                $form->get("availability_{$day}_range1_start")->setData('09:00');
+                $form->get("availability_{$day}_range1_end")->setData('18:00');
+            }
+        }
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
@@ -92,7 +101,8 @@ class ProfessionalController extends AbstractController
         $clinic = $professional->getClinic();
         
         $form = $this->createForm(ProfessionalType::class, $professional, [
-            'clinic' => $clinic
+            'clinic' => $clinic,
+            'is_edit' => true
         ]);
         
         // Precargar servicios actuales
@@ -212,30 +222,51 @@ class ProfessionalController extends AbstractController
     {
         $availabilitiesByDay = [];
         
+        // Debug: Verificar cuántas disponibilidades tiene el profesional
+        $availabilities = $professional->getAvailabilities();
+        error_log("Professional ID: " . $professional->getId());
+        error_log("Total availabilities: " . count($availabilities));
+        
+        
         // Agrupar disponibilidades por día
-        foreach ($professional->getAvailabilities() as $availability) {
+        foreach ($availabilities as $availability) {
             $day = $availability->getWeekday();
+            error_log("Found availability for day: " . $day . " from " . $availability->getStartTime()->format('H:i') . " to " . $availability->getEndTime()->format('H:i'));
+            
             if (!isset($availabilitiesByDay[$day])) {
                 $availabilitiesByDay[$day] = [];
             }
             $availabilitiesByDay[$day][] = $availability;
         }
         
+        error_log("Grouped availabilities: " . json_encode(array_keys($availabilitiesByDay)));
+        
         // Llenar formulario
         foreach ($availabilitiesByDay as $day => $availabilities) {
-            $form->get("availability_{$day}_enabled")->setData(true);
+            error_log("Setting day {$day} as enabled");
             
-            // Ordenar por hora de inicio
-            usort($availabilities, function($a, $b) {
-                return $a->getStartTime() <=> $b->getStartTime();
-            });
-            
-            // Asignar a rangos (máximo 2)
-            for ($range = 1; $range <= min(2, count($availabilities)); $range++) {
-                $availability = $availabilities[$range - 1];
-                // Convertir DateTime a string para el formulario
-                $form->get("availability_{$day}_range{$range}_start")->setData($availability->getStartTime()->format('H:i'));
-                $form->get("availability_{$day}_range{$range}_end")->setData($availability->getEndTime()->format('H:i'));
+            try {
+                $form->get("availability_{$day}_enabled")->setData(true);
+                // var_dump("availability_{$day}_enabled");exit;
+                // Ordenar por hora de inicio
+                usort($availabilities, function($a, $b) {
+                    return $a->getStartTime() <=> $b->getStartTime();
+                });
+                
+                // Asignar a rangos (máximo 2)
+                for ($range = 1; $range <= min(2, count($availabilities)); $range++) {
+                    $availability = $availabilities[$range - 1];
+                    $startTime = $availability->getStartTime()->format('H:i');
+                    $endTime = $availability->getEndTime()->format('H:i');
+                    
+                    error_log("Setting day {$day} range {$range}: {$startTime} - {$endTime}");
+                    
+                    // Convertir DateTime a string para el formulario
+                    $form->get("availability_{$day}_range{$range}_start")->setData($startTime);
+                    $form->get("availability_{$day}_range{$range}_end")->setData($endTime);
+                }
+            } catch (\Exception $e) {
+                error_log("Error setting form data for day {$day}: " . $e->getMessage());
             }
         }
     }

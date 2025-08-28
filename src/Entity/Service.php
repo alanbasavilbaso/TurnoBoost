@@ -34,6 +34,19 @@ class Service
     #[ORM\Column(type: 'boolean', options: ['default' => true])]
     private bool $active = true;
 
+    // NUEVOS CAMPOS
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $onlineBookingEnabled = true;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $reminderNote = null;
+
+    #[ORM\Column(type: 'string', enumType: DeliveryTypeEnum::class, options: ['default' => 'in_person'])]
+    private DeliveryTypeEnum $deliveryType = DeliveryTypeEnum::IN_PERSON;
+
+    #[ORM\Column(type: 'string', enumType: ServiceTypeEnum::class, options: ['default' => 'regular'])]
+    private ServiceTypeEnum $serviceType = ServiceTypeEnum::REGULAR;
+
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $createdAt;
 
@@ -242,6 +255,51 @@ class Service
             }
         }
 
+        return $this;
+    }
+
+    // NUEVOS GETTERS Y SETTERS
+    public function isOnlineBookingEnabled(): bool
+    {
+        return $this->onlineBookingEnabled;
+    }
+
+    public function setOnlineBookingEnabled(bool $onlineBookingEnabled): self
+    {
+        $this->onlineBookingEnabled = $onlineBookingEnabled;
+        return $this;
+    }
+
+    public function getReminderNote(): ?string
+    {
+        return $this->reminderNote;
+    }
+
+    public function setReminderNote(?string $reminderNote): self
+    {
+        $this->reminderNote = $reminderNote;
+        return $this;
+    }
+
+    public function getDeliveryType(): DeliveryTypeEnum
+    {
+        return $this->deliveryType;
+    }
+
+    public function setDeliveryType(DeliveryTypeEnum $deliveryType): self
+    {
+        $this->deliveryType = $deliveryType;
+        return $this;
+    }
+
+    public function getServiceType(): ServiceTypeEnum
+    {
+        return $this->serviceType;
+    }
+
+    public function setServiceType(ServiceTypeEnum $serviceType): self
+    {
+        $this->serviceType = $serviceType;
         return $this;
     }
 }

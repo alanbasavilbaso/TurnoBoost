@@ -6,6 +6,8 @@ composer install
 
 php bin/console app:create-user
 
+admin@turnoboost.com
+admin123
 
 php bin/console cache:clear
 php bin/console asset-map:compile
@@ -81,7 +83,7 @@ Este comando:
    Actualiza el importmap con las nuevas versiones
 4. 4.
    Procesa las importaciones CSS desde app.js
-   
+
 ## 3. Generar la migración
 Una vez que hayas creado las entidades, genera la migración:
 

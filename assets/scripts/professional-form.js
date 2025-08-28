@@ -1,252 +1,218 @@
 // Manejo de horarios de disponibilidad
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM fully loaded and parsed');
-    // Generar opciones de tiempo cada 30 minutos desde 00:00 hasta 23:30
-    function generateTimeOptions() {
-        const options = [];
-        for (let hour = 0; hour <= 23; hour++) {
-            for (let minute = 0; minute < 60; minute += 30) {
-                const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                options.push(timeString);
-            }
-        }
-        return options;
-    }
     
-    // Crear dropdown de tiempo personalizado
-    function createTimeDropdown(input) {
-        const container = input.parentNode;
-        const dropdown = document.createElement('div');
-        dropdown.className = 'time-dropdown';
-        dropdown.style.cssText = `
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #dee2e6;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        `;
+    // Función para obtener el siguiente slot de tiempo disponible
+    function getNextTimeSlot(timeValue) {
+        if (!timeValue) return '00:00';
         
-        container.appendChild(dropdown);
-        return dropdown;
-    }
-    
-    // Poblar dropdown con opciones en orden secuencial, posicionando en el valor actual
-    function populateDropdown(dropdown, input) {
-        dropdown.innerHTML = ''; // Limpiar opciones anteriores
+        const [hours, minutes] = timeValue.split(':').map(Number);
+        let nextMinutes = minutes + 15;
+        let nextHours = hours;
         
-        const timeOptions = generateTimeOptions();
-        const currentValue = input.value;
-        let currentOptionElement = null;
-        
-        // Crear todas las opciones en orden secuencial (00:00 a 23:30)
-        timeOptions.forEach((time, index) => {
-            const option = document.createElement('div');
-            option.className = 'time-option';
-            option.textContent = time;
-            option.style.cssText = `
-                padding: 8px 12px;
-                cursor: pointer;
-                border-bottom: 1px solid #f8f9fa;
-                transition: background-color 0.2s;
-                ${time === currentValue ? 'background-color: #e3f2fd; font-weight: 600;' : ''}
-            `;
-            
-            option.addEventListener('mouseenter', function() {
-                if (time !== currentValue) {
-                    this.style.backgroundColor = '#f8f9fa';
-                }
-            });
-            
-            option.addEventListener('mouseleave', function() {
-                if (time !== currentValue) {
-                    this.style.backgroundColor = 'white';
-                } else {
-                    this.style.backgroundColor = '#e3f2fd';
-                }
-            });
-            
-            option.addEventListener('click', function() {
-                input.value = time;
-                input.classList.remove('is-invalid');
-                input.classList.add('is-valid');
-                dropdown.style.display = 'none';
-                
-                // Disparar evento change para validaciones
-                const changeEvent = new Event('change', { bubbles: true });
-                input.dispatchEvent(changeEvent);
-            });
-            
-            dropdown.appendChild(option);
-            
-            // Guardar referencia al elemento del valor actual
-            if (time === currentValue) {
-                currentOptionElement = option;
-            }
-        });
-        
-        // Posicionar el scroll en el valor actual después de que se renderice
-        if (currentOptionElement) {
-            setTimeout(() => {
-                currentOptionElement.scrollIntoView({ 
-                    block: 'center',
-                    behavior: 'instant'
-                });
-            }, 10);
-        }
-    }
-    
-    // Función para validar formato de tiempo
-    function validateTimeInput(input) {
-        const value = input.value;
-        const isValid = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(value);
-        
-        input.classList.remove('is-valid', 'is-invalid');
-        
-        if (value) {
-            if (isValid) {
-                input.classList.add('is-valid');
-            } else {
-                input.classList.add('is-invalid');
-            }
+        if (nextMinutes >= 60) {
+            nextMinutes = 0;
+            nextHours += 1;
         }
         
-        return isValid;
+        if (nextHours >= 24) {
+            return '23:45'; // Máximo permitido
+        }
+        
+        return `${nextHours.toString().padStart(2, '0')}:${nextMinutes.toString().padStart(2, '0')}`;
     }
     
-    // Configurar inputs de tiempo
-    function setupTimeInput(input) {
-        const container = input.parentNode;
-        container.style.position = 'relative';
+    // Función para validar que no haya superposición entre rangos
+    function validateTimeRanges(dayNumber) {
+        const dayContainer = document.querySelector(`.availability-ranges[data-day="${dayNumber}"]`);
+        if (!dayContainer) return;
         
-        const dropdown = createTimeDropdown(input);
+        const range1Start = dayContainer.querySelector('[data-range="1"] select[id*="_start"]');
+        const range1End = dayContainer.querySelector('[data-range="1"] select[id*="_end"]');
+        const range2Start = dayContainer.querySelector('[data-range="2"] select[id*="_start"]');
+        const range2End = dayContainer.querySelector('[data-range="2"] select[id*="_end"]');
         
-        // Mostrar dropdown al hacer clic en el input
-        input.addEventListener('click', function(e) {
-            e.stopPropagation();
-            // Ocultar otros dropdowns
-            document.querySelectorAll('.time-dropdown').forEach(dd => {
-                if (dd !== dropdown) dd.style.display = 'none';
-            });
+        if (!range1Start || !range1End || !range2Start || !range2End) return;
+        
+        // Función para filtrar opciones del segundo rango
+        function updateRange2Options() {
+            const range1EndValue = range1End.value;
             
-            if (dropdown.style.display === 'block') {
-                dropdown.style.display = 'none';
-            } else {
-                populateDropdown(dropdown, input);
-                dropdown.style.display = 'block';
-            }
-        });
-        
-        // Permitir escritura manual
-        input.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/[^0-9:]/g, '');
-            
-            // Aplicar máscara HH:MM
-            if (value.length === 2 && !value.includes(':')) {
-                value = value + ':';
-            }
-            if (value.length > 5) {
-                value = value.substring(0, 5);
-            }
-            
-            e.target.value = value;
-            validateTimeInput(e.target);
-        });
-        
-        // Validar al perder el foco
-        input.addEventListener('blur', function(e) {
-            setTimeout(() => {
-                if (!dropdown.contains(document.activeElement)) {
-                    dropdown.style.display = 'none';
-                }
-            }, 150);
-            
-            const value = e.target.value;
-            if (value) {
-                const match = value.match(/^(\d{1,2}):?(\d{0,2})$/);
-                if (match) {
-                    const hours = parseInt(match[1]) || 0;
-                    const minutes = parseInt(match[2]) || 0;
-                    
-                    if (hours <= 23 && minutes <= 59) {
-                        e.target.value = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                        validateTimeInput(e.target);
-                    }
-                }
-            }
-        });
-        
-        // Navegación con teclado
-        input.addEventListener('keydown', function(e) {
-            if (dropdown.style.display === 'block') {
-                const options = dropdown.querySelectorAll('.time-option');
-                let selectedIndex = -1;
+            if (range1EndValue) {
+                const minStartTime = getNextTimeSlot(range1EndValue);
                 
-                options.forEach((option, index) => {
-                    if (option.style.backgroundColor === 'rgb(13, 110, 253)') {
-                        selectedIndex = index;
-                    }
-                });
-                
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    selectedIndex = Math.min(selectedIndex + 1, options.length - 1);
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    selectedIndex = Math.max(selectedIndex - 1, 0);
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (selectedIndex >= 0) {
-                        options[selectedIndex].click();
-                    }
-                } else if (e.key === 'Escape') {
-                    dropdown.style.display = 'none';
-                }
-                
-                // Actualizar selección visual
-                options.forEach((option, index) => {
-                    if (index === selectedIndex) {
-                        option.style.backgroundColor = 'rgb(13, 110, 253)';
-                        option.style.color = 'white';
+                // Filtrar opciones del select de inicio del rango 2
+                Array.from(range2Start.options).forEach(option => {
+                    if (option.value && option.value <= range1EndValue) {
+                        option.disabled = true;
+                        option.style.color = '#ccc';
                     } else {
-                        option.style.backgroundColor = 'white';
-                        option.style.color = 'black';
+                        option.disabled = false;
+                        option.style.color = '';
                     }
+                });
+                
+                // Si el valor actual del rango 2 start es inválido, cambiarlo
+                if (range2Start.value && range2Start.value <= range1EndValue) {
+                    range2Start.value = minStartTime;
+                }
+                
+                // Actualizar opciones del select de fin del rango 2
+                updateRange2EndOptions();
+            }
+        }
+        
+        function updateRange2EndOptions() {
+            const range2StartValue = range2Start.value;
+            
+            if (range2StartValue) {
+                // Filtrar opciones del select de fin del rango 2
+                Array.from(range2End.options).forEach(option => {
+                    if (option.value && option.value <= range2StartValue) {
+                        option.disabled = true;
+                        option.style.color = '#ccc';
+                    } else {
+                        option.disabled = false;
+                        option.style.color = '';
+                    }
+                });
+                
+                // Si el valor actual del rango 2 end es inválido, limpiarlo
+                if (range2End.value && range2End.value <= range2StartValue) {
+                    range2End.value = '';
+                }
+            }
+        }
+        
+        // Event listeners para validación en tiempo real
+        range1End.addEventListener('change', updateRange2Options);
+        range2Start.addEventListener('change', updateRange2EndOptions);
+        
+        // Validación inicial
+        updateRange2Options();
+    }
+    
+    // Función para manejar la habilitación/deshabilitación de días
+    function setupDayToggle() {
+        console.log('🚀 Iniciando setupDayToggle...');
+        const dayCheckboxes = document.querySelectorAll('input[id*="availability_"][id*="_enabled"]');
+        console.log('📋 Checkboxes encontrados:', dayCheckboxes.length);
+        
+        dayCheckboxes.forEach(checkbox => {
+            const dayMatch = checkbox.id.match(/availability_(\d+)_enabled/);
+            if (dayMatch) {
+                const dayNumber = dayMatch[1];
+                
+                // Función simplificada para toggle de campos de tiempo
+                function toggleTimeFields(isInitialSetup = false) {
+                    console.log(`🔄 toggleTimeFields ejecutado para día ${dayNumber}`);
+                    const isEnabled = checkbox.checked;
+                    const dayContainer = document.querySelector(`.availability-ranges[data-day="${dayNumber}"]`);
+                    
+                    if (dayContainer) {
+                        // Obtener todos los selects de tiempo para este día
+                        const timeSelects = dayContainer.querySelectorAll('select.time-select');
+                        console.log(`⏰ Selects de tiempo encontrados para día ${dayNumber}:`, timeSelects.length);
+                        
+                        timeSelects.forEach(select => {
+                            if (isEnabled) {
+                                // Habilitar select
+                                select.disabled = false;
+                                select.style.backgroundColor = '';
+                                select.style.opacity = '';
+                            } else {
+                                // Deshabilitar select
+                                select.disabled = true;
+                                if (!isInitialSetup) {
+                                    select.value = '';
+                                }
+                                select.style.backgroundColor = '#f8f9fa';
+                                select.style.opacity = '0.6';
+                            }
+                        });
+                        
+                        // Habilitar/deshabilitar botones
+                        const addBtn = dayContainer.querySelector('.add-range-btn');
+                        const removeBtn = dayContainer.querySelector('.remove-range-btn');
+                        
+                        if (addBtn) {
+                            addBtn.disabled = !isEnabled;
+                            addBtn.style.opacity = isEnabled ? '' : '0.6';
+                        }
+                        if (removeBtn) {
+                            removeBtn.disabled = !isEnabled;
+                            removeBtn.style.opacity = isEnabled ? '' : '0.6';
+                        }
+                        
+                        // Si se deshabilita, ocultar el segundo rango
+                        if (!isEnabled) {
+                            const range2 = dayContainer.querySelector('[data-range="2"]');
+                            if (range2 && range2.style.display === 'block') {
+                                range2.style.display = 'none';
+                                if (addBtn) addBtn.style.display = 'inline-block';
+                            }
+                        } else if (isInitialSetup && isEnabled) {
+                            // NUEVA LÓGICA: Verificar si el segundo rango tiene datos al inicializar
+                            const range2 = dayContainer.querySelector('[data-range="2"]');
+                            if (range2) {
+                                const range2Start = range2.querySelector('select[id*="_start"]');
+                                const range2End = range2.querySelector('select[id*="_end"]');
+                                
+                                // Si cualquiera de los selects del rango 2 tiene valor, mostrar el rango
+                                if ((range2Start && range2Start.value) || (range2End && range2End.value)) {
+                                    range2.style.display = 'block';
+                                    if (addBtn) addBtn.style.display = 'none';
+                                    console.log(`📅 Rango 2 mostrado automáticamente para día ${dayNumber} (tiene datos cargados)`);
+                                } else {
+                                    range2.style.display = 'none';
+                                    if (addBtn) addBtn.style.display = 'inline-block';
+                                }
+                            }
+                        }
+                        
+                        // Configurar validación de rangos si está habilitado
+                        if (isEnabled) {
+                            validateTimeRanges(dayNumber);
+                        }
+                    }
+                }
+                
+                // Configurar estado inicial
+                toggleTimeFields(true);
+                
+                // Agregar event listener para cambios
+                checkbox.addEventListener('change', function() {
+                    toggleTimeFields(false);
                 });
             }
         });
     }
     
-    // Inicializar todos los inputs de tiempo
-    const timeInputs = document.querySelectorAll('input[type="time"], input[id*="time"], input[id*="start"], input[id*="end"]');
-    timeInputs.forEach(setupTimeInput);
-    
-    // Ocultar dropdowns al hacer clic fuera
-    document.addEventListener('click', function() {
-        document.querySelectorAll('.time-dropdown').forEach(dropdown => {
-            dropdown.style.display = 'none';
-        });
-    });
+    setupDayToggle();
     
     // Manejo de botones de agregar/quitar rangos
     document.querySelectorAll('.add-range-btn').forEach(button => {
         button.addEventListener('click', function() {
             const day = this.dataset.day;
             const range2 = document.querySelector(`[data-day="${day}"] [data-range="2"]`);
-            if (range2) {
+            const dayContainer = document.querySelector(`.availability-ranges[data-day="${day}"]`);
+            
+            if (range2 && dayContainer) {
+                // Mostrar el segundo rango
                 range2.style.display = 'block';
                 this.style.display = 'none';
                 
-                // Configurar inputs de tiempo del nuevo rango
-                const newTimeInputs = range2.querySelectorAll('input[type="time"], input[id*="time"], input[id*="start"], input[id*="end"]');
-                newTimeInputs.forEach(setupTimeInput);
+                // Auto-configurar el inicio del segundo rango
+                const range1End = dayContainer.querySelector('[data-range="1"] select[id*="_end"]');
+                const range2Start = dayContainer.querySelector('[data-range="2"] select[id*="_start"]');
+                
+                if (range1End && range1End.value && range2Start) {
+                    const suggestedStartTime = getNextTimeSlot(range1End.value);
+                    range2Start.value = suggestedStartTime;
+                }
+                
+                // Configurar validación para este día
+                validateTimeRanges(day);
             }
         });
     });
@@ -259,11 +225,15 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (range2) {
                 range2.style.display = 'none';
-                // Limpiar valores
-                const inputs = range2.querySelectorAll('input');
-                inputs.forEach(input => {
-                    input.value = '';
-                    input.classList.remove('is-valid', 'is-invalid');
+                // Limpiar valores de los selects
+                const selects = range2.querySelectorAll('select');
+                selects.forEach(select => {
+                    select.value = '';
+                    // Restaurar todas las opciones
+                    Array.from(select.options).forEach(option => {
+                        option.disabled = false;
+                        option.style.color = '';
+                    });
                 });
             }
             
@@ -290,7 +260,7 @@ $(document).ready(function() {
         }
         // Inicializar Select2 con configuración simple
         $('#services-select').select2({
-            theme: 'bootstrap-5',
+            theme: 'default', // o 'classic', o quitar esta línea para el tema por defecto
             placeholder: 'Buscar y seleccionar servicios...',
             allowClear: true,
             width: '100%',
