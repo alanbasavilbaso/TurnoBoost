@@ -47,6 +47,10 @@ class Service
     #[ORM\Column(type: 'string', enumType: ServiceTypeEnum::class, options: ['default' => 'regular'])]
     private ServiceTypeEnum $serviceType = ServiceTypeEnum::REGULAR;
 
+    // NUEVO CAMPO PARA FRECUENCIA
+    #[ORM\Column(type: 'integer', nullable: true)]
+    private ?int $frequencyWeeks = null;
+
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $createdAt;
 
@@ -300,6 +304,17 @@ class Service
     public function setServiceType(ServiceTypeEnum $serviceType): self
     {
         $this->serviceType = $serviceType;
+        return $this;
+    }
+
+    public function getFrequencyWeeks(): ?int
+    {
+        return $this->frequencyWeeks;
+    }
+
+    public function setFrequencyWeeks(?int $frequencyWeeks): self
+    {
+        $this->frequencyWeeks = $frequencyWeeks;
         return $this;
     }
 }

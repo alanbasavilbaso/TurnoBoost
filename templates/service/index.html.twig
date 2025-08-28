@@ -27,55 +27,33 @@
                 </div>
             {% endfor %}
 
-            <!-- Formulario de filtro -->
+            <!-- Reemplazar el formulario de filtro actual (líneas 30-77) con esto: -->
             <div class="card mb-3">
                 <div class="card-body">
-                    <form method="GET" action="{{ path('app_service_index') }}" class="row g-3 align-items-end">
-                        {% if search %}
-                            <div class="col-md-9">
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-search"></i>
-                                    </span>
-                                    <input type="text" 
-                                           class="form-control" 
-                                           name="search" 
-                                           value="{{ search }}" 
-                                           placeholder="Buscar por nombre o descripción...">
-                                </div>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-10">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="searchInput"
+                                       placeholder="Buscar por nombre o descripción...">
                             </div>
-                            <div class="col-md-3">
-                                <div class="d-flex gap-2 justify-content-end">
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-search"></i> Buscar
-                                    </button>
-                                    <a href="{{ path('app_service_index') }}" class="btn btn-outline-secondary">
-                                        <i class="fas fa-times"></i> Limpiar
-                                    </a>
-                                </div>
-                            </div>
-                        {% else %}
-                            <div class="col-md-10">
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-search"></i>
-                                    </span>
-                                    <input type="text" 
-                                           class="form-control" 
-                                           name="search" 
-                                           value="{{ search }}" 
-                                           placeholder="Buscar por nombre o descripción...">
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="d-flex justify-content-end">
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-search"></i> Buscar
-                                    </button>
-                                </div>
-                            </div>
-                        {% endif %}
-                    </form>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-outline-secondary w-100" id="clearSearch">
+                                <i class="fas fa-times"></i> Limpiar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted" id="searchResults" style="display: none;">
+                            <i class="fas fa-info-circle"></i> 
+                            <span id="resultsCount">0</span> resultado(s) encontrado(s)
+                        </small>
+                    </div>
                 </div>
             </div>
 
@@ -103,9 +81,12 @@
                                         <th width="200">Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <!-- Modificar el tbody para agregar atributos data (línea 95): -->
+                                <tbody id="servicesTableBody">
                                     {% for service in services %}
-                                        <tr>
+                                        <tr class="service-row" 
+                                            data-name="{{ service.name|lower }}" 
+                                            data-description="{{ service.description|default('')|lower }}">
                                             <td>
                                                 <strong>{{ service.name }}</strong>
                                                 {% if service.description %}
@@ -219,4 +200,5 @@
 {% block javascripts %}
     {{ parent() }}
     <script src="{{ asset('scripts/service-modal.js') }}"></script>
+    <script src="{{ asset('scripts/service-index.js') }}"></script>
 {% endblock %}

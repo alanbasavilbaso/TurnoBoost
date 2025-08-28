@@ -141,7 +141,7 @@ class ProfessionalType extends AbstractType
                         'required' => false,
                         'mapped' => false,
                         'choices' => $timeOptions,
-                        'placeholder' => 'Seleccionar hora',
+                        'placeholder' => '-',
                         'attr' => [
                             'class' => 'form-control time-select',
                             'data-day' => $dayNumber,
@@ -153,7 +153,7 @@ class ProfessionalType extends AbstractType
                         'required' => false,
                         'mapped' => false,
                         'choices' => $timeOptions,
-                        'placeholder' => 'Seleccionar hora',
+                        'placeholder' => '-',
                         'attr' => [
                             'class' => 'form-control time-select',
                             'data-day' => $dayNumber,

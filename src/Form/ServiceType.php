@@ -66,7 +66,7 @@ class ServiceType extends AbstractType
                 'label' => 'Precio',
                 'required' => false,
                 'currency' => 'ARS',
-                'invalid_message' => 'Por favor ingrese un monto válido.',
+                'invalid_message' => 'Por favor ingrese un precio válido.',
                 'attr' => [
                     'class' => 'form-control',
                     'placeholder' => '0.00',
@@ -91,6 +91,15 @@ class ServiceType extends AbstractType
                     $service->setPriceFromFloat($price);
                 }
             ])
+            // AGREGAR CAMPO ACTIVE
+            // ->add('active', CheckboxType::class, [
+            //     'label' => 'Servicio activo',
+            //     'required' => false,
+            //     'attr' => [
+            //         'class' => 'form-check-input'
+            //     ],
+            //     'help' => 'Los servicios inactivos no aparecerán en las reservas'
+            // ])
             // NUEVOS CAMPOS CON BOTONES DE RADIO
             ->add('onlineBookingEnabled', CheckboxType::class, [
                 'label' => 'Reserva online disponible',
@@ -98,7 +107,7 @@ class ServiceType extends AbstractType
                 'attr' => [
                     'class' => 'form-check-input'
                 ],
-                'help' => 'Permitir que los clientes reserven este servicio en línea'
+                // 'help' => 'Permitir que los clientes reserven este servicio en línea'
             ])
             ->add('reminderNote', TextareaType::class, [
                 'label' => 'Aclaraciones para recordatorios',
@@ -126,32 +135,34 @@ class ServiceType extends AbstractType
                 ]
             ])
             ->add('serviceType', ChoiceType::class, [
-                'label' => 'Tipo de servicio',
                 'choices' => [
                     'Regular' => ServiceTypeEnum::REGULAR,
-                    'Por cupos' => ServiceTypeEnum::QUOTA_BASED,
+                    // 'Por cupos' => ServiceTypeEnum::QUOTA_BASED,
                     'Recurrente' => ServiceTypeEnum::RECURRING,
                 ],
+                'label' => 'Tipo de servicio',
                 'expanded' => true,
                 'multiple' => false,
-                'attr' => [
-                    'class' => 'service-type-options'
+                'attr' => ['class' => 'service-type-options']
+            ])
+            ->add('frequencyWeeks', ChoiceType::class, [
+                'choices' => [
+                    '1' => 1,
+                    '2' => 2,
+                    '3' => 3,
+                    '4' => 4,
                 ],
-                'label_attr' => [
-                    'class' => 'form-label fw-bold'
-                ]
-            ])
-            ->add('active', CheckboxType::class, [
-                'label' => 'Servicio Activo',
+                'label' => 'Frecuencia de repetición',
+                // 'help' => 'Cada cuántas semanas se repite el turno',
                 'required' => false,
+                'expanded' => true,  // Esto hace que sean botones de radio
+                'multiple' => false,
                 'attr' => [
-                    'class' => 'form-check-input'
-                ]
-            ])
-            ->add('save', SubmitType::class, [
-                'label' => $options['is_edit'] ? 'Actualizar Servicio' : 'Crear Servicio',
-                'attr' => [
-                    'class' => 'btn btn-primary'
+                    'class' => 'frequency-options'
+                ],
+                'row_attr' => [
+                    'class' => 'frequency-field',
+                    'style' => 'display: none;' // Oculto por defecto
                 ]
             ]);
     }

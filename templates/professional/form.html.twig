@@ -15,7 +15,7 @@
 {% block body %}
 <div class="container">
     <div class="row justify-content-center">
-        <div class="col-md-12">
+        <div class="col-xxl-10 col-xl-10 col-lg-10 col-md-12 col-sm-12 col-12">
             <!-- Header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
@@ -97,19 +97,20 @@
                     </p>
                     
                     {% set days = {
-                        0: 'Lunes',
-                        1: 'Martes',
-                        2: 'Miércoles', 
-                        3: 'Jueves',
-                        4: 'Viernes',
-                        5: 'Sábado',
-                        6: 'Domingo'
+                        0: 'Lun',
+                        1: 'Mar',
+                        2: 'Mié', 
+                        3: 'Jue',
+                        4: 'Vie',
+                        5: 'Sáb',
+                        6: 'Dom'
                     } %}
                     
-                    {% for dayNumber, dayName in days %}
-                        <div class="day-row">
-                            <div class="row">
-                                <div class="col-md-2">
+                    <!-- Layout en flex para mostrar todos los días en una fila -->
+                    <div class="availability-flex">
+                        {% for dayNumber, dayName in days %}
+                            <div class="day-column">
+                                <div class="day-header">
                                     <div class="form-check">
                                         {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_enabled')) }}
                                         <label class="form-check-label day-name" for="{{ attribute(form, 'availability_' ~ dayNumber ~ '_enabled').vars.id }}">
@@ -117,62 +118,49 @@
                                         </label>
                                     </div>
                                 </div>
-                                <div class="col-md-10">
-                                    <div class="availability-ranges" data-day="{{ dayNumber }}">
-                                        <!-- Rango 1 -->
-                                        <div class="time-range" data-range="1">
-                                            <div class="row">
-                                                <div class="col-md-4">
-                                                    <div class="time-input-group">
-                                                        {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range1_start')) }}
-                                                        {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range1_start')) }}
-                                                        {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range1_start')) }}
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <div class="time-input-group">
-                                                        {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range1_end')) }}
-                                                        {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range1_end')) }}
-                                                        {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range1_end')) }}
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-4 d-flex align-items-end">
-                                                    <button type="button" class="btn btn-sm btn-outline-primary add-range-btn" data-day="{{ dayNumber }}">
-                                                        <i class="fas fa-plus"></i> Agregar rango
-                                                    </button>
-                                                </div>
-                                            </div>
+                                
+                                <div class="availability-ranges" data-day="{{ dayNumber }}">
+                                    <!-- Rango 1 -->
+                                    <div class="time-range" data-range="1">
+                                        <div class="time-input-group">
+                                            {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range1_start')) }}
+                                            {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range1_start')) }}
+                                            {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range1_start')) }}
                                         </div>
-                                        
-                                        <!-- Rango 2 -->
-                                        <div class="time-range" data-range="2" style="display: none;">
-                                            <div class="row">
-                                                <div class="col-md-4">
-                                                    <div class="time-input-group">
-                                                        {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range2_start')) }}
-                                                        {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range2_start')) }}
-                                                        {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range2_start')) }}
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <div class="time-input-group">
-                                                        {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range2_end')) }}
-                                                        {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range2_end')) }}
-                                                        {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range2_end')) }}
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-4 d-flex align-items-end">
-                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-range-btn" data-day="{{ dayNumber }}">
-                                                        <i class="fas fa-times"></i> Eliminar
-                                                    </button>
-                                                </div>
-                                            </div>
+                                        <div class="time-input-group">
+                                            {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range1_end')) }}
+                                            {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range1_end')) }}
+                                            {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range1_end')) }}
+                                        </div>
+                                        <div class="range-actions">
+                                            <button type="button" class="btn btn-sm btn-outline-primary add-range-btn" data-day="{{ dayNumber }}">
+                                                <i class="fas fa-plus"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Rango 2 -->
+                                    <div class="time-range" data-range="2">
+                                        <div class="time-input-group">
+                                            {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range2_start')) }}
+                                            {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range2_start')) }}
+                                            {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range2_start')) }}
+                                        </div>
+                                        <div class="time-input-group">
+                                            {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range2_end')) }}
+                                            {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range2_end')) }}
+                                            {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range2_end')) }}
+                                        </div>
+                                        <div class="range-actions">
+                                            <button type="button" class="btn btn-sm btn-outline-danger remove-range-btn" data-day="{{ dayNumber }}">
+                                                <i class="fas fa-times"></i>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
                 </div>
                 
                 <!-- Servicios Section -->

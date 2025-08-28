@@ -22,6 +22,107 @@ document.addEventListener('DOMContentLoaded', function() {
         return `${nextHours.toString().padStart(2, '0')}:${nextMinutes.toString().padStart(2, '0')}`;
     }
     
+    // NUEVA FUNCIÓN: Validar que hora fin > hora inicio para un rango específico
+    function validateSingleRange(startSelect, endSelect) {
+        if (!startSelect || !endSelect) return;
+        
+        function updateEndOptions() {
+            const startValue = startSelect.value;
+            
+            if (startValue) {
+                // Filtrar opciones del select de fin
+                Array.from(endSelect.options).forEach(option => {
+                    if (option.value && option.value <= startValue) {
+                        option.disabled = true;
+                        option.style.color = '#ccc';
+                        option.style.backgroundColor = '#f8f9fa';
+                    } else {
+                        option.disabled = false;
+                        option.style.color = '';
+                        option.style.backgroundColor = '';
+                    }
+                });
+                
+                // Si el valor actual del fin es inválido, limpiarlo y mostrar mensaje
+                if (endSelect.value && endSelect.value <= startValue) {
+                    endSelect.value = '';
+                    showTimeValidationMessage(endSelect, 'La hora de fin debe ser posterior a la hora de inicio');
+                } else {
+                    hideTimeValidationMessage(endSelect);
+                }
+            } else {
+                // Si no hay hora de inicio, habilitar todas las opciones de fin
+                Array.from(endSelect.options).forEach(option => {
+                    option.disabled = false;
+                    option.style.color = '';
+                    option.style.backgroundColor = '';
+                });
+                hideTimeValidationMessage(endSelect);
+            }
+        }
+        
+        function validateEndTime() {
+            const startValue = startSelect.value;
+            const endValue = endSelect.value;
+            
+            if (startValue && endValue && endValue <= startValue) {
+                endSelect.value = '';
+                showTimeValidationMessage(endSelect, 'La hora de fin debe ser posterior a la hora de inicio');
+                return false;
+            } else {
+                hideTimeValidationMessage(endSelect);
+                return true;
+            }
+        }
+        
+        // Event listeners
+        startSelect.addEventListener('change', updateEndOptions);
+        endSelect.addEventListener('change', validateEndTime);
+        
+        // Validación inicial
+        updateEndOptions();
+    }
+    
+    // NUEVA FUNCIÓN: Mostrar mensaje de validación
+    function showTimeValidationMessage(element, message) {
+        // Remover mensaje previo si existe
+        hideTimeValidationMessage(element);
+        
+        // Crear mensaje de error
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'time-validation-error';
+        errorDiv.style.cssText = `
+            color: #dc3545;
+            font-size: 0.75rem;
+            margin-top: 4px;
+            padding: 4px 8px;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            display: block;
+        `;
+        errorDiv.textContent = message;
+        
+        // Insertar después del select
+        element.parentNode.insertBefore(errorDiv, element.nextSibling);
+        
+        // Agregar estilo de error al select
+        element.style.borderColor = '#dc3545';
+        element.style.boxShadow = '0 0 0 0.2rem rgba(220, 53, 69, 0.25)';
+    }
+    
+    // NUEVA FUNCIÓN: Ocultar mensaje de validación
+    function hideTimeValidationMessage(element) {
+        const errorDiv = element.parentNode.querySelector('.time-validation-error');
+        if (errorDiv) {
+            errorDiv.remove();
+        }
+        
+        // Remover estilo de error del select
+        element.style.borderColor = '';
+        element.style.boxShadow = '';
+    }
+    
     // Función para validar que no haya superposición entre rangos
     function validateTimeRanges(dayNumber) {
         const dayContainer = document.querySelector(`.availability-ranges[data-day="${dayNumber}"]`);
@@ -31,6 +132,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const range1End = dayContainer.querySelector('[data-range="1"] select[id*="_end"]');
         const range2Start = dayContainer.querySelector('[data-range="2"] select[id*="_start"]');
         const range2End = dayContainer.querySelector('[data-range="2"] select[id*="_end"]');
+        
+        // NUEVA VALIDACIÓN: Configurar validación individual para cada rango
+        if (range1Start && range1End) {
+            validateSingleRange(range1Start, range1End);
+        }
+        
+        if (range2Start && range2End) {
+            validateSingleRange(range2Start, range2End);
+        }
         
         if (!range1Start || !range1End || !range2Start || !range2End) return;
         
@@ -55,6 +165,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Si el valor actual del rango 2 start es inválido, cambiarlo
                 if (range2Start.value && range2Start.value <= range1EndValue) {
                     range2Start.value = minStartTime;
+                    showTimeValidationMessage(range2Start, 'El segundo rango debe comenzar después del primer rango');
+                } else {
+                    hideTimeValidationMessage(range2Start);
                 }
                 
                 // Actualizar opciones del select de fin del rango 2
@@ -80,6 +193,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Si el valor actual del rango 2 end es inválido, limpiarlo
                 if (range2End.value && range2End.value <= range2StartValue) {
                     range2End.value = '';
+                    showTimeValidationMessage(range2End, 'La hora de fin debe ser posterior a la hora de inicio');
+                } else {
+                    hideTimeValidationMessage(range2End);
                 }
             }
         }
@@ -147,9 +263,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Si se deshabilita, ocultar el segundo rango
                         if (!isEnabled) {
                             const range2 = dayContainer.querySelector('[data-range="2"]');
-                            if (range2 && range2.style.display === 'block') {
-                                range2.style.display = 'none';
-                                if (addBtn) addBtn.style.display = 'inline-block';
+                            if (range2 && !range2.classList.contains('hide')) {
+                                range2.classList.add('hide');
+                                if (addBtn) addBtn.classList.remove('hide');
                             }
                         } else if (isInitialSetup && isEnabled) {
                             // NUEVA LÓGICA: Verificar si el segundo rango tiene datos al inicializar
@@ -160,12 +276,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                 
                                 // Si cualquiera de los selects del rango 2 tiene valor, mostrar el rango
                                 if ((range2Start && range2Start.value) || (range2End && range2End.value)) {
-                                    range2.style.display = 'block';
-                                    if (addBtn) addBtn.style.display = 'none';
+                                    range2.classList.remove('hide');
+                                    if (addBtn) addBtn.classList.add('hide');
                                     console.log(`📅 Rango 2 mostrado automáticamente para día ${dayNumber} (tiene datos cargados)`);
                                 } else {
-                                    range2.style.display = 'none';
-                                    if (addBtn) addBtn.style.display = 'inline-block';
+                                    range2.classList.add('hide');
+                                    if (addBtn) addBtn.classList.remove('hide');
                                 }
                             }
                         }
@@ -198,9 +314,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const dayContainer = document.querySelector(`.availability-ranges[data-day="${day}"]`);
             
             if (range2 && dayContainer) {
-                // Mostrar el segundo rango
-                range2.style.display = 'block';
-                this.style.display = 'none';
+                // Mostrar el segundo rango removiendo la clase hide
+                range2.classList.remove('hide');
+                this.classList.add('hide');
                 
                 // Auto-configurar el inicio del segundo rango
                 const range1End = dayContainer.querySelector('[data-range="1"] select[id*="_end"]');
@@ -224,7 +340,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const addBtn = document.querySelector(`[data-day="${day}"] .add-range-btn`);
             
             if (range2) {
-                range2.style.display = 'none';
+                range2.classList.add('hide');
                 // Limpiar valores de los selects
                 const selects = range2.querySelectorAll('select');
                 selects.forEach(select => {
@@ -238,7 +354,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             if (addBtn) {
-                addBtn.style.display = 'inline-block';
+                addBtn.classList.remove('hide');
             }
         });
     });

@@ -55,7 +55,7 @@ body {
 .delivery-type-options label,
 .service-type-options label {
     display: inline-block;
-    padding: 8px 16px;
+    padding: 8px 32px 8px 16px; /* Aumentado el padding derecho para dar espacio al checkmark */
     background-color: #f8f9fa;
     border: 2px solid #dee2e6;
     border-radius: 6px;
@@ -83,9 +83,85 @@ body {
 .service-type-options input[type="radio"]:checked + label::after {
     content: '✓';
     position: absolute;
-    right: 8px;
+    right: 12px; /* Aumentado de 8px a 12px para más separación */
     top: 50%;
     transform: translateY(-50%);
     font-weight: bold;
     font-size: 14px;
+}
+
+/* Estilos para el campo de frecuencia */
+.frequency-field {
+    transition: all 0.3s ease;
+}
+
+.frequency-row {
+    transition: all 0.3s ease;
+}
+
+.frequency-row.show {
+    display: block !important;
+}
+
+/* Estilos corregidos para los botones de radio de frecuencia */
+.frequency-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.frequency-options input[type="radio"] {
+    display: none;
+}
+
+.frequency-options label {
+    display: inline-block;
+    padding: 8px 16px;
+    background-color: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    font-weight: 500;
+    margin: 0;
+    min-width: 80px;
+    text-align: center;
+}
+
+.frequency-options label:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.frequency-options input[type="radio"]:checked + label {
+    background-color: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+.frequency-options input[type="radio"]:checked + label::after {
+    content: '✓';
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.frequency-message {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+/* Ocultar el radio button "None" que aparece por defecto */
+.frequency-options input[value=""] + label {
+    display: none;
+}
+
+.hide {
+    display: none !important;
 }
