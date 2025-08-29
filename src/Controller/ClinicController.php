@@ -23,6 +23,8 @@ class ClinicController extends AbstractController
     #[Route('/', name: 'clinic_index', methods: ['GET'])]
     public function index(): Response
     {
+        return $this->redirectToRoute('app_my_company');
+
         /** @var User $user */
         $user = $this->getUser();
         
@@ -37,6 +39,7 @@ class ClinicController extends AbstractController
     #[Route('/new', name: 'clinic_new', methods: ['GET', 'POST'])]
     public function new(Request $request): Response
     {
+        return $this->redirectToRoute('app_my_company');
         $clinic = new Clinic();
         
         if ($request->isMethod('POST')) {
@@ -75,6 +78,7 @@ class ClinicController extends AbstractController
     #[Route('/{id}', name: 'clinic_show', methods: ['GET'])]
     public function show(Clinic $clinic): Response
     {
+        return $this->redirectToRoute('app_my_company');
         /** @var User $user */
         $user = $this->getUser();
         
@@ -92,6 +96,7 @@ class ClinicController extends AbstractController
     #[Route('/{id}/edit', name: 'clinic_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request, Clinic $clinic): Response
     {
+        return $this->redirectToRoute('app_my_company');
         /** @var User $user */
         $user = $this->getUser();
         
@@ -132,6 +137,7 @@ class ClinicController extends AbstractController
     #[Route('/{id}/delete', name: 'clinic_delete', methods: ['POST'])]
     public function delete(Request $request, Clinic $clinic): Response
     {
+        return $this->redirectToRoute('app_my_company');
         /** @var User $user */
         $user = $this->getUser();
         

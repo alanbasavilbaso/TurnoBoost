@@ -9,8 +9,19 @@ php bin/console app:create-user
 admin@turnoboost.com
 admin123
 
+
+
+---------------------------------------------------------------
+php bin/console cache:clear && php bin/console asset-map:compile
+---------------------------------------------------------------
+
+
+
 php bin/console cache:clear
 php bin/console asset-map:compile
+
+
+
 
 Trae
 
@@ -298,3 +309,10 @@ Paso 3 – Información personal: “Tus datos y cómo te ven los pacientes”
 Paso 4 – Bloqueos / excepciones (opcional): “Feriados o vacaciones”
 
 Paso 5 – Confirmación y guardar
+
+
+
+
+<a href="{{ path('app_index') }}" class="btn btn-outline-secondary me-3">
+    <i class="fas fa-arrow-left"></i>
+</a>

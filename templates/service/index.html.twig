@@ -77,7 +77,7 @@
                                         <th>Duración</th>
                                         <th>Precio</th>
                                         <th>Estado</th>
-                                        <th>Profesionales</th>
+                                        <th class="d-none d-lg-block">Profesionales</th>
                                         <th width="200">Acciones</th>
                                     </tr>
                                 </thead>
@@ -108,11 +108,11 @@
                                                     <span class="badge bg-secondary">Inactivo</span>
                                                 {% endif %}
                                             </td>
-                                            <td>
+                                            <td class="d-none d-lg-table">
                                                 <span class="badge bg-info">{{ service.professionalServices|length }}</span>
                                             </td>
                                             <td>
-                                                <div class="btn-group" role="group">
+                                                <div class="btn-group d-flex" role="group">
                                                     <a href="{{ path('app_service_show', {'id': service.id}) }}" class="btn btn-sm btn-outline-primary">
                                                         <i class="fas fa-eye"></i>
                                                     </a>

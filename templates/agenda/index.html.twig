@@ -1,0 +1,269 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Agenda - {{ clinic.name }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link href="{{ asset('styles/agenda.css') }}" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block body %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="form-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <a href="{{ path('app_my_company') }}" class="btn btn-outline-secondary me-3">
+                            <i class="fas fa-arrow-left"></i>
+                        </a>
+                        <div>
+                            <h2 class="mb-1">
+                                <i class="fas fa-calendar-alt text-primary me-2"></i>
+                                Agenda
+                            </h2>
+                            <p class="text-muted mb-0">Gestiona los turnos de tu clínica</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#appointmentModal">
+                        <i class="fas fa-plus me-2"></i>Nuevo Turno
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="form-card">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="professionalFilter" class="form-label">
+                            <i class="fas fa-user-md me-1"></i>Profesional
+                        </label>
+                        <select class="form-select" id="professionalFilter">
+                            <option value="">Todos los profesionales</option>
+                            {% for professional in professionals %}
+                                <option value="{{ professional.id }}">{{ professional.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="serviceFilter" class="form-label">
+                            <i class="fas fa-stethoscope me-1"></i>Servicio
+                        </label>
+                        <select class="form-select" id="serviceFilter">
+                            <option value="">Todos los servicios</option>
+                            {% for service in services %}
+                                <option value="{{ service.id }}">{{ service.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="viewType" class="form-label">
+                            <i class="fas fa-eye me-1"></i>Vista
+                        </label>
+                        <select class="form-select" id="viewType">
+                            <option value="dayGridMonth">Mes</option>
+                            <option value="timeGridWeek" selected>Semana</option>
+                            <option value="timeGridDay">Día</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="form-card">
+                <div id="calendar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legend Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="form-card">
+                <h6 class="mb-3">
+                    <i class="fas fa-info-circle me-2"></i>Leyenda
+                </h6>
+                
+                <!-- Estados de Turnos -->
+                <div class="mb-3">
+                    <h6 class="text-muted mb-2">Estados de Turnos</h6>
+                    <div class="d-flex flex-wrap gap-3">
+                        <div class="d-flex align-items-center">
+                            <div class="legend-color" style="background-color: #007bff; border: 2px solid #0056b3;"></div>
+                            <span class="ms-2">Programado</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="legend-color" style="background-color: #28a745; border: 2px solid #1e7e34;"></div>
+                            <span class="ms-2">Confirmado</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="legend-color" style="background-color: #dc3545; border: 2px solid #bd2130;"></div>
+                            <span class="ms-2">Cancelado</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="legend-color" style="background-color: #6c757d; border: 2px solid #545b62;"></div>
+                            <span class="ms-2">Completado</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Colores de Profesionales -->
+                <div>
+                    <h6 class="text-muted mb-2">Colores por Profesional</h6>
+                    <div class="d-flex flex-wrap gap-3" id="professional-legend">
+                        <!-- Los colores de profesionales se cargarán dinámicamente -->
+                        <div class="d-flex align-items-center">
+                            <div class="legend-color" style="background-color: #3498db;"></div>
+                            <span class="ms-2">Profesional 1</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="legend-color" style="background-color: #e74c3c;"></div>
+                            <span class="ms-2">Profesional 2</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="legend-color" style="background-color: #2ecc71;"></div>
+                            <span class="ms-2">Profesional 3</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="legend-color" style="background-color: #f39c12;"></div>
+                            <span class="ms-2">Profesional 4</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="legend-color" style="background-color: #9b59b6;"></div>
+                            <span class="ms-2">Profesional 5</span>
+                        </div>
+                        <small class="text-muted ms-3 align-self-center">Los colores se asignan automáticamente</small>
+                    </div>
+                </div>
+                
+                <!-- Nota explicativa -->
+                <div class="mt-3 p-2 bg-light rounded">
+                    <small class="text-muted">
+                        <i class="fas fa-lightbulb me-1"></i>
+                        <strong>Cómo leer el calendario:</strong> El color de fondo indica el profesional, el borde indica el estado del turno.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Crear/Editar Turno -->
+<div class="modal fade" id="appointmentModal" tabindex="-1" aria-labelledby="appointmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="appointmentModalLabel">Nuevo Turno</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="appointment-form">
+                    <input type="hidden" id="appointment-id" name="id">
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="modal-professional" class="form-label">Profesional *</label>
+                            <select class="form-select" id="modal-professional" name="professional" required>
+                                <option value="">Seleccionar profesional...</option>
+                                {% for professional in professionals %}
+                                    <option value="{{ professional.id }}">{{ professional.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="modal-service" class="form-label">Servicio *</label>
+                            <select class="form-select" id="modal-service" name="service" required>
+                                <option value="">Seleccionar servicio...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="appointment-date" class="form-label">Fecha *</label>
+                            <input type="date" class="form-control" id="appointment-date" name="date" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="appointment-time" class="form-label">Horario *</label>
+                            <select class="form-select" id="appointment-time" name="time" required>
+                                <option value="">Seleccionar horario...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="patient-search" class="form-label">Buscar Paciente</label>
+                        <input type="text" class="form-control" id="patient-search" placeholder="Escriba el nombre, email o teléfono del paciente...">
+                        <input type="hidden" id="selected-patient-id" name="patient_id">
+                        <div id="patient-results"></div>
+                        <div id="selected-patient-info"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-primary" id="create-new-patient">
+                            <i class="fas fa-user-plus me-2"></i>Crear Nuevo Paciente
+                        </button>
+                    </div>
+                    
+                    <div id="new-patient-form" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="patient-name" class="form-label">Nombre Completo *</label>
+                                <input type="text" class="form-control" id="patient-name" name="patient_name">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="patient-email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="patient-email" name="patient_email">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="patient-phone" class="form-label">Teléfono *</label>
+                                <input type="tel" class="form-control" id="patient-phone" name="patient_phone">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="patient-birth-date" class="form-label">Fecha de Nacimiento</label>
+                                <input type="date" class="form-control" id="patient-birth-date" name="patient_birth_date">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="appointment-notes" class="form-label">Notas</label>
+                        <textarea class="form-control" id="appointment-notes" name="notes" rows="3" placeholder="Notas adicionales sobre el turno..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="save-appointment">
+                    <i class="fas fa-save me-2"></i>Guardar Turno
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Spinner -->
+<div id="loading-spinner" class="loading-spinner" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Cargando...</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+    <script src="{{ asset('scripts/agenda.js') }}"></script>
+{% endblock %}

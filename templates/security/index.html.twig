@@ -29,14 +29,6 @@
         <div class="row align-items-center">
             <div class="col-md-8">
                 <h1 class="mb-3">¡Bienvenido, {{ user.name }}! 👋</h1>
-                <p class="lead text-muted mb-0">
-                    Estás conectado como <strong>{{ user.role.value }}</strong> en 
-                    {% if user.clinic %}
-                        <strong>{{ user.clinic.name }}</strong>
-                    {% else %}
-                        <strong>Sistema TurnoBoost</strong>
-                    {% endif %}
-                </p>
                 <p class="text-muted">
                     <small><i class="fas fa-envelope"></i> {{ user.email }}</small>
                 </p>
@@ -90,7 +82,7 @@
     </div>
 
     <!-- Quick Actions -->
-    <div class="row mt-4">
+    <div class="row mt-1">
         <div class="col-12">
             <div class="welcome-card">
                 <h3 class="mb-3"><i class="fas fa-bolt"></i> Acciones Rápidas</h3>
@@ -110,20 +102,6 @@
                     </div>
                     
                     <div class="col-md-6 col-lg-3 mb-4">
-                        <a href="{{ path('app_professional_index') }}" class="text-decoration-none">
-                            <div class="card border-0 shadow-sm h-100 hover-card">
-                                <div class="card-body text-center">
-                                    <div class="mb-3">
-                                        <i class="fas fa-user-md fa-2x text-success"></i>
-                                    </div>
-                                    <h5 class="card-title">Personal</h5>
-                                    <p class="card-text text-muted">Gestionar profesionales de la clínica</p>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                    
-                    <div class="col-md-6 col-lg-3 mb-4">
                         <a href="{{ path('app_service_index') }}" class="text-decoration-none">
                             <div class="card border-0 shadow-sm h-100 hover-card">
                                 <div class="card-body text-center">
@@ -132,6 +110,20 @@
                                     </div>
                                     <h5 class="card-title">Servicios</h5>
                                     <p class="card-text text-muted">Gestionar servicios de la clínica</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    
+                    <div class="col-md-6 col-lg-3 mb-4">
+                        <a href="{{ path('app_professional_index') }}" class="text-decoration-none">
+                            <div class="card border-0 shadow-sm h-100 hover-card">
+                                <div class="card-body text-center">
+                                    <div class="mb-3">
+                                        <i class="fas fa-user-md fa-2x text-success"></i>
+                                    </div>
+                                    <h5 class="card-title">Personal</h5>
+                                    <p class="card-text text-muted">Gestionar profesionales de la clínica</p>
                                 </div>
                             </div>
                         </a>
