@@ -11,7 +11,8 @@ use App\Entity\StatusEnum;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
 use App\Service\PatientService;
-use App\Service\AuditService; // AGREGAR ESTA LÍNEA
+use App\Service\AuditService;
+use App\Service\AppointmentService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -336,7 +337,7 @@ class AgendaController extends AbstractController
     }
 
     #[Route('/appointment', name: 'app_agenda_create_appointment', methods: ['POST'])]
-    public function createAppointment(Request $request): JsonResponse
+    public function createAppointment(Request $request, AppointmentService $appointmentService): JsonResponse
     {
         // Manejar tanto FormData como JSON
         $contentType = $request->headers->get('Content-Type');
@@ -344,7 +345,6 @@ class AgendaController extends AbstractController
         if (str_contains($contentType, 'application/json')) {
             $data = json_decode($request->getContent(), true);
         } else {
-            // FormData desde el formulario HTML
             $data = $request->request->all();
         }
         
@@ -352,156 +352,24 @@ class AgendaController extends AbstractController
         $clinic = $user->getOwnedClinics()->first();
         
         try {
-            // Mapear nombres de campos del formulario a los esperados
-            $professionalId = $data['professional_id'] ?? $data['professional'] ?? null;
-            $serviceId = $data['service_id'] ?? $data['service'] ?? null;
-            
-            // Construir la fecha y hora programada
-            if (isset($data['scheduled_at'])) {
-                $scheduledAt = new \DateTime($data['scheduled_at']);
-            } elseif (isset($data['date']) && isset($data['time'])) {
-                // Si viene del formulario HTML, combinar date y time
-                if (str_contains($data['time'], 'T')) {
-                    // Si time ya es un datetime completo
-                    $scheduledAt = new \DateTime($data['time']);
-                } else {
-                    // Si time es solo la hora
-                    $scheduledAt = new \DateTime($data['date'] . ' ' . $data['time']);
-                }
-            } else {
-                throw new \InvalidArgumentException('Fecha y hora son requeridas');
-            }
-            
-            if (!$professionalId || !$serviceId) {
-                throw new \InvalidArgumentException('Profesional y servicio son requeridos');
-            }
-            
-            $professional = $this->professionalRepository->find($professionalId);
-            $service = $this->serviceRepository->find($serviceId);
-            
-            if (!$professional || !$service) {
-                throw new \InvalidArgumentException('Profesional o servicio no encontrado');
-            }
-            
-            // Obtener duración efectiva del servicio
-            $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
-                ->findOneBy(['professional' => $professional, 'service' => $service]);
-            
-            $duration = $professionalService ? $professionalService->getEffectiveDuration() : $service->getDurationMinutes();
-            
-            // Calcular hora de finalización
-            $endTime = (clone $scheduledAt)->add(new \DateInterval('PT' . $duration . 'M'));
-            
-            // VALIDACIÓN 1: Verificar que no haya superposición con citas existentes
-            $conflictingAppointments = $this->entityManager->createQueryBuilder()
-                ->select('a')
-                ->from(Appointment::class, 'a')
-                ->where('a.professional = :professional')
-                ->andWhere('a.clinic = :clinic')
-                ->andWhere('a.status NOT IN (:canceledStatus)')
-                ->andWhere('
-                    (a.scheduledAt < :endTime AND 
-                    DATE_ADD(a.scheduledAt, a.durationMinutes, \'MINUTE\') > :startTime)
-                ')
-                ->setParameter('professional', $professional)
-                ->setParameter('clinic', $clinic)
-                ->setParameter('canceledStatus', [StatusEnum::CANCELLED]) // Array incluso con 1 elemento
-                ->setParameter('startTime', $scheduledAt)
-                ->setParameter('endTime', $endTime)
-                ->getQuery()
-                ->getResult();
-            
-            if (!empty($conflictingAppointments)) {
-                $conflictTime = $conflictingAppointments[0]->getScheduledAt()->format('H:i');
-                throw new \InvalidArgumentException(
-                    "El horario seleccionado se superpone con una cita existente a las {$conflictTime}. Por favor, seleccione otro horario."
-                );
-            }
-            
-            // VALIDACIÓN 2: Verificar disponibilidad del profesional en ese horario
-            $dayOfWeek = (int)$scheduledAt->format('w'); // 0=domingo, 1=lunes, etc.
-            $timeSlot = $scheduledAt->format('H:i:s');
-            
-            $availability = $this->entityManager->createQueryBuilder()
-                ->select('pa')
-                ->from('App\Entity\ProfessionalAvailability', 'pa')
-                ->where('pa.professional = :professional')
-                ->andWhere('pa.weekday = :weekday')
-                ->andWhere('pa.startTime <= :timeSlot')
-                ->andWhere('pa.endTime >= :endTimeSlot')
-                ->setParameter('professional', $professional)
-                ->setParameter('weekday', $dayOfWeek)
-                ->setParameter('timeSlot', $timeSlot)
-                ->setParameter('endTimeSlot', $endTime->format('H:i:s'))
-                ->getQuery()
-                ->getOneOrNullResult();
-            
-            if (!$availability) {
-                throw new \InvalidArgumentException(
-                    'El profesional no está disponible en el horario seleccionado. Por favor, seleccione otro horario.'
-                );
-            }
-            
-            // VALIDACIÓN 3: Verificar que la cita no sea en el pasado
-            if ($scheduledAt <= new \DateTime()) {
-                throw new \InvalidArgumentException(
-                    'No se pueden crear citas en el pasado. Por favor, seleccione una fecha y hora futura.'
-                );
-            }
-            
-            // Preparar datos del paciente
-            $patientData = [];
-            if (isset($data['patient_id']) && !empty($data['patient_id'])) {
-                $patientData['id'] = $data['patient_id'];
-            }
-            if (isset($data['patient_name'])) {
-                $patientData['name'] = $data['patient_name'];
-            }
-            if (isset($data['patient_email'])) {
-                $patientData['email'] = $data['patient_email'];
-            }
-            if (isset($data['patient_phone'])) {
-                $patientData['phone'] = $data['patient_phone'];
-            }
-            if (isset($data['patient_birth_date'])) {
-                $patientData['birth_date'] = $data['patient_birth_date'];
-            }
-            
-            // Crear o buscar paciente
-            $patient = $this->patientService->findOrCreatePatient($patientData, $clinic);
-            
-            $appointment = new Appointment();
-            $appointment->setClinic($clinic)
-                       ->setProfessional($professional)
-                       ->setService($service)
-                       ->setPatient($patient)
-                       ->setScheduledAt($scheduledAt)
-                       ->setDurationMinutes($duration)
-                       ->setNotes($data['notes'] ?? null);
-            
-            $this->entityManager->persist($appointment);
-            $this->entityManager->flush();
+            $appointment = $appointmentService->createAppointment($data, $clinic);
             
             return new JsonResponse([
                 'success' => true,
-                'appointment' => [
-                    'id' => $appointment->getId(),
-                    'title' => $patient->getName() . ' - ' . $service->getName(),
-                    'start' => $appointment->getScheduledAt()->format('c'),
-                    'end' => $appointment->getEndTime()->format('c'),
-                    'patientId' => $patient->getId(),
-                    'professionalId' => $professional->getId(),
-                    'serviceId' => $service->getId(),
-                    'status' => $appointment->getStatus()->value,
-                    'notes' => $appointment->getNotes()
-                ]
+                'appointment' => $appointmentService->appointmentToArray($appointment)
             ]);
             
-        } catch (\Exception $e) {
+        } catch (\InvalidArgumentException $e) {
             return new JsonResponse([
                 'success' => false,
                 'error' => $e->getMessage()
             ], 400);
+        } catch (\Throwable $e) {
+            error_log('Error creating appointment: ' . $e->getMessage());
+            return new JsonResponse([
+                'success' => false,
+                'error' => 'Ha ocurrido un error interno. Por favor, inténtelo nuevamente.'
+            ], 500);
         }
     }
 

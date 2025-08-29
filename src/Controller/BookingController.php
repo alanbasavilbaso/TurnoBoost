@@ -6,6 +6,8 @@ use App\Entity\Clinic;
 use App\Entity\Service;
 use App\Entity\Professional;
 use App\Entity\ProfessionalService;
+use App\Service\AppointmentService;
+use App\Service\TimeSlot;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -17,10 +19,12 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 class BookingController extends AbstractController
 {
     private EntityManagerInterface $entityManager;
+    private TimeSlot $timeSlotService;
 
-    public function __construct(EntityManagerInterface $entityManager)
+    public function __construct(EntityManagerInterface $entityManager, TimeSlot $timeSlotService)
     {
         $this->entityManager = $entityManager;
+        $this->timeSlotService = $timeSlotService;
     }
 
     /**
@@ -119,56 +123,75 @@ class BookingController extends AbstractController
     {
         $clinic = $this->getClinicByDomain($domain);
         $professionalId = $request->query->get('professional');
+        $serviceId = $request->query->get('service');
         $date = $request->query->get('date');
         
-        if (!$professionalId || !$date) {
-            return new JsonResponse(['error' => 'Faltan parámetros requeridos'], 400);
+        if (!$professionalId || !$serviceId || !$date) {
+            return new JsonResponse(['error' => 'Faltan parámetros requeridos (professional, service, date)'], 400);
+        }
+
+        try {
+            $dateObj = new \DateTime($date);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => 'Formato de fecha inválido'], 400);
         }
 
         $professional = $this->entityManager->getRepository(Professional::class)->find($professionalId);
         if (!$professional || $professional->getClinic() !== $clinic) {
-            throw new NotFoundHttpException('Profesional no encontrado');
+            return new JsonResponse(['error' => 'Profesional no encontrado'], 404);
         }
 
-        // Aquí implementarías la lógica para obtener horarios disponibles
-        // Por ahora, devolvemos horarios de ejemplo
-        $timeSlots = [
-            'morning' => [
-                ['time' => '10:15', 'available' => true],
-                ['time' => '10:30', 'available' => true],
-                ['time' => '10:45', 'available' => true],
-                ['time' => '11:00', 'available' => false],
-                ['time' => '11:15', 'available' => true],
-                ['time' => '11:30', 'available' => true],
-                ['time' => '11:45', 'available' => true]
-            ],
-            'afternoon' => [
-                ['time' => '12:00', 'available' => true],
-                ['time' => '12:15', 'available' => true],
-                ['time' => '12:30', 'available' => true],
-                ['time' => '12:45', 'available' => true],
-                ['time' => '13:00', 'available' => true],
-                ['time' => '13:15', 'available' => false],
-                ['time' => '13:30', 'available' => true],
-                ['time' => '13:45', 'available' => true],
-                ['time' => '14:00', 'available' => true],
-                ['time' => '14:15', 'available' => true],
-                ['time' => '14:30', 'available' => true],
-                ['time' => '14:45', 'available' => true],
-                ['time' => '15:00', 'available' => true],
-                ['time' => '15:15', 'available' => true],
-                ['time' => '15:30', 'available' => true],
-                ['time' => '15:45', 'available' => true],
-                ['time' => '16:00', 'available' => true],
-                ['time' => '16:15', 'available' => true]
-            ]
-        ];
+        $service = $this->entityManager->getRepository(Service::class)->find($serviceId);
+        if (!$service || $service->getClinic() !== $clinic) {
+            return new JsonResponse(['error' => 'Servicio no encontrado'], 404);
+        }
+
+        // Generar slots disponibles usando el servicio TimeSlot
+        $slots = $this->timeSlotService->generateAvailableSlots($professional, $service, $dateObj);
+        
+        // Organizar slots por mañana y tarde
+        $timeSlots = $this->organizeSlotsByPeriod($slots);
 
         return new JsonResponse([
             'date' => $date,
             'professional' => $professional->getName() . ' ' . $professional->getSpecialty(),
+            'service' => $service->getName(),
             'timeSlots' => $timeSlots
         ]);
+    }
+
+    /**
+     * Organiza los slots por períodos (mañana y tarde)
+     */
+    private function organizeSlotsByPeriod(array $slots): array
+    {
+        $organized = [
+            'morning' => [],
+            'afternoon' => []
+        ];
+
+        foreach ($slots as $slot) {
+            $hour = (int)substr($slot['time'], 0, 2);
+            
+            // Considerar mañana hasta las 12:00 (no inclusive)
+            if ($hour < 12) {
+                $organized['morning'][] = [
+                    'time' => $slot['time'],
+                    'available' => $slot['available'],
+                    'duration' => $slot['duration'] ?? null,
+                    'datetime' => $slot['datetime'] ?? null
+                ];
+            } else {
+                $organized['afternoon'][] = [
+                    'time' => $slot['time'],
+                    'available' => $slot['available'],
+                    'duration' => $slot['duration'] ?? null,
+                    'datetime' => $slot['datetime'] ?? null
+                ];
+            }
+        }
+
+        return $organized;
     }
 
     /**
@@ -203,5 +226,41 @@ class BookingController extends AbstractController
         }
         
         return $hours . 'h ' . $remainingMinutes . 'min';
+    }
+
+    /**
+     * API: Crear nueva cita desde el sistema de reservas público
+     */
+    #[Route('/reservas/{domain}/api/appointments', name: 'booking_api_create_appointment', methods: ['POST'])]
+    public function createAppointment(string $domain, Request $request, AppointmentService $appointmentService): JsonResponse
+    {
+        $clinic = $this->getClinicByDomain($domain);
+        $data = json_decode($request->getContent(), true);
+        
+        if (!$data) {
+            return new JsonResponse(['error' => 'Datos inválidos'], 400);
+        }
+        
+        try {
+            $appointment = $appointmentService->createAppointment($data, $clinic);
+            
+            return new JsonResponse([
+                'success' => true,
+                'message' => 'Cita creada exitosamente',
+                'appointment' => $appointmentService->appointmentToArray($appointment)
+            ]);
+            
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 400);
+        } catch (\Throwable $e) {
+            error_log('Error creating public appointment: ' . $e->getMessage());
+            return new JsonResponse([
+                'success' => false,
+                'error' => 'Ha ocurrido un error interno. Por favor, inténtelo nuevamente.'
+            ], 500);
+        }
     }
 }

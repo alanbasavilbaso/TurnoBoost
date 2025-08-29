@@ -835,10 +835,8 @@ class AgendaManager {
             this.showLoading(true);
             
             if (appointmentId) {
-                // Si hay ID, es una edición - usar la función específica
                 await this.updateAppointment(appointmentId, formData);
             } else {
-                // Si no hay ID, es una creación - usar POST con FormData
                 const response = await fetch('/agenda/appointment', {
                     method: 'POST',
                     body: formData
@@ -851,13 +849,15 @@ class AgendaManager {
                     bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
                     this.loadAppointments();
                 } else {
-                    this.showAlert(result.message || 'Error al crear el turno', 'error');
+                    // MEJORADO: Mostrar el error específico del servidor
+                    const errorMessage = result.error || result.message || 'Error al crear el turno';
+                    this.showAlert(errorMessage, 'error');
                 }
             }
             
         } catch (error) {
             console.error('Error saving appointment:', error);
-            this.showAlert('Error al guardar el turno', 'error');
+            this.showAlert('Error de conexión al guardar el turno', 'error');
         } finally {
             this.showLoading(false);
         }
