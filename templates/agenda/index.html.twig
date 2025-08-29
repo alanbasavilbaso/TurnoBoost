@@ -210,7 +210,7 @@
                     </div>
                     
                     <div class="mb-3">
-                        <button type="button" class="btn btn-outline-primary" id="create-new-patient">
+                        <button type="button" class="btn btn-outline-primary w-100" id="create-new-patient">
                             <i class="fas fa-user-plus me-2"></i>Crear Nuevo Paciente
                         </button>
                     </div>
@@ -248,6 +248,92 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="save-appointment">
                     <i class="fas fa-save me-2"></i>Guardar Turno
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Ver Detalles del Turno -->
+<!-- Modal de Detalles del Turno -->
+<div class="modal fade" id="appointmentDetailsModal" tabindex="-1" aria-labelledby="appointmentDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="appointmentDetailsModalLabel">Detalles del Turno</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-user"></i> Información del Paciente</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Nombre:</strong> <span id="detailPatientName"></span></p>
+                                <p><strong>Email:</strong> <span id="detailPatientEmail"></span></p>
+                                <p><strong>Teléfono:</strong> <span id="detailPatientPhone"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-calendar-alt"></i> Información del Turno</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Fecha:</strong> <span id="detailAppointmentDate"></span></p>
+                                <p><strong>Hora:</strong> <span id="detailAppointmentTime"></span></p>
+                                <p><strong>Duración:</strong> <span id="detailAppointmentDuration"></span></p>
+                                <p><strong>Estado:</strong> <span id="detailAppointmentStatus" class="badge"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-user-md"></i> Profesional</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Nombre:</strong> <span id="detailProfessionalName"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-cogs"></i> Servicio</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Servicio:</strong> <span id="detailServiceName"></span></p>
+                                <p><strong>Precio:</strong> <span id="detailServicePrice"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-3" id="detailNotesCard" style="display: none;">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-sticky-note"></i> Notas</h6>
+                    </div>
+                    <div class="card-body">
+                        <p id="detailAppointmentNotes"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="editAppointmentBtn">
+                    <i class="fas fa-edit"></i> Editar Turno
+                </button>
+                <button type="button" class="btn btn-danger" id="cancelAppointmentBtn">
+                    <i class="fas fa-times"></i> Cancelar TURNO
+                </button>
+                <button type="button" class="btn btn-success" id="completeAppointmentBtn">
+                    <i class="fas fa-check"></i> Marcar como completado
                 </button>
             </div>
         </div>

@@ -354,45 +354,219 @@ class AgendaManager {
 
     handleEventClick(info) {
         const event = info.event;
-        this.openAppointmentModal({
+        this.showAppointmentDetails({
             id: event.id,
             title: event.title,
             start: event.start,
             end: event.end,
-            patientId: event.extendedProps.patientId,
-            professionalId: event.extendedProps.professionalId,
-            serviceId: event.extendedProps.serviceId,
+            patientId: event.extendedProps.patientId, // Agregar esta línea
+            patientName: event.extendedProps.patientName,
+            patientEmail: event.extendedProps.patientEmail || event.extendedProps.email,
+            patientPhone: event.extendedProps.phone,
+            professionalName: event.extendedProps.professionalName,
+            serviceName: event.extendedProps.serviceName,
             status: event.extendedProps.status,
             notes: event.extendedProps.notes,
-            isNew: false
+            professionalId: event.extendedProps.professionalId,
+            serviceId: event.extendedProps.serviceId
+        });
+    }
+    
+    showAppointmentDetails(eventData) {
+        console.log('showAppointmentDetails', eventData);
+        // Formatear fecha en formato DD/MM/YYYY
+        const startDate = new Date(eventData.start);
+        const formattedDate = startDate.toLocaleDateString('es-ES', {
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric'
+        });
+        
+        // Formatear hora en UTC (como está guardado en la base de datos)
+        const startTimeUTC = startDate.toISOString().substring(11, 16); // HH:MM en UTC
+        const endDate = new Date(eventData.end);
+        const endTimeUTC = endDate.toISOString().substring(11, 16); // HH:MM en UTC
+        
+        // Calcular duración
+        const durationMs = endDate - startDate;
+        const durationMinutes = Math.round(durationMs / (1000 * 60));
+        const hours = Math.floor(durationMinutes / 60);
+        const minutes = durationMinutes % 60;
+        const durationText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+        
+        // Poblar el modal con los datos
+        document.getElementById('detailPatientName').textContent = eventData.patientName || 'No especificado';
+        document.getElementById('detailPatientEmail').textContent = eventData.patientEmail || 'No especificado';
+        document.getElementById('detailPatientPhone').textContent = eventData.patientPhone || 'No especificado';
+        
+        document.getElementById('detailAppointmentDate').textContent = formattedDate;
+        document.getElementById('detailAppointmentTime').textContent = `${startTimeUTC} - ${endTimeUTC}`;
+        document.getElementById('detailAppointmentDuration').textContent = durationText;
+        
+        // Corregido: usar eventData en lugar de appointmentData
+        document.getElementById('detailProfessionalName').textContent = eventData.professionalName || 'No especificado';
+        document.getElementById('detailServiceName').textContent = eventData.serviceName || 'No especificado';
+        
+        // Configurar badge de estado
+        const statusElement = document.getElementById('detailAppointmentStatus');
+        statusElement.textContent = this.getStatusText(eventData.status);
+        statusElement.className = `badge ${this.getStatusBadgeClass(eventData.status)}`;
+        
+        // Mostrar/ocultar notas
+        const notesCard = document.getElementById('detailNotesCard');
+        const notesElement = document.getElementById('detailAppointmentNotes');
+        if (eventData.notes && eventData.notes.trim()) {
+            notesElement.textContent = eventData.notes;
+            notesCard.style.display = 'block';
+        } else {
+            notesCard.style.display = 'none';
+        }
+        
+        // Configurar botones de acción (corregido: usar eventData)
+        this.setupAppointmentActions(eventData);
+        
+        // Mostrar el modal
+        const modal = new bootstrap.Modal(document.getElementById('appointmentDetailsModal'));
+        modal.show();
+        
+        // Configurar acciones de los botones con TODOS los datos
+        this.setupAppointmentActions({
+            id: eventData.id,
+            title: eventData.title,
+            start: eventData.start,
+            end: eventData.end,
+            professionalId: eventData.professionalId,
+            serviceId: eventData.serviceId,
+            status: eventData.status,
+            notes: eventData.notes,
+            // Incluir datos del paciente
+            patientId: eventData.patientId,
+            patientName: eventData.patientName,
+            patientEmail: eventData.patientEmail,
+            patientPhone: eventData.patientPhone
         });
     }
 
-    async handleEventDrop(info) {
-        try {
-            const event = info.event;
-            await this.updateAppointmentTime(event.id, {
-                start: event.start.toISOString(),
-                end: event.end.toISOString()
-            });
-            this.showAlert('Turno actualizado correctamente', 'success');
-        } catch (error) {
-            info.revert();
-            this.showAlert('Error al mover el turno', 'error');
+    setupAppointmentActions(appointmentData) {
+        const editBtn = document.getElementById('editAppointmentBtn');
+        const completeBtn = document.getElementById('completeAppointmentBtn');
+        const cancelBtn = document.getElementById('cancelAppointmentBtn');
+        
+        // Verificar que los elementos existen antes de proceder
+        if (!editBtn || !completeBtn || !cancelBtn) {
+            console.error('No se pudieron encontrar los botones del modal');
+            return;
+        }
+        
+        // Limpiar eventos anteriores
+        editBtn.replaceWith(editBtn.cloneNode(true));
+        completeBtn.replaceWith(completeBtn.cloneNode(true));
+        cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+        
+        // Obtener referencias actualizadas
+        const newEditBtn = document.getElementById('editAppointmentBtn');
+        const newCompleteBtn = document.getElementById('completeAppointmentBtn');
+        const newCancelBtn = document.getElementById('cancelAppointmentBtn');
+        
+        // Configurar botón de editar
+        newEditBtn.addEventListener('click', () => {
+            // Cerrar modal de detalles
+            bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+            
+            // Abrir modal de edición con TODOS los datos del paciente
+            setTimeout(() => {
+                this.openAppointmentModal({
+                    id: appointmentData.id,
+                    title: appointmentData.title,
+                    start: appointmentData.start,
+                    end: appointmentData.end,
+                    professionalId: appointmentData.professionalId,
+                    serviceId: appointmentData.serviceId,
+                    status: appointmentData.status,
+                    notes: appointmentData.notes,
+                    // Agregar datos del paciente que estaban faltando
+                    patientId: appointmentData.patientId,
+                    patientName: appointmentData.patientName,
+                    patientEmail: appointmentData.patientEmail,
+                    patientPhone: appointmentData.patientPhone,
+                    isNew: false
+                });
+            }, 300);
+        });
+        
+        // Configurar botón de completar
+        newCompleteBtn.addEventListener('click', async () => {
+            if (confirm('¿Está seguro de marcar este turno como completado?')) {
+                await this.updateAppointmentStatus(appointmentData.id, 'completed');
+                // Cerrar modal después de actualizar
+                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+            }
+        });
+        
+        // Configurar botón de cancelar
+        newCancelBtn.addEventListener('click', async () => {
+            if (confirm('¿Está seguro de cancelar este turno?')) {
+                await this.updateAppointmentStatus(appointmentData.id, 'cancelled');
+                // Cerrar modal después de actualizar
+                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+            }
+        });
+        
+        // Mostrar/ocultar botones según el estado del turno
+        if (appointmentData.status === 'completed') {
+            newCompleteBtn.style.display = 'none';
+        } else if (appointmentData.status === 'cancelled') {
+            newCompleteBtn.style.display = 'none';
+            newCancelBtn.style.display = 'none';
         }
     }
 
-    async handleEventResize(info) {
+    getStatusText(status) {
+        const statusMap = {
+            'scheduled': 'Programado',
+            'confirmed': 'Confirmado',
+            'completed': 'Completado',
+            'cancelled': 'Cancelado'
+        };
+        return statusMap[status] || 'Desconocido';
+    }
+
+    getStatusBadgeClass(status) {
+        const classMap = {
+            'scheduled': 'bg-primary',
+            'confirmed': 'bg-success',
+            'completed': 'bg-secondary',
+            'cancelled': 'bg-danger'
+        };
+        return classMap[status] || 'bg-secondary';
+    }
+
+    async updateAppointmentStatus(appointmentId, newStatus) {
         try {
-            const event = info.event;
-            await this.updateAppointmentTime(event.id, {
-                start: event.start.toISOString(),
-                end: event.end.toISOString()
+            this.showLoading(true);
+            
+            const response = await fetch(`/agenda/appointments/${appointmentId}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ status: newStatus })
             });
-            this.showAlert('Duración del turno actualizada', 'success');
+            
+            if (response.ok) {
+                this.showAlert('Estado del turno actualizado correctamente', 'success');
+                
+                // Cerrar modal y recargar eventos
+                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+                await this.loadAppointments();
+            } else {
+                throw new Error('Error al actualizar el estado');
+            }
         } catch (error) {
-            info.revert();
-            this.showAlert('Error al cambiar la duración', 'error');
+            console.error('Error updating appointment status:', error);
+            this.showAlert('Error al actualizar el estado del turno', 'error');
+        } finally {
+            this.showLoading(false);
         }
     }
 
@@ -486,7 +660,7 @@ class AgendaManager {
 
     populateModalFields(data) {
         document.getElementById('modal-professional').value = data.professionalId;
-        document.getElementById('modal-service').value = data.serviceId;
+        // NO establecer el servicio aquí todavía
         document.getElementById('appointment-date').value = data.start.toISOString().split('T')[0];
         
         // Extraer y establecer la hora
@@ -504,14 +678,25 @@ class AgendaManager {
         
         document.getElementById('appointment-notes').value = data.notes || '';
         
-        // Cargar servicios del profesional
-        this.loadProfessionalServices(data.professionalId);
+        // Cargar servicios del profesional Y LUEGO seleccionar el servicio
+        this.loadProfessionalServices(data.professionalId, data.serviceId);
         
         // Buscar y seleccionar paciente
-        this.selectPatient(data.patientId);
+        if (data.patientId && data.patientName) {
+            this.selectPatient(data.patientId, data.patientName, data.patientEmail, data.patientPhone);
+        }
+        
+        // Cargar horarios disponibles después de establecer profesional, servicio y fecha
+        if (data.professionalId && data.serviceId && data.start) {
+            //alan reveer
+            // Pequeño delay para asegurar que los servicios se hayan cargado
+            setTimeout(() => {
+                this.loadAvailableSlots();
+            }, 100);
+        }
     }
 
-    async loadProfessionalServices(professionalId) {
+    async loadProfessionalServices(professionalId, selectedServiceId = null) {
         if (!professionalId) return;
         
         try {
@@ -525,8 +710,19 @@ class AgendaManager {
                 const option = document.createElement('option');
                 option.value = service.id;
                 option.textContent = `${service.name} (${service.duration}min - $${service.price})`;
+                
+                // Seleccionar el servicio si coincide con el selectedServiceId
+                if (selectedServiceId && service.id == selectedServiceId) {
+                    option.selected = true;
+                }
+                
                 serviceSelect.appendChild(option);
             });
+            
+            // Si hay un servicio seleccionado y una fecha, cargar horarios disponibles
+            if (selectedServiceId && document.getElementById('appointment-date').value) {
+                this.loadAvailableSlots();
+            }
             
         } catch (error) {
             console.error('Error loading professional services:', error);
@@ -632,22 +828,25 @@ class AgendaManager {
         try {
             this.showLoading(true);
             
-            const url = appointmentId ? `/agenda/appointment/${appointmentId}` : '/agenda/appointment';
-            const method = appointmentId ? 'PUT' : 'POST';
-            
-            const response = await fetch(url, {
-                method: method,
-                body: formData
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                this.showAlert(appointmentId ? 'Turno actualizado correctamente' : 'Turno creado correctamente', 'success');
-                bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
-                this.loadAppointments();
+            if (appointmentId) {
+                // Si hay ID, es una edición - usar la función específica
+                await this.updateAppointment(appointmentId, formData);
             } else {
-                this.showAlert(result.message || 'Error al guardar el turno', 'error');
+                // Si no hay ID, es una creación - usar POST con FormData
+                const response = await fetch('/agenda/appointment', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.showAlert('Turno creado correctamente', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
+                    this.loadAppointments();
+                } else {
+                    this.showAlert(result.message || 'Error al crear el turno', 'error');
+                }
             }
             
         } catch (error) {
@@ -655,6 +854,33 @@ class AgendaManager {
             this.showAlert('Error al guardar el turno', 'error');
         } finally {
             this.showLoading(false);
+        }
+    }
+
+    async updateAppointment(appointmentId, formData) {
+        // Convertir FormData a objeto JSON
+        const data = {};
+        for (let [key, value] of formData.entries()) {
+            data[key] = value;
+        }
+
+        const response = await fetch(`/agenda/appointment/${appointmentId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            this.showAlert('Turno actualizado correctamente', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
+            this.loadAppointments();
+        } else {
+            this.showAlert(result.message || 'Error al actualizar el turno', 'error');
         }
     }
 
@@ -751,8 +977,6 @@ class AgendaManager {
     }
     
     showDayAppointments(dayEvents) {
-        debugger;
-
         const modal = document.createElement('div');
         modal.className = 'modal fade';
         modal.innerHTML = `

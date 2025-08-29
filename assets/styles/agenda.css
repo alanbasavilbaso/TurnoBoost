@@ -98,8 +98,12 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
+    
 }
-
+/* Específicamente para eventos en vista de tiempo */
+.fc-timegrid-event-harness {
+    max-width: 50% !important;
+}
 .fc-event:hover {
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -555,6 +559,13 @@
     background: #0056b3;
 }
 
+.modal-header .btn-close {
+    filter: unset;
+}
+.modal-footer {
+    flex-wrap: nowrap;
+    justify-content: space-between;
+}
 /* Popover personalizado */
 .custom-popover {
     background: white;

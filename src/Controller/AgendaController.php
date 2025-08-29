@@ -3,12 +3,15 @@
 namespace App\Controller;
 
 use App\Entity\Appointment;
-use App\Entity\Professional;
-use App\Entity\Service;
 use App\Entity\Patient;
+use App\Entity\Professional;
 use App\Entity\ProfessionalService;
+use App\Entity\Service;
+use App\Entity\StatusEnum;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
+use App\Service\PatientService;
+use App\Service\AuditService; // AGREGAR ESTA LÍNEA
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -26,17 +29,20 @@ class AgendaController extends AbstractController
     private ProfessionalRepository $professionalRepository;
     private ServiceRepository $serviceRepository;
     private TimeSlot $timeSlotService;
+    private PatientService $patientService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         ProfessionalRepository $professionalRepository,
         ServiceRepository $serviceRepository,
-        TimeSlot $timeSlotService
+        TimeSlot $timeSlotService,
+        PatientService $patientService
     ) {
         $this->entityManager = $entityManager;
         $this->professionalRepository = $professionalRepository;
         $this->serviceRepository = $serviceRepository;
         $this->timeSlotService = $timeSlotService;
+        $this->patientService = $patientService;
     }
 
     #[Route('/', name: 'app_agenda_index', methods: ['GET'])]
@@ -117,8 +123,11 @@ class AgendaController extends AbstractController
                 'extendedProps' => [
                     'professionalId' => $appointment->getProfessional()->getId(),
                     'professionalName' => $appointment->getProfessional()->getName(),
+                    'patientId' => $appointment->getPatient()->getId(), // Agregar esta línea
                     'patientName' => $appointment->getPatient()->getName(),
+                    'email' => $appointment->getPatient()->getEmail(), // También agregar email para consistencia
                     'serviceName' => $appointment->getService()?->getName(),
+                    'serviceId' => $appointment->getService()?->getId(), // También agregar serviceId
                     'status' => $appointment->getStatus(),
                     'phone' => $appointment->getPatient()->getPhone(),
                     'notes' => $appointment->getNotes()
@@ -386,7 +395,8 @@ class AgendaController extends AbstractController
             }
             
             // Crear o buscar paciente
-            $patient = $this->findOrCreatePatient($patientData, $clinic);
+            // En createAppointment y updateAppointment
+            $patient = $this->patientService->findOrCreatePatient($patientData, $clinic);
             
             // Obtener duración efectiva del servicio
             $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
@@ -425,6 +435,177 @@ class AgendaController extends AbstractController
             return new JsonResponse([
                 'success' => false,
                 'error' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    #[Route('/appointment/{id}', name: 'app_agenda_update_appointment', methods: ['PUT'])]
+    public function updateAppointment(Request $request, int $id, AuditService $auditService): JsonResponse
+    {
+        $appointment = $this->entityManager->getRepository(Appointment::class)->find($id);
+        
+        if (!$appointment) {
+            return new JsonResponse(['success' => false, 'message' => 'Turno no encontrado'], 404);
+        }
+    
+        // Obtener datos JSON del request
+        $data = json_decode($request->getContent(), true);
+        
+        if (!$data) {
+            return new JsonResponse(['success' => false, 'message' => 'Datos inválidos'], 400);
+        }
+    
+        $user = $this->getUser();
+        $clinic = $user->getOwnedClinics()->first();
+    
+        try {
+            // CAPTURAR VALORES ANTERIORES ANTES DE MODIFICAR
+            $oldValues = [
+                'patient_id' => $appointment->getPatient()?->getId(),
+                'professional_id' => $appointment->getProfessional()?->getId(),
+                'service_id' => $appointment->getService()?->getId(),
+                'scheduled_at' => $appointment->getScheduledAt()?->format('Y-m-d H:i:s'),
+                'duration_minutes' => $appointment->getDurationMinutes(),
+                'status' => $appointment->getStatus()?->value,
+                'notes' => $appointment->getNotes(),
+            ];
+            
+            // Mapear nombres de campos del formulario a los esperados
+            $professionalId = $data['professional_id'] ?? $data['professional'] ?? null;
+            $serviceId = $data['service_id'] ?? $data['service'] ?? null;
+            
+            // Construir la fecha y hora programada
+            if (isset($data['scheduled_at'])) {
+                $scheduledAt = new \DateTime($data['scheduled_at']);
+            } elseif (isset($data['date']) && isset($data['time'])) {
+                // Si viene del formulario HTML, combinar date y time
+                if (str_contains($data['time'], 'T')) {
+                    // Si time ya es un datetime completo
+                    $scheduledAt = new \DateTime($data['time']);
+                } else {
+                    // Si time es solo la hora
+                    $scheduledAt = new \DateTime($data['date'] . ' ' . $data['time']);
+                }
+            } else {
+                throw new \InvalidArgumentException('Fecha y hora son requeridas');
+            }
+            
+            // Actualizar profesional si se proporciona
+            if ($professionalId) {
+                $professional = $this->professionalRepository->find($professionalId);
+                if (!$professional) {
+                    throw new \InvalidArgumentException('Profesional no encontrado');
+                }
+                $appointment->setProfessional($professional);
+            }
+            
+            // Actualizar servicio si se proporciona
+            if ($serviceId) {
+                $service = $this->serviceRepository->find($serviceId);
+                if (!$service) {
+                    throw new \InvalidArgumentException('Servicio no encontrado');
+                }
+                $appointment->setService($service);
+                
+                // Obtener duración efectiva del servicio
+                $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
+                    ->findOneBy(['professional' => $appointment->getProfessional(), 'service' => $service]);
+                
+                $duration = $professionalService ? $professionalService->getEffectiveDuration() : $service->getDurationMinutes();
+                $appointment->setDurationMinutes($duration);
+            }
+            
+            // Preparar datos del paciente
+            $patientData = [];
+            if (isset($data['patient_id']) && !empty($data['patient_id'])) {
+                $patientData['id'] = $data['patient_id'];
+            }
+            if (isset($data['patient_name'])) {
+                $patientData['name'] = $data['patient_name'];
+            }
+            if (isset($data['patient_email'])) {
+                $patientData['email'] = $data['patient_email'];
+            }
+            if (isset($data['patient_phone'])) {
+                $patientData['phone'] = $data['patient_phone'];
+            }
+            if (isset($data['patient_birth_date'])) {
+                $patientData['birth_date'] = $data['patient_birth_date'];
+            }
+            
+            // Actualizar o crear paciente
+            if (!empty($patientData)) {
+                $patient = $this->patientService->findOrCreatePatient($patientData, $clinic);
+                $appointment->setPatient($patient);
+            }
+            
+            // Actualizar fecha y hora programada
+            $appointment->setScheduledAt($scheduledAt);
+            
+            // Actualizar notas si se proporcionan
+            if (isset($data['notes'])) {
+                $appointment->setNotes($data['notes']);
+            }
+            
+            // Actualizar timestamp
+            $appointment->setUpdatedAt(new \DateTime());
+            
+            $this->entityManager->flush();
+            
+            // CAPTURAR VALORES NUEVOS DESPUÉS DE MODIFICAR
+            $newValues = [
+                'patient_id' => $appointment->getPatient()?->getId(),
+                'professional_id' => $appointment->getProfessional()?->getId(),
+                'service_id' => $appointment->getService()?->getId(),
+                'scheduled_at' => $appointment->getScheduledAt()?->format('Y-m-d H:i:s'),
+                'duration_minutes' => $appointment->getDurationMinutes(),
+                'status' => $appointment->getStatus()?->value,
+                'notes' => $appointment->getNotes(),
+            ];
+            
+            // REGISTRAR EN AUDITORÍA
+            $auditService->logChange(
+                'appointment',
+                $appointment->getId(),
+                'update',
+                $oldValues,
+                $newValues
+            );
+            
+            // Calcular hora de finalización
+            $endTime = clone $appointment->getScheduledAt();
+            $endTime->modify('+' . $appointment->getDurationMinutes() . ' minutes');
+            
+            return new JsonResponse([
+                'success' => true,
+                'message' => 'Turno actualizado correctamente',
+                'appointment' => [
+                    'id' => $appointment->getId(),
+                    'start' => $appointment->getScheduledAt()->format('Y-m-d\\TH:i:s'),
+                    'end' => $endTime->format('Y-m-d\\TH:i:s'),
+                    'title' => sprintf('%s - %s (%s)', 
+                        $appointment->getProfessional()->getName(),
+                        $appointment->getPatient()->getName(),
+                        $appointment->getService()?->getName() ?? 'Sin servicio'
+                    ),
+                    'professionalId' => $appointment->getProfessional()->getId(),
+                    'professionalName' => $appointment->getProfessional()->getName(),
+                    'patientId' => $appointment->getPatient()->getId(),
+                    'patientName' => $appointment->getPatient()->getName(),
+                    'patientEmail' => $appointment->getPatient()->getEmail(),
+                    'patientPhone' => $appointment->getPatient()->getPhone(),
+                    'serviceId' => $appointment->getService()?->getId(),
+                    'serviceName' => $appointment->getService()?->getName(),
+                    'status' => $appointment->getStatus()->value,
+                    'notes' => $appointment->getNotes(),
+                    'durationMinutes' => $appointment->getDurationMinutes()
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'success' => false, 
+                'message' => 'Error al actualizar el turno: ' . $e->getMessage()
             ], 400);
         }
     }
@@ -487,24 +668,6 @@ class AgendaController extends AbstractController
             ->getResult();
             
         return count($appointments) > 0;
-    }
-    
-    private function findOrCreatePatient(array $patientData, $clinic): Patient
-    {
-        if (isset($patientData['id']) && $patientData['id']) {
-            return $this->entityManager->getRepository(Patient::class)->find($patientData['id']);
-        }
-        
-        // Crear nuevo paciente
-        $patient = new Patient();
-        $patient->setClinic($clinic)
-                ->setName($patientData['name'])
-                ->setEmail($patientData['email'] ?? null)
-                ->setPhone($patientData['phone'] ?? null);
-                
-        $this->entityManager->persist($patient);
-        
-        return $patient;
     }
     
     private function getAppointmentTitle(Appointment $appointment): string
@@ -668,5 +831,62 @@ class AgendaController extends AbstractController
         }
 
         return new JsonResponse($professionalData);
+    }
+
+    /**
+     * Actualiza el estado de un turno
+     */
+    #[Route('/appointments/{id}/status', name: 'app_agenda_update_appointment_status', methods: ['PATCH'])]
+    public function updateAppointmentStatus(int $id, Request $request, AuditService $auditService): JsonResponse {
+        $user = $this->getUser();
+        $clinic = $user->getOwnedClinics()->first();
+        
+        if (!$clinic) {
+            return new JsonResponse(['error' => 'No se encontró la clínica'], 404);
+        }
+
+        $appointment = $this->entityManager->getRepository(Appointment::class)->find($id);
+        
+        if (!$appointment || $appointment->getClinic() !== $clinic) {
+            return new JsonResponse(['error' => 'Turno no encontrado'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $newStatus = $data['status'] ?? null;
+        
+        if (!$newStatus) {
+            return new JsonResponse(['error' => 'Estado requerido'], 400);
+        }
+
+        // Validar que el estado sea válido
+        try {
+            $statusEnum = \App\Entity\StatusEnum::from($newStatus);
+        } catch (\ValueError $e) {
+            return new JsonResponse(['error' => 'Estado inválido'], 400);
+        }
+
+        // Capturar valor anterior
+        $oldStatus = $appointment->getStatus()?->value;
+        
+        $appointment->setStatus($statusEnum);
+        $this->entityManager->flush();
+        
+        // Registrar cambio de estado
+        $auditService->logChange(
+            'appointment',
+            $appointment->getId(),
+            'status_change',
+            ['status' => $oldStatus],
+            ['status' => $statusEnum->value]
+        );
+    
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Estado actualizado correctamente',
+            'appointment' => [
+                'id' => $appointment->getId(),
+                'status' => $appointment->getStatus()->value
+            ]
+        ]);
     }
 }
