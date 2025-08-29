@@ -86,6 +86,13 @@ class AgendaController extends AbstractController
             ->leftJoin('a.patient', 'pat')
             ->where('a.clinic = :clinic')
             ->andWhere('a.scheduledAt BETWEEN :start AND :end')
+            // Opción alternativa: mostrar solo estados específicos
+            ->andWhere('a.status IN (:allowedStatuses)')
+            ->setParameter('allowedStatuses', [
+                StatusEnum::SCHEDULED,
+                StatusEnum::CONFIRMED,
+                StatusEnum::COMPLETED,
+            ])
             ->setParameter('clinic', $clinic)
             ->setParameter('start', $startDate)
             ->setParameter('end', $endDate)

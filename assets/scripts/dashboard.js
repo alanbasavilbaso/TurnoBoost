@@ -7,13 +7,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const dropdownElementList = document.querySelectorAll('.dropdown-toggle');
     const dropdownList = [...dropdownElementList].map(dropdownToggleEl => new bootstrap.Dropdown(dropdownToggleEl));
     
-    // Forzar re-render de la navbar
-    setTimeout(() => {
+    // Usar requestAnimationFrame para el siguiente frame
+    requestAnimationFrame(() => {
         const navbar = document.querySelector('.navbar');
         if (navbar) {
+            // Mejor: identificar y solucionar la causa raíz del problema de render
             navbar.style.display = 'none';
-            navbar.offsetHeight; // Trigger reflow
+            navbar.offsetHeight;
             navbar.style.display = '';
         }
-    }, 100);
+    });
 });

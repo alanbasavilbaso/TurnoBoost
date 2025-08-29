@@ -40,7 +40,7 @@
         <div class="col-12">
             <div class="form-card">
                 <div class="row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label for="professionalFilter" class="form-label">
                             <i class="fas fa-user-md me-1"></i>Profesional
                         </label>
@@ -51,7 +51,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label for="serviceFilter" class="form-label">
                             <i class="fas fa-stethoscope me-1"></i>Servicio
                         </label>
@@ -60,16 +60,6 @@
                             {% for service in services %}
                                 <option value="{{ service.id }}">{{ service.name }}</option>
                             {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="viewType" class="form-label">
-                            <i class="fas fa-eye me-1"></i>Vista
-                        </label>
-                        <select class="form-select" id="viewType">
-                            <option value="dayGridMonth">Mes</option>
-                            <option value="timeGridWeek" selected>Semana (Columnas por Profesional)</option>
-                            <option value="timeGridDay">Día (Columnas por Profesional)</option>
                         </select>
                     </div>
                 </div>
@@ -334,6 +324,38 @@
                 </button>
                 <button type="button" class="btn btn-success" id="completeAppointmentBtn">
                     <i class="fas fa-check"></i> Marcar como completado
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmación -->
+<div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmationModalLabel">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                    Confirmar Acción
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center">
+                    <div class="mb-3">
+                        <i id="confirmationIcon" class="fas fa-question-circle fa-3x text-warning"></i>
+                    </div>
+                    <p id="confirmationMessage" class="fs-5 mb-0">¿Está seguro de realizar esta acción?</p>
+                    <p id="confirmationSubtext" class="text-muted mt-2">Esta acción no se puede deshacer.</p>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmActionBtn">
+                    <i class="fas fa-check me-2"></i>Confirmar
                 </button>
             </div>
         </div>

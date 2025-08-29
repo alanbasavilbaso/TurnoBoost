@@ -683,3 +683,33 @@
 .fc-view-harness.fc-dayGridMonth-view .fc-daygrid-day:hover {
     background-color: transparent;
 }
+
+/* Modal de confirmación */
+#confirmationModal .modal-content {
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+#confirmationModal .modal-header {
+    border-bottom: 1px solid #e9ecef;
+    padding: 1.5rem;
+}
+
+#confirmationModal .modal-body {
+    padding: 2rem;
+}
+
+#confirmationModal .modal-footer {
+    border-top: 1px solid #e9ecef;
+    padding: 1.5rem;
+}
+
+#confirmationModal .fa-3x {
+    margin-bottom: 1rem;
+}
+
+#confirmationModal .btn {
+    min-width: 120px;
+    font-weight: 500;
+}

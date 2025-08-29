@@ -55,11 +55,11 @@ class WizardManager {
         });
         
         // También escuchar cuando se carga la página por primera vez
-        setTimeout(() => {
+        Promise.resolve().then(() => {
             if (this.currentStep === this.totalSteps) {
                 this.updateServicesReview();
             }
-        }, 500);
+        });
     }
 
     setupFieldListeners() {

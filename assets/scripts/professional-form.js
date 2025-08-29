@@ -251,9 +251,9 @@ const AvailabilityManager = {
                 // NUEVA FUNCIONALIDAD: Sincronizar servicios automáticamente
                 if (!isInitialSetup && typeof Utils.syncAllServicesWithAvailability === 'function') {
                     // Usar setTimeout para asegurar que el cambio se procese primero
-                    setTimeout(() => {
+                    Promise.resolve().then(() => {
                         Utils.syncAllServicesWithAvailability();
-                    }, 100);
+                    });
                 }
             };
             

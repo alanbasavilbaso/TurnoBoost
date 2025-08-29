@@ -234,14 +234,6 @@ class AgendaManager {
             });
         }
         
-        const viewType = document.getElementById('viewType');
-        if (viewType) {
-            viewType.addEventListener('change', (e) => {
-                this.currentFilters.view = e.target.value;
-                this.changeCalendarView(e.target.value);
-            });
-        }
-        
         // Modal de turno - verificar que existan los elementos
         const saveAppointment = document.getElementById('save-appointment');
         if (saveAppointment) {
@@ -452,64 +444,47 @@ class AgendaManager {
         const completeBtn = document.getElementById('completeAppointmentBtn');
         const cancelBtn = document.getElementById('cancelAppointmentBtn');
         
-        // Verificar que los elementos existen antes de proceder
-        if (!editBtn || !completeBtn || !cancelBtn) {
-            console.error('No se pudieron encontrar los botones del modal');
-            return;
-        }
+        // Limpiar event listeners previos
+        const newEditBtn = editBtn.cloneNode(true);
+        const newCompleteBtn = completeBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
         
-        // Limpiar eventos anteriores
-        editBtn.replaceWith(editBtn.cloneNode(true));
-        completeBtn.replaceWith(completeBtn.cloneNode(true));
-        cancelBtn.replaceWith(cancelBtn.cloneNode(true));
-        
-        // Obtener referencias actualizadas
-        const newEditBtn = document.getElementById('editAppointmentBtn');
-        const newCompleteBtn = document.getElementById('completeAppointmentBtn');
-        const newCancelBtn = document.getElementById('cancelAppointmentBtn');
+        editBtn.parentNode.replaceChild(newEditBtn, editBtn);
+        completeBtn.parentNode.replaceChild(newCompleteBtn, completeBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
         
         // Configurar botón de editar
         newEditBtn.addEventListener('click', () => {
-            // Cerrar modal de detalles
             bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
-            
-            // Abrir modal de edición con TODOS los datos del paciente
-            setTimeout(() => {
-                this.openAppointmentModal({
-                    id: appointmentData.id,
-                    title: appointmentData.title,
-                    start: appointmentData.start,
-                    end: appointmentData.end,
-                    professionalId: appointmentData.professionalId,
-                    serviceId: appointmentData.serviceId,
-                    status: appointmentData.status,
-                    notes: appointmentData.notes,
-                    // Agregar datos del paciente que estaban faltando
-                    patientId: appointmentData.patientId,
-                    patientName: appointmentData.patientName,
-                    patientEmail: appointmentData.patientEmail,
-                    patientPhone: appointmentData.patientPhone,
-                    isNew: false
-                });
-            }, 300);
+            this.openAppointmentModal(appointmentData);
         });
         
         // Configurar botón de completar
         newCompleteBtn.addEventListener('click', async () => {
-            if (confirm('¿Está seguro de marcar este turno como completado?')) {
-                await this.updateAppointmentStatus(appointmentData.id, 'completed');
-                // Cerrar modal después de actualizar
-                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
-            }
+            this.showConfirmationModal(
+                '¿Está seguro de marcar este turno como completado?',
+                'El turno se marcará como finalizado.',
+                'fas fa-check-circle text-success',
+                'btn-success',
+                async () => {
+                    await this.updateAppointmentStatus(appointmentData.id, 'completed');
+                    bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+                }
+            );
         });
         
         // Configurar botón de cancelar
         newCancelBtn.addEventListener('click', async () => {
-            if (confirm('¿Está seguro de cancelar este turno?')) {
-                await this.updateAppointmentStatus(appointmentData.id, 'cancelled');
-                // Cerrar modal después de actualizar
-                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
-            }
+            this.showConfirmationModal(
+                '¿Está seguro de cancelar este turno?',
+                'Esta acción no se puede deshacer.',
+                'fas fa-times-circle text-danger',
+                'btn-danger',
+                async () => {
+                    await this.updateAppointmentStatus(appointmentData.id, 'cancelled');
+                    bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+                }
+            );
         });
         
         // Mostrar/ocultar botones según el estado del turno
@@ -519,6 +494,39 @@ class AgendaManager {
             newCompleteBtn.style.display = 'none';
             newCancelBtn.style.display = 'none';
         }
+    }
+
+    // Nuevo método para mostrar el modal de confirmación
+    showConfirmationModal(message, subtext, iconClass, buttonClass, onConfirm) {
+        const modal = document.getElementById('confirmationModal');
+        const messageEl = document.getElementById('confirmationMessage');
+        const subtextEl = document.getElementById('confirmationSubtext');
+        const iconEl = document.getElementById('confirmationIcon');
+        const confirmBtn = document.getElementById('confirmActionBtn');
+        
+        // Configurar contenido del modal
+        messageEl.textContent = message;
+        subtextEl.textContent = subtext;
+        iconEl.className = `${iconClass} fa-3x`;
+        
+        // Configurar botón de confirmación
+        confirmBtn.className = `btn ${buttonClass}`;
+        
+        // Limpiar event listeners previos
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        
+        // Agregar nuevo event listener
+        newConfirmBtn.addEventListener('click', async () => {
+            bootstrap.Modal.getInstance(modal).hide();
+            if (onConfirm) {
+                await onConfirm();
+            }
+        });
+        
+        // Mostrar modal
+        const bootstrapModal = new bootstrap.Modal(modal);
+        bootstrapModal.show();
     }
 
     getStatusText(status) {
@@ -658,7 +666,7 @@ class AgendaManager {
     }
     }
 
-    populateModalFields(data) {
+    async populateModalFields(data) {
         document.getElementById('modal-professional').value = data.professionalId;
         // NO establecer el servicio aquí todavía
         document.getElementById('appointment-date').value = data.start.toISOString().split('T')[0];
@@ -678,21 +686,19 @@ class AgendaManager {
         
         document.getElementById('appointment-notes').value = data.notes || '';
         
-        // Cargar servicios del profesional Y LUEGO seleccionar el servicio
-        this.loadProfessionalServices(data.professionalId, data.serviceId);
+        // Cargar servicios del profesional y esperar a que termine
+        if (data.professionalId) {
+            await this.loadProfessionalServices(data.professionalId, data.serviceId);
+        }
         
         // Buscar y seleccionar paciente
         if (data.patientId && data.patientName) {
             this.selectPatient(data.patientId, data.patientName, data.patientEmail, data.patientPhone);
         }
         
-        // Cargar horarios disponibles después de establecer profesional, servicio y fecha
+        // Ahora cargar horarios disponibles - ya no necesitamos setTimeout
         if (data.professionalId && data.serviceId && data.start) {
-            //alan reveer
-            // Pequeño delay para asegurar que los servicios se hayan cargado
-            setTimeout(() => {
-                this.loadAvailableSlots();
-            }, 100);
+            this.loadAvailableSlots();
         }
     }
 
