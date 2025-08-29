@@ -68,8 +68,9 @@ class AgendaController extends AbstractController
         
         $startDate = new \DateTime($request->query->get('start', 'now'));
         $endDate = new \DateTime($request->query->get('end', '+1 week'));
-        $professionalId = $request->query->get('professional_id');
-        $serviceId = $request->query->get('service_id');
+        // Cambiar los nombres de parámetros para coincidir con el frontend
+        $professionalId = $request->query->get('professional'); // Era 'professional_id'
+        $serviceId = $request->query->get('service'); // Era 'service_id'
 
         $queryBuilder = $this->entityManager->createQueryBuilder()
             ->select('a', 'p', 's', 'pat')
@@ -99,15 +100,18 @@ class AgendaController extends AbstractController
         $events = [];
         foreach ($appointments as $appointment) {
             // En el método getAppointments, enriquecer la información
+            $endTime = clone $appointment->getScheduledAt();
+            $endTime->modify('+' . $appointment->getDurationMinutes() . ' minutes');
+
             $events[] = [
                 'id' => $appointment->getId(),
-                'title' => sprintf('%s - %s\n%s', 
+                'title' => sprintf('%s - %s (%s)', 
                     $appointment->getProfessional()->getName(),
                     $appointment->getPatient()->getName(),
                     $appointment->getService()?->getName() ?? 'Sin servicio'
                 ),
-                'start' => $appointment->getScheduledAt()->format('c'),
-                'end' => $appointment->getScheduledAt()->modify('+' . $appointment->getDurationMinutes() . ' minutes')->format('c'),
+                'start' => $appointment->getScheduledAt()->format('Y-m-d\\TH:i:s'),
+                'end' => $endTime->format('Y-m-d\\TH:i:s'),
                 'backgroundColor' => $this->getProfessionalColor($appointment->getProfessional()->getId()),
                 'borderColor' => $this->getStatusBorderColor($appointment->getStatus()),
                 'extendedProps' => [
@@ -638,5 +642,31 @@ class AgendaController extends AbstractController
         }
     
         return new JsonResponse($result);
+    }
+
+    #[Route('/professionals', name: 'app_agenda_professionals', methods: ['GET'])]
+    public function getProfessionals(): JsonResponse
+    {
+        $user = $this->getUser();
+        $clinic = $user->getOwnedClinics()->first();
+        
+        if (!$clinic) {
+            return new JsonResponse(['error' => 'Clínica no encontrada'], 404);
+        }
+
+        $professionals = $this->professionalRepository->findBy([
+            'clinic' => $clinic, 
+            'active' => true
+        ]);
+
+        $professionalData = [];
+        foreach ($professionals as $professional) {
+            $professionalData[] = [
+                'id' => $professional->getId(),
+                'name' => $professional->getName()
+            ];
+        }
+
+        return new JsonResponse($professionalData);
     }
 }

@@ -1,28 +1,32 @@
+let agendaManager;
 // Agenda Management JavaScript
 class AgendaManager {
     constructor() {
         this.calendar = null;
+        this.calendarEl = null;
+        this.allAppointments = []; // Agregar esta línea
         this.currentFilters = {
             professional: '',
             service: '',
             view: 'timeGridWeek'
         };
-        this.init();
     }
 
-    init() {
-        this.initializeCalendar();
+    async init() {
+        this.calendarEl = document.getElementById('calendar');
+        await this.initializeCalendar();
         this.bindEvents();
-        this.loadAppointments();
+        await this.loadAppointments();
     }
 
-    initializeCalendar() {
-        const calendarEl = document.getElementById('calendar');
+    async initializeCalendar() {
+        // Cargar configuración de horarios desde la base de datos
+        const businessHoursConfig = await this.loadBusinessHours();
         
-        this.calendar = new FullCalendar.Calendar(calendarEl, {
+        this.calendar = new FullCalendar.Calendar(this.calendarEl, {
             initialView: 'timeGridWeek',
             locale: 'es',
-            timeZone: 'UTC', // Agregar esta línea para manejar tiempos UTC
+            timeZone: 'UTC',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
@@ -31,13 +35,108 @@ class AgendaManager {
             height: 'auto',
             selectable: true,
             selectMirror: true,
-            dayMaxEvents: true,
+            
+            // Configuración específica por vista
+            views: {
+                dayGridMonth: {
+                    dayMaxEvents: false,
+                    moreLinkClick: false,
+                    selectable: false // Deshabilitar selección en vista mensual
+                },
+                timeGridWeek: {
+                    dayMaxEvents: false,
+                    slotEventOverlap: true,
+                    eventOverlap: true,
+                    selectable: true // Habilitar selección en vista semanal
+                },
+                timeGridDay: {
+                    dayMaxEvents: false,
+                    slotEventOverlap: true,
+                    eventOverlap: true,
+                    selectable: true // Habilitar selección en vista diaria
+                }
+            },
+            
             weekends: true,
             editable: true,
             allDaySlot: false,
             
-            // Eventos del calendario
-            select: (info) => this.handleDateSelect(info),
+            // Configuraciones generales
+            eventConstraint: 'businessHours',
+            
+            // Ocultar eventos en vista mensual
+            eventDidMount: (info) => {
+                if (this.calendar.view.type === 'dayGridMonth') {
+                    info.el.style.display = 'none';
+                }
+            },
+            
+            // Agregar contadores personalizados en vista mensual
+            dayCellDidMount: (info) => {
+                if (info.view.type === 'dayGridMonth') {
+                    // Usar el mismo formato que FullCalendar usa internamente
+                    const cellDate = info.date;
+                    const cellDateStr = cellDate.toISOString().split('T')[0]; // YYYY-MM-DD
+                    
+                    // Filtrar eventos del día usando comparación de fechas mejorada
+                    const dayEvents = this.calendar.getEvents().filter(event => {
+                        // Obtener solo la fecha (sin hora) del evento
+                        const eventDate = new Date(event.start);
+                        const eventDateStr = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
+                        return eventDateStr === cellDateStr;
+                    });
+                    
+                    if (dayEvents.length > 0) {
+                        // Remover contador existente si existe
+                        const existingCounter = info.el.querySelector('.turnos-counter');
+                        if (existingCounter) {
+                            existingCounter.remove();
+                        }
+                        
+                        // Crear nuevo contador
+                        const counter = document.createElement('div');
+                        counter.className = 'turnos-counter';
+                        counter.textContent = `${dayEvents.length} turno${dayEvents.length !== 1 ? 's' : ''}`;
+                        counter.style.cssText = `
+                            background: #007bff;
+                            color: white;
+                            padding: 2px 6px;
+                            border-radius: 3px;
+                            font-size: 11px;
+                            margin-top: 2px;
+                            cursor: pointer;
+                            text-align: center;
+                        `;
+                        
+                        // Agregar evento click para mostrar detalles
+                        counter.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this.showDayAppointments(dayEvents);
+                        });
+                        
+                        // Agregar al contenido de la celda
+                        const dayContent = info.el.querySelector('.fc-daygrid-day-top');
+                        if (dayContent) {
+                            dayContent.appendChild(counter);
+                        }
+                    }
+                }
+            },
+            
+            // Configuración mejorada para eventos concurrentes
+            eventMaxStack: 9,
+            dayMaxEventRows: true,
+            
+            // Eventos del calendario - Modificar para controlar selección por vista
+            select: (info) => {
+                // Solo permitir selección si NO estamos en vista mensual
+                if (this.calendar.view.type !== 'dayGridMonth') {
+                    this.handleDateSelect(info);
+                } else {
+                    // Deseleccionar si estamos en vista mensual
+                    this.calendar.unselect();
+                }
+            },
             eventClick: (info) => this.handleEventClick(info),
             eventDrop: (info) => this.handleEventDrop(info),
             eventResize: (info) => this.handleEventResize(info),
@@ -46,19 +145,72 @@ class AgendaManager {
             eventDisplay: 'block',
             eventTextColor: '#fff',
             
-            // Configuración de horarios
-            slotMinTime: '08:00:00',
-            slotMaxTime: '20:00:00',
-            slotDuration: '00:15:00',
+            // Configuración dinámica de horarios desde la base de datos
+            slotMinTime: businessHoursConfig.slotMinTime,
+            slotMaxTime: businessHoursConfig.slotMaxTime,
+            slotDuration: businessHoursConfig.slotDuration || '00:15:00',
             
-            // Configuración de días laborables
+            // Configuración dinámica de días laborables desde la base de datos
             businessHours: {
-                daysOfWeek: [1, 2, 3, 4, 5, 6, 7], // Lunes a Sábado
-                startTime: '08:00',
-                endTime: '18:00'
+                daysOfWeek: businessHoursConfig.daysOfWeek,
+                startTime: businessHoursConfig.startTime,
+                endTime: businessHoursConfig.endTime
             }
         });
         
+        this.calendar.render();
+    }
+
+    async loadBusinessHours() {
+        try {
+            // Usar los filtros actuales para obtener horarios específicos
+            const params = new URLSearchParams();
+            
+            if (this.currentFilters.professional) {
+                params.append('professional', this.currentFilters.professional);
+            }
+            
+            if (this.currentFilters.service) {
+                params.append('service', this.currentFilters.service);
+            }
+            
+            const url = `/agenda/business-hours${params.toString() ? '?' + params.toString() : ''}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error('Error al cargar horarios de negocio');
+            }
+            
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error loading business hours:', error);
+            // Valores por defecto en caso de error
+            return {
+                daysOfWeek: [1, 2, 3, 4, 5, 6],
+                startTime: '08:00',
+                endTime: '18:00',
+                slotMinTime: '08:00:00',
+                slotMaxTime: '18:00:00',
+                slotDuration: '00:15:00'
+            };
+        }
+    }
+
+    async updateBusinessHours() {
+        const businessHours = await this.loadBusinessHours();
+        
+        // Actualizar las opciones del calendario
+        this.calendar.setOption('slotMinTime', businessHours.slotMinTime);
+        this.calendar.setOption('slotMaxTime', businessHours.slotMaxTime);
+        this.calendar.setOption('slotDuration', businessHours.slotDuration || '00:15:00');
+        this.calendar.setOption('businessHours', {
+            daysOfWeek: businessHours.daysOfWeek,
+            startTime: businessHours.startTime,
+            endTime: businessHours.endTime
+        });
+        
+        // Refrescar la vista del calendario
         this.calendar.render();
     }
 
@@ -66,16 +218,18 @@ class AgendaManager {
         // Filtros - IDs corregidos para coincidir con el template
         const professionalFilter = document.getElementById('professionalFilter');
         if (professionalFilter) {
-            professionalFilter.addEventListener('change', (e) => {
+            professionalFilter.addEventListener('change', async (e) => {
                 this.currentFilters.professional = e.target.value;
+                await this.updateBusinessHours(); // Actualizar horarios cuando cambie el filtro
                 this.loadAppointments();
             });
         }
         
         const serviceFilter = document.getElementById('serviceFilter');
         if (serviceFilter) {
-            serviceFilter.addEventListener('change', (e) => {
+            serviceFilter.addEventListener('change', async (e) => {
                 this.currentFilters.service = e.target.value;
+                await this.updateBusinessHours(); // Actualizar horarios cuando cambie el filtro
                 this.loadAppointments();
             });
         }
@@ -160,14 +314,21 @@ class AgendaManager {
             appointments.forEach(appointment => {
                 this.calendar.addEvent({
                     id: appointment.id,
-                    title: appointment.title, // Ya viene formateado del servidor
+                    title: appointment.title,
                     start: appointment.start,
                     end: appointment.end,
                     backgroundColor: appointment.backgroundColor,
                     borderColor: appointment.borderColor,
-                    extendedProps: appointment.extendedProps // Ya viene con la estructura correcta
+                    extendedProps: appointment.extendedProps
                 });
             });
+            
+            // Si estamos en vista mensual, forzar re-render para actualizar contadores
+            if (this.calendar.view.type === 'dayGridMonth') {
+                setTimeout(() => {
+                    this.calendar.render();
+                }, 100);
+            }
             
         } catch (error) {
             console.error('Error loading appointments:', error);
@@ -520,9 +681,16 @@ class AgendaManager {
             'day': 'timeGridDay'
         };
         
+        this.currentFilters.view = view;
+        
         if (viewMap[view]) {
             this.calendar.changeView(viewMap[view]);
+        } else {
+            this.calendar.changeView(view);
         }
+        
+        // Recargar appointments cuando cambie la vista
+        this.loadAppointments();
     }
 
     showLoading(show) {
@@ -581,10 +749,54 @@ class AgendaManager {
         // Mostrar en panel lateral
         this.updateSummaryPanel(summary);
     }
+    
+    showDayAppointments(dayEvents) {
+        debugger;
+
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Turnos del día</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="list-group">
+                            ${dayEvents.map(event => `
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">${event.title}</h6>
+                                         <small>${event.start.toLocaleTimeString('es-ES', {
+                                            hour: '2-digit', 
+                                            minute: '2-digit',
+                                            timeZone: 'UTC'
+                                        })}</small>
+                                    </div>
+                                    <p class="mb-1">${event.extendedProps?.service || ''}</p>
+                                    <small>${event.extendedProps?.professional || ''}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+        
+        modal.addEventListener('hidden.bs.modal', () => {
+            modal.remove();
+        });
+    }
 }
 
 // Inicializar cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', function() {
-    window.agendaManager = new AgendaManager();
+document.addEventListener('DOMContentLoaded', async function() {
+    agendaManager = new AgendaManager();
+    await agendaManager.init();
 });
 
