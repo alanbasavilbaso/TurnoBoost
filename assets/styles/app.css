@@ -165,3 +165,9 @@ body {
 .hide {
     display: none !important;
 }
+
+@media (min-width: 992px) {
+    .d-lg-table {
+        display: table-cell !important;
+    }
+}

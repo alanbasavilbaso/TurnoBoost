@@ -34,6 +34,10 @@ class Professional
     #[ORM\Column(type: 'boolean', options: ['default' => true])]
     private bool $active = true;
 
+    // NUEVO CAMPO
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $onlineBookingEnabled = true;
+
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $createdAt;
 
@@ -135,6 +139,18 @@ class Professional
     public function setActive(bool $active): self
     {
         $this->active = $active;
+        return $this;
+    }
+
+    // NUEVO MÉTODO PARA ONLINE BOOKING
+    public function isOnlineBookingEnabled(): bool
+    {
+        return $this->onlineBookingEnabled;
+    }
+
+    public function setOnlineBookingEnabled(bool $onlineBookingEnabled): self
+    {
+        $this->onlineBookingEnabled = $onlineBookingEnabled;
         return $this;
     }
 

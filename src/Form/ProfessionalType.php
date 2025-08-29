@@ -18,6 +18,7 @@ use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Constraints\Regex;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\CollectionType;
 
 class ProfessionalType extends AbstractType
 {
@@ -82,8 +83,19 @@ class ProfessionalType extends AbstractType
                     ])
                 ]
             ])
-            ->add('active', CheckboxType::class, [
-                'label' => 'Activo',
+            // ->add('active', CheckboxType::class, [
+            //     'label' => 'Activo',
+            //     'required' => false,
+            //     'attr' => [
+            //         'class' => 'form-check-input'
+            //     ],
+            //     'label_attr' => [
+            //         'class' => 'form-check-label'
+            //     ],
+            //     'data' => true // Por defecto activo
+            // ])
+            ->add('onlineBookingEnabled', CheckboxType::class, [
+                'label' => 'Reserva online disponible',
                 'required' => false,
                 'attr' => [
                     'class' => 'form-check-input'
@@ -91,7 +103,7 @@ class ProfessionalType extends AbstractType
                 'label_attr' => [
                     'class' => 'form-check-label'
                 ],
-                'data' => true // Por defecto activo
+                'data' => true // Por defecto habilitado
             ]);
             
         // Agregar campos de horarios para cada día de la semana
@@ -141,7 +153,7 @@ class ProfessionalType extends AbstractType
                         'required' => false,
                         'mapped' => false,
                         'choices' => $timeOptions,
-                        'placeholder' => '-',
+                        'placeholder' => '09:00',
                         'attr' => [
                             'class' => 'form-control time-select',
                             'data-day' => $dayNumber,
@@ -153,7 +165,7 @@ class ProfessionalType extends AbstractType
                         'required' => false,
                         'mapped' => false,
                         'choices' => $timeOptions,
-                        'placeholder' => '-',
+                        'placeholder' => '18:00',
                         'attr' => [
                             'class' => 'form-control time-select',
                             'data-day' => $dayNumber,
@@ -163,7 +175,7 @@ class ProfessionalType extends AbstractType
             }
         }
         
-        // Agregar campo de servicios si se proporciona la clínica
+        // En el método buildForm, después del campo 'services':
         if ($clinic) {
             $builder->add('services', EntityType::class, [
                 'class' => Service::class,
@@ -190,6 +202,21 @@ class ProfessionalType extends AbstractType
                 ],
                 'help' => 'Seleccione los servicios que este profesional puede ofrecer'
             ]);
+            
+            // Cambiar 'serviceConfigurations' por 'serviceConfigs'
+            $builder->add('serviceConfigs', CollectionType::class, [
+                'entry_type' => ProfessionalServiceType::class,
+                'entry_options' => [
+                    'label' => false
+                ],
+                'allow_add' => true,
+                'allow_delete' => true,
+                'by_reference' => false,
+                'mapped' => false,
+                'attr' => [
+                    'class' => 'service-configurations'
+                ]
+            ]);
         }
     }
 
@@ -199,9 +226,10 @@ class ProfessionalType extends AbstractType
             'data_class' => Professional::class,
             'clinic' => null,
             'is_edit' => false,
+            'allow_extra_fields' => true, // Permitir campos extra
         ]);
         
-        $resolver->setAllowedTypes('clinic', ['null', 'App\\Entity\\Clinic']);
+        $resolver->setAllowedTypes('clinic', ['null', 'App\Entity\Clinic']);
         $resolver->setAllowedTypes('is_edit', 'bool');
     }
 }

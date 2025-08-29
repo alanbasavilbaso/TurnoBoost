@@ -9,6 +9,10 @@
 
 {% block javascripts %}
     {{ parent() }}
+    <script>
+        // Pasar configuraciones existentes al JavaScript
+        var existingServiceConfigs = {{ existing_service_configs|json_encode|raw }};
+    </script>
     <script src="{{ asset('scripts/professional-form.js') }}"></script>
 {% endblock %}
 
@@ -166,26 +170,24 @@
                 <!-- Servicios Section -->
                 <div class="row mb-4">
                     <div class="col-12">
-                        <h5 class="mb-3">Servicios</h5>
-                        
-                        <!-- Error display -->
-                        {{ form_errors(form.services) }}
+                        <h5 class="mb-3">
+                            <i class="fas fa-cogs text-primary me-2"></i>
+                            Servicios y Configuración
+                        </h5>
                         
                         <!-- Services selector with Select2 -->
-                        <div class="form-group">
-                            <label for="services-select" class="form-label">Seleccionar servicios:</label>
-                            <select id="services-select" class="form-control" multiple>
+                        <div class="form-group mb-3">
+                            <label for="services-select" class="form-label">
+                                <i class="fas fa-plus me-1"></i>
+                                Agregar servicios:
+                            </label>
+                            <select id="services-select" class="form-control">
+                                <option></option> <!-- Opción vacía para el placeholder -->
                                 {% for service in services %}
-                                    <option value="{{ service.id }}"
-                                            {% if form.services.vars.value is defined %}
-                                                {% for selectedServiceId in form.services.vars.value %}
-                                                    {% if selectedServiceId is iterable %}
-                                                        {% if selectedServiceId.id == service.id %}selected{% endif %}
-                                                    {% else %}
-                                                        {% if selectedServiceId == service.id %}selected{% endif %}
-                                                    {% endif %}
-                                                {% endfor %}
-                                            {% endif %}>
+                                    <option value="{{ service.id }}" 
+                                            data-name="{{ service.name }}" 
+                                            data-duration="{{ service.defaultDurationMinutes }}" 
+                                            data-price="{{ service.price }}">
                                         {{ service.name }}
                                         {% if service.description %}
                                             - {{ service.description|slice(0, 50) }}{% if service.description|length > 50 %}...{% endif %}
@@ -194,16 +196,74 @@
                                     </option>
                                 {% endfor %}
                             </select>
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Seleccione un servicio para agregarlo a la lista de configuración
+                            </small>
                         </div>
                         
-                        <!-- Selected services display -->
-                        <div id="selected-services" class="mt-3">
-                            <div class="selected-services-container"></div>
+                        <!-- Selected services with configuration buttons -->
+                        <div id="selected-services-config" class="mt-3">
+                            <h6 class="mb-2">Servicios Configurados:</h6>
+                            <div id="services-config-container" class="services-config-list">
+                                <!-- Los servicios seleccionados aparecerán aquí -->
+                            </div>
                         </div>
                         
                         <!-- Hidden original form field for compatibility -->
                         <div style="display: none;">
                             {{ form_widget(form.services) }}
+                            {{ form_widget(form.serviceConfigs) }}
+                            
+                            <!-- Contenedor para inputs hidden dinámicos de servicios -->
+                            <div id="service-hidden-inputs">
+                                <!-- Los inputs hidden se generarán dinámicamente aquí -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Modal para configurar días del servicio -->
+                <div class="modal fade" id="serviceDaysModal" tabindex="-1" aria-labelledby="serviceDaysModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="serviceDaysModalLabel">
+                                    <i class="fas fa-calendar-alt me-2"></i>
+                                    Configurar Días Disponibles
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="text-muted mb-3">
+                                    Seleccione los días en que este profesional puede ofrecer el servicio <strong id="current-service-name"></strong>.
+                                    Por defecto se usan los mismos días del horario de disponibilidad.
+                                </p>
+                                
+                                <div class="days-selection">
+                                    {% set dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] %}
+                                    {% for dayNumber, dayName in dayNames %}
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input service-day-checkbox" type="checkbox" 
+                                                   id="service-day-{{ dayNumber }}" data-day="{{ dayNumber }}">
+                                            <label class="form-check-label" for="service-day-{{ dayNumber }}">
+                                                {{ dayName }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="copy-availability-btn">
+                                        <i class="fas fa-copy me-1"></i>
+                                        Copiar desde horario de disponibilidad
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" id="save-service-days">Guardar</button>
+                            </div>
                         </div>
                     </div>
                 </div>

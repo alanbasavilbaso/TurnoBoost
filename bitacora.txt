@@ -84,16 +84,12 @@ Este comando:
 4. 4.
    Procesa las importaciones CSS desde app.js
 
-## 3. Generar la migración
+##  Generar la migración
 Una vez que hayas creado las entidades, genera la migración:
 
     php bin/console make:migration
 
-    Esto creará un archivo de migración en el directorio migrations/ que contendrá
-     el SQL necesario para crear las tablas y enums.
-
-
-## 4. Ejecutar la migración
+## Ejecutar la migración
 Ejecuta la migración para aplicar los cambios a la base de datos:
 
     php bin/console doctrine:migrations:migrate

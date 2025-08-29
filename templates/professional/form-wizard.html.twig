@@ -1,0 +1,386 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ is_edit ? 'Editar' : 'Nuevo' }} Profesional - {{ clinic.name }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('styles/professional-form.css') }}">
+    <link rel="stylesheet" href="{{ asset('styles/wizard.css') }}">
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script>
+        // Pasar configuraciones existentes al JavaScript
+        var existingServiceConfigs = {{ existing_service_configs|json_encode|raw }};
+    </script>
+    <script src="{{ asset('scripts/professional-form.js') }}"></script>
+    <script src="{{ asset('scripts/wizard.js') }}"></script>
+{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-xxl-10 col-xl-10 col-lg-10 col-md-12 col-sm-12 col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-user-md text-primary me-2"></i>
+                        {{ is_edit ? 'Editar Profesional' : 'Nuevo Profesional' }}
+                    </h1>
+                    <p class="text-muted mb-0">{{ clinic.name }}</p>
+                </div>
+                <a href="{{ path('app_professional_index') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </a>
+            </div>
+
+            <!-- Flash Messages -->
+            {% for type, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ type == 'error' ? 'danger' : type }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endfor %}
+
+            <!-- Wizard Container -->
+            <div class="wizard-container">
+                <!-- Progress Steps -->
+                <div class="wizard-steps">
+                    <div class="step active" data-step="1">
+                        <div class="step-number">1</div>
+                        <div class="step-title">Información Básica</div>
+                    </div>
+                    <div class="step" data-step="2">
+                        <div class="step-number">2</div>
+                        <div class="step-title">Horarios</div>
+                    </div>
+                    <div class="step" data-step="3">
+                        <div class="step-number">3</div>
+                        <div class="step-title">Servicios</div>
+                    </div>
+                    <div class="step" data-step="4">
+                        <div class="step-number">4</div>
+                        <div class="step-title">Revisión</div>
+                    </div>
+                </div>
+
+                <!-- Form -->
+                <div class="wizard-form">
+                    {{ form_start(form) }}
+                    
+                    <!-- Step 1: Información Básica -->
+                    <div class="wizard-step-content active" id="step-1">
+                        <div class="step-header">
+                            <h4 class="mb-3">
+                                <i class="fas fa-user text-primary me-2"></i>
+                                Información Básica
+                            </h4>
+                            <p class="text-muted">Complete los datos personales del profesional</p>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form_label(form.name) }}
+                                {{ form_widget(form.name) }}
+                                {{ form_errors(form.name) }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form_label(form.specialty) }}
+                                {{ form_widget(form.specialty) }}
+                                {{ form_errors(form.specialty) }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form_label(form.email) }}
+                                {{ form_widget(form.email) }}
+                                {{ form_errors(form.email) }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form_label(form.phone) }}
+                                {{ form_widget(form.phone) }}
+                                {{ form_errors(form.phone) }}
+                            </div>
+                        </div>
+                        
+                        
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                {{ form_widget(form.onlineBookingEnabled, {'attr': {'class': 'form-check-input', 'role': 'switch'}}) }}
+                                {{ form_label(form.onlineBookingEnabled, null, {'label_attr': {'class': 'form-check-label'}}) }}
+                            </div>
+                            {{ form_errors(form.onlineBookingEnabled) }}
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Horarios de Disponibilidad -->
+                    <div class="wizard-step-content" id="step-2">
+                        <div class="step-header">
+                            <h4 class="mb-3">
+                                <i class="fas fa-clock text-primary me-2"></i>
+                                Horarios de Disponibilidad
+                            </h4>
+                            <p class="text-muted">
+                                Configure los horarios de trabajo para cada día. Use formato 24 horas (ej: 09:00, 14:30). 
+                                Puede agregar hasta 2 rangos horarios por día.
+                            </p>
+                        </div>
+                        
+                        <div class="availability-section">
+                            {% set days = {
+                                0: 'Lun',
+                                1: 'Mar',
+                                2: 'Mié', 
+                                3: 'Jue',
+                                4: 'Vie',
+                                5: 'Sáb',
+                                6: 'Dom'
+                            } %}
+                            
+                            <!-- Layout en flex para mostrar todos los días en una fila -->
+                            <div class="availability-flex">
+                                {% for dayNumber, dayName in days %}
+                                    <div class="day-column">
+                                        <div class="day-header">
+                                            <div class="form-check">
+                                                {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_enabled')) }}
+                                                <label class="form-check-label day-name" for="{{ attribute(form, 'availability_' ~ dayNumber ~ '_enabled').vars.id }}">
+                                                    {{ dayName }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="availability-ranges" data-day="{{ dayNumber }}">
+                                            <!-- Rango 1 -->
+                                            <div class="time-range" data-range="1">
+                                                <div class="time-input-group">
+                                                    {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range1_start')) }}
+                                                    {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range1_start')) }}
+                                                    {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range1_start')) }}
+                                                </div>
+                                                <div class="time-input-group">
+                                                    {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range1_end')) }}
+                                                    {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range1_end')) }}
+                                                    {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range1_end')) }}
+                                                </div>
+                                                <div class="range-actions">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary add-range-btn" data-day="{{ dayNumber }}">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Rango 2 -->
+                                            <div class="time-range" data-range="2">
+                                                <div class="time-input-group">
+                                                    {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range2_start')) }}
+                                                    {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range2_start')) }}
+                                                    {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range2_start')) }}
+                                                </div>
+                                                <div class="time-input-group">
+                                                    {{ form_label(attribute(form, 'availability_' ~ dayNumber ~ '_range2_end')) }}
+                                                    {{ form_widget(attribute(form, 'availability_' ~ dayNumber ~ '_range2_end')) }}
+                                                    {{ form_errors(attribute(form, 'availability_' ~ dayNumber ~ '_range2_end')) }}
+                                                </div>
+                                                <div class="range-actions">
+                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-range-btn" data-day="{{ dayNumber }}">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Servicios -->
+                    <div class="wizard-step-content" id="step-3">
+                        <div class="step-header">
+                            <h4 class="mb-3">
+                                <i class="fas fa-cogs text-primary me-2"></i>
+                                Servicios y Configuración
+                            </h4>
+                            <p class="text-muted">Seleccione los servicios que ofrece este profesional y configure su disponibilidad</p>
+                        </div>
+                        
+                        <!-- Services selector with Select2 -->
+                        <div class="form-group mb-3">
+                            <label for="services-select" class="form-label">
+                                <i class="fas fa-plus me-1"></i>
+                                Agregar servicios:
+                            </label>
+                            <select id="services-select" class="form-control">
+                                <option></option> <!-- Opción vacía para el placeholder -->
+                                {% for service in services %}
+                                    <option value="{{ service.id }}" 
+                                            data-name="{{ service.name }}" 
+                                            data-duration="{{ service.defaultDurationMinutes }}" 
+                                            data-price="{{ service.price }}">
+                                        {{ service.name }}
+                                        {% if service.description %}
+                                            - {{ service.description|slice(0, 50) }}{% if service.description|length > 50 %}...{% endif %}
+                                        {% endif %}
+                                        {% if service.price %} (${{ service.price }}){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Seleccione un servicio para agregarlo a la lista de configuración
+                            </small>
+                        </div>
+                        
+                        <!-- Selected services with configuration buttons -->
+                        <div id="selected-services-config" class="mt-3">
+                            <h6 class="mb-2">Servicios Configurados:</h6>
+                            <div id="services-config-container" class="services-config-list">
+                                <!-- Los servicios seleccionados aparecerán aquí -->
+                            </div>
+                        </div>
+                        
+                        <!-- Hidden original form field for compatibility -->
+                        <div style="display: none;">
+                            {{ form_widget(form.services) }}
+                            {{ form_widget(form.serviceConfigs) }}
+                            
+                            <!-- Contenedor para inputs hidden dinámicos de servicios -->
+                            <div id="service-hidden-inputs">
+                                <!-- Los inputs hidden se generarán dinámicamente aquí -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Revisión -->
+                    <div class="wizard-step-content" id="step-4">
+                        <div class="step-header">
+                            <h4 class="mb-3">
+                                <i class="fas fa-check text-primary me-2"></i>
+                                Revisión Final
+                            </h4>
+                            <p class="text-muted">Revise toda la información antes de guardar</p>
+                        </div>
+                        
+                        <div class="review-section">
+                            <!-- Información Básica Review -->
+                            <div class="review-card mb-3">
+                                <h6 class="review-title">
+                                    <i class="fas fa-user me-2"></i>
+                                    Información Básica
+                                    <button type="button" class="btn btn-sm btn-outline-primary float-end edit-step-btn" data-step="1">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </button>
+                                </h6>
+                                <div class="review-content" id="review-basic-info">
+                                    <!-- Se llenará dinámicamente -->
+                                </div>
+                            </div>
+                            
+                            <!-- Horarios Review -->
+                            <div class="review-card mb-3">
+                                <h6 class="review-title">
+                                    <i class="fas fa-clock me-2"></i>
+                                    Horarios de Disponibilidad
+                                    <button type="button" class="btn btn-sm btn-outline-primary float-end edit-step-btn" data-step="2">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </button>
+                                </h6>
+                                <div class="review-content" id="review-schedule">
+                                    <!-- Se llenará dinámicamente -->
+                                </div>
+                            </div>
+                            
+                            <!-- Servicios Review -->
+                            <div class="review-card mb-3">
+                                <h6 class="review-title">
+                                    <i class="fas fa-cogs me-2"></i>
+                                    Servicios
+                                    <button type="button" class="btn btn-sm btn-outline-primary float-end edit-step-btn" data-step="3">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </button>
+                                </h6>
+                                <div class="review-content" id="review-services">
+                                    <!-- Se llenará dinámicamente -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- CORREGIDO: Incluir el token CSRF -->
+                    {{ form_rest(form) }}
+                    {{ form_end(form, {'render_rest': false}) }}
+                </div>
+
+                <!-- Navigation Buttons -->
+                <div class="wizard-navigation">
+                    <button type="button" class="btn btn-secondary" id="prev-step" style="display: none;">
+                        <i class="fas fa-arrow-left"></i> Anterior
+                    </button>
+                    
+                    <a href="{{ path('app_professional_index') }}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-times"></i> Cancelar
+                    </a>
+                    <button type="button" class="btn btn-primary" id="next-step">
+                        Siguiente <i class="fas fa-arrow-right"></i>
+                    </button>
+                    <button type="submit" class="btn btn-success" id="submit-form" style="display: none;">
+                        <i class="fas fa-save"></i> 
+                        {{ is_edit ? 'Actualizar' : 'Crear' }} Profesional
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal para configurar días del servicio -->
+            <div class="modal fade" id="serviceDaysModal" tabindex="-1" aria-labelledby="serviceDaysModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="serviceDaysModalLabel">
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                Configurar Días Disponibles
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted mb-3">
+                                Seleccione los días en que este profesional puede ofrecer el servicio <strong id="current-service-name"></strong>.
+                                Por defecto se usan los mismos días del horario de disponibilidad.
+                            </p>
+                            
+                            <div class="days-selection">
+                                {% set dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] %}
+                                {% for dayNumber, dayName in dayNames %}
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input service-day-checkbox" type="checkbox" 
+                                               id="service-day-{{ dayNumber }}" data-day="{{ dayNumber }}">
+                                        <label class="form-check-label" for="service-day-{{ dayNumber }}">
+                                            {{ dayName }}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="copy-availability-btn">
+                                    <i class="fas fa-copy me-1"></i>
+                                    Copiar desde horario de disponibilidad
+                                </button>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="save-service-days">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

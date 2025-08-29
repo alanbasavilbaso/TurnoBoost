@@ -10,6 +10,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -18,6 +19,13 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_ADMIN')] // Cambiado de ROLE_USER a ROLE_ADMIN
 class ProfessionalController extends AbstractController
 {
+    private RequestStack $requestStack;
+
+    public function __construct(RequestStack $requestStack)
+    {
+        $this->requestStack = $requestStack;
+    }
+
     #[Route('/', name: 'app_professional_index', methods: ['GET'])]
     public function index(ProfessionalRepository $professionalRepository): Response
     {
@@ -81,12 +89,17 @@ class ProfessionalController extends AbstractController
             return $this->redirectToRoute('app_professional_index');
         }
 
-        return $this->render('professional/form.html.twig', [
+        // Determinar qué template usar según variable de entorno
+        $useWizard = $_ENV['USE_PROFESSIONAL_WIZARD'] ?? false;
+        $template = $useWizard ? 'professional/form-wizard.html.twig' : 'professional/form.html.twig';
+
+        return $this->render($template, [
             'professional' => $professional,
             'form' => $form,
             'clinic' => $clinic,
             'services' => $clinic->getServices(),
             'is_edit' => false,
+            'existing_service_configs' => [], // Agregar esta línea
         ]);
     }
 
@@ -97,7 +110,7 @@ class ProfessionalController extends AbstractController
             $this->addFlash('error', 'No tiene permisos para editar este profesional.');
             return $this->redirectToRoute('app_professional_index');
         }
-
+    
         $clinic = $professional->getClinic();
         
         $form = $this->createForm(ProfessionalType::class, $professional, [
@@ -112,34 +125,76 @@ class ProfessionalController extends AbstractController
         // Pre-llenar datos de disponibilidad existentes
         $this->populateAvailabilityData($form, $professional);
         
+        // AGREGAR: Pre-llenar configuraciones de servicios existentes
+        $serviceConfigs = $this->populateServiceConfigs($form, $professional);
+        
         $form->handleRequest($request);
     
-        if ($form->isSubmitted() && $form->isValid()) {
-            $professional->setUpdatedAt(new \DateTime());
-            
-            // Eliminar disponibilidades existentes
-            foreach ($professional->getAvailabilities() as $availability) {
-                $entityManager->remove($availability);
+        if ($form->isSubmitted()) {
+            // Debug: Mostrar errores de validación
+            if (!$form->isValid()) {
+                error_log('Form is not valid. Errors:');
+                foreach ($form->getErrors(true) as $error) {
+                    error_log('Form error: ' . $error->getMessage());
+                }
+                
+                // Mostrar errores específicos en desarrollo
+                if ($this->getParameter('kernel.environment') === 'dev') {
+                    $errors = [];
+                    foreach ($form->getErrors(true) as $error) {
+                        $errors[] = $error->getMessage();
+                    }
+                    $this->addFlash('error', 'Errores de validación: ' . implode(', ', $errors));
+                } else {
+                    $this->addFlash('error', 'Hay errores en el formulario. Por favor, revise los datos.');
+                }
+            } else {
+                try {
+                    $professional->setUpdatedAt(new \DateTime());
+                    
+                    // Eliminar disponibilidades existentes
+                    foreach ($professional->getAvailabilities() as $availability) {
+                        $entityManager->remove($availability);
+                    }
+                    
+                    // Procesar horarios de disponibilidad
+                    $this->processAvailabilityData($form, $professional, $entityManager);
+                    
+                    // Procesar servicios seleccionados
+                    // En el método edit/create, después de procesar availability:
+                    $this->processServices($form, $professional, $entityManager);
+                    
+                    $entityManager->flush();
+                    
+                    $this->addFlash('success', 'Profesional actualizado exitosamente.');
+                    return $this->redirectToRoute('app_professional_index');
+                } catch (\Exception $e) {
+                    // Log del error completo siempre
+                    error_log('Error al actualizar profesional: ' . $e->getMessage());
+                    error_log('Stack trace: ' . $e->getTraceAsString());
+                    
+                    // Mostrar mensaje específico solo en desarrollo
+                    if ($this->getParameter('kernel.environment') === 'dev') {
+                        $this->addFlash('error', 'Error al actualizar el profesional: ' . $e->getMessage());
+                    } else {
+                        $this->addFlash('error', 'Error al actualizar el profesional. Por favor, inténtelo de nuevo.');
+                    }
+                }
             }
-            
-            // Procesar horarios de disponibilidad
-            $this->processAvailabilityData($form, $professional, $entityManager);
-            
-            // Procesar servicios seleccionados
-            $this->processServices($form, $professional, $entityManager);
-            
-            $entityManager->flush();
-            
-            $this->addFlash('success', 'Profesional actualizado exitosamente.');
-            return $this->redirectToRoute('app_professional_index');
         }
-    
-        return $this->render('professional/form.html.twig', [
+        
+        // Determinar qué template usar según variable de entorno
+        $useWizard = $_ENV['USE_PROFESSIONAL_WIZARD'] ?? false;
+        
+        $template = $useWizard ? 'professional/form-wizard.html.twig' : 'professional/form.html.twig';
+        
+        return $this->render($template, [
             'professional' => $professional,
             'form' => $form,
             'clinic' => $clinic,
-            'services' => $clinic->getServices(), // Agregar esta línea
+            'services' => $clinic->getServices(),
             'is_edit' => true,
+            'existing_service_configs' => $serviceConfigs,
         ]);
     }
 
@@ -271,10 +326,19 @@ class ProfessionalController extends AbstractController
         }
     }
     
-    private function processServices(FormInterface $form, Professional $professional, EntityManagerInterface $entityManager): void
-    {
-        // Obtener servicios seleccionados del formulario
-        $selectedServices = $form->get('services')->getData();
+    private function processServices(FormInterface $form, Professional $professional, EntityManagerInterface $entityManager): void {
+        // Obtener configuraciones de servicios desde los inputs hidden
+        $request = $this->requestStack->getCurrentRequest();
+        $serviceConfigs = $request->request->all('service_configs') ?? [];
+        
+        $serviceRepository = $entityManager->getRepository(\App\Entity\Service::class);
+        $selectedServices = [];
+        foreach (array_keys($serviceConfigs) as $serviceId) {
+            $service = $serviceRepository->find($serviceId);
+            if ($service) {
+                $selectedServices[] = $service;
+            }
+        }
         
         // Eliminar todas las asociaciones existentes
         foreach ($professional->getProfessionalServices() as $professionalService) {
@@ -288,9 +352,55 @@ class ProfessionalController extends AbstractController
                 $professionalService = new \App\Entity\ProfessionalService();
                 $professionalService->setProfessional($professional);
                 $professionalService->setService($service);
-                // Usar valores por defecto del servicio
-                $professionalService->setCustomDurationMinutes($service->getDefaultDurationMinutes());
-                $professionalService->setCustomPrice($service->getPrice());
+                
+                $serviceId = $service->getId();
+                
+                // Configurar duración y precio
+                if (isset($serviceConfigs[$serviceId]['duration'])) {
+                    $professionalService->setCustomDurationMinutes((int)$serviceConfigs[$serviceId]['duration']);
+                } else {
+                    $professionalService->setCustomDurationMinutes($service->getDefaultDurationMinutes());
+                }
+                
+                if (isset($serviceConfigs[$serviceId]['price'])) {
+                    $professionalService->setCustomPrice((float)$serviceConfigs[$serviceId]['price']);
+                } else {
+                    $professionalService->setCustomPrice($service->getPrice());
+                }
+                
+                // Procesar configuración de días
+                $dayMapping = [
+                    0 => 'setAvailableMonday',
+                    1 => 'setAvailableTuesday', 
+                    2 => 'setAvailableWednesday',
+                    3 => 'setAvailableThursday',
+                    4 => 'setAvailableFriday',
+                    5 => 'setAvailableSaturday',
+                    6 => 'setAvailableSunday'
+                ];
+                
+                // Establecer todos los días como false primero
+                foreach ($dayMapping as $method) {
+                    $professionalService->$method(false);
+                }
+                
+                // Establecer los días seleccionados como true
+                if (isset($serviceConfigs[$serviceId]['days']) && is_array($serviceConfigs[$serviceId]['days'])) {
+                    foreach ($serviceConfigs[$serviceId]['days'] as $day) {
+                        if (isset($dayMapping[$day])) {
+                            $professionalService->{$dayMapping[$day]}(true);
+                        }
+                    }
+                } else {
+                    // Si no hay configuración específica, usar todos los días como true por defecto
+                    $professionalService->setAvailableMonday(true);
+                    $professionalService->setAvailableTuesday(true);
+                    $professionalService->setAvailableWednesday(true);
+                    $professionalService->setAvailableThursday(true);
+                    $professionalService->setAvailableFriday(true);
+                    $professionalService->setAvailableSaturday(true);
+                    $professionalService->setAvailableSunday(true);
+                }
                 
                 $entityManager->persist($professionalService);
                 $professional->addProfessionalService($professionalService);
@@ -298,10 +408,38 @@ class ProfessionalController extends AbstractController
         }
     }
     
-    // Add this method after the existing edit method
-    #[Route('/{id}/editar', name: 'app_professional_edit_redirect', methods: ['GET'])]
-    public function editRedirect(Professional $professional): Response
+    private function populateServiceConfigs(FormInterface $form, Professional $professional): array
     {
-        return $this->redirectToRoute('app_professional_edit', ['id' => $professional->getId()], 301);
+        $serviceConfigs = [];
+        
+        // Obtener todas las configuraciones de servicios del profesional
+        foreach ($professional->getProfessionalServices() as $professionalService) {
+            $serviceId = $professionalService->getService()->getId();
+            
+            // Crear array de días seleccionados
+            $selectedDays = [];
+            if ($professionalService->isAvailableMonday()) $selectedDays[] = 0;
+            if ($professionalService->isAvailableTuesday()) $selectedDays[] = 1;
+            if ($professionalService->isAvailableWednesday()) $selectedDays[] = 2;
+            if ($professionalService->isAvailableThursday()) $selectedDays[] = 3;
+            if ($professionalService->isAvailableFriday()) $selectedDays[] = 4;
+            if ($professionalService->isAvailableSaturday()) $selectedDays[] = 5;
+            if ($professionalService->isAvailableSunday()) $selectedDays[] = 6;
+            
+            $serviceConfigs[$serviceId] = [
+                'id' => $serviceId,
+                'name' => $professionalService->getService()->getName(), // AGREGAR ESTA LÍNEA
+                'days' => $selectedDays,
+                'customDurationMinutes' => $professionalService->getCustomDurationMinutes(),
+                'customPrice' => $professionalService->getCustomPrice()
+            ];
+        }
+        
+        // Log para debug
+        error_log('Preloaded service configs: ' . json_encode($serviceConfigs));
+        
+        // Nota: Como serviceConfigs tiene mapped => false, no podemos usar setData directamente
+        // El frontend JavaScript deberá leer esta información desde el template
+        return $serviceConfigs;
     }
 }
