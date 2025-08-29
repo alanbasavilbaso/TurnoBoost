@@ -30,6 +30,25 @@
                     </div>
 
                     <div class="mb-3">
+                        {{ form_label(form.domain, null, {'label_attr': {'class': 'form-label fw-bold'}}) }}
+                        {{ form_widget(form.domain) }}
+                        {% if form.domain.vars.help %}
+                            <div class="form-text text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                {{ form.domain.vars.help }}
+                                {% if clinic.domain %}
+                                    <br><strong>URL actual:</strong> 
+                                    <a href="{{ url('booking_index', {'domain': clinic.domain}) }}" target="_blank" class="text-decoration-none">
+                                        {{ app.request.schemeAndHttpHost }}/{{ clinic.domain }}
+                                        <i class="fas fa-external-link-alt ms-1"></i>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        {{ form_errors(form.domain) }}
+                    </div>
+
+                    <div class="mb-3">
                         {{ form_label(form.address, null, {'label_attr': {'class': 'form-label fw-bold'}}) }}
                         {{ form_widget(form.address) }}
                         {{ form_errors(form.address) }}

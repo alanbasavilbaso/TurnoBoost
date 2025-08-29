@@ -1,0 +1,71 @@
+.clinic-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem 0;
+}
+
+.selection-card {
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.selection-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 4px 15px rgba(0,123,255,0.2);
+}
+
+.selection-card.selected {
+    border-color: #007bff;
+    background-color: #f8f9ff;
+}
+
+.time-slot {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.time-slot:hover {
+    background-color: #e3f2fd;
+    border-color: #2196f3;
+}
+
+.time-slot.selected {
+    background-color: #2196f3;
+    color: white;
+    border-color: #2196f3;
+}
+
+.summary-section {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+}
+
+.modal-service-item, .modal-professional-item {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-service-item:hover, .modal-professional-item:hover {
+    border-color: #007bff;
+    background-color: #f8f9ff;
+}
+
+.price-badge {
+    background-color: #28a745;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-weight: 500;
+}

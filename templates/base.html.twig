@@ -176,8 +176,8 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-calendar-alt"></i> Citas
+                        <a class="nav-link {{ app.request.get('_route') starts with 'app_agenda' ? 'active' : '' }}" href="{{ path('app_agenda_index') }}">
+                            <i class="fas fa-calendar-alt"></i> Turnero
                         </a>
                     </li>
                     <li class="nav-item">

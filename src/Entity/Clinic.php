@@ -52,6 +52,26 @@ class Clinic
     #[Assert\Email(message: 'Por favor ingrese un email válido')]
     private ?string $email = null;
 
+    /**
+     * Dominio único para acceso público a reservas online.
+     * Este será usado como URL: localhost/{domain}
+     * Ejemplo: 'beauty-salon' permitirá acceso en localhost/beauty-salon
+     * Solo se permiten letras minúsculas, números y guiones.
+     */
+    #[ORM\Column(type: 'string', length: 100, unique: true)]
+    #[Assert\NotBlank(message: 'El dominio es obligatorio')]
+    #[Assert\Length(
+        min: 3,
+        max: 100,
+        minMessage: 'El dominio debe tener al menos {{ limit }} caracteres',
+        maxMessage: 'El dominio no puede exceder {{ limit }} caracteres'
+    )]
+    #[Assert\Regex(
+        pattern: '/^[a-z0-9-]+$/',
+        message: 'El dominio solo puede contener letras minúsculas, números y guiones'
+    )]
+    private string $domain;
+
     // NUEVA RELACIÓN: Usuario que creó la clínica
     #[ORM\ManyToOne(targetEntity: User::class, inversedBy: 'ownedClinics')]
     #[ORM\JoinColumn(name: 'created_by_id', referencedColumnName: 'id', nullable: false)]
@@ -328,5 +348,30 @@ class Clinic
         }
 
         return $this;
+    }
+
+    /**
+     * Obtiene el dominio de la clínica para acceso público
+     */
+    public function getDomain(): string
+    {
+        return $this->domain;
+    }
+
+    /**
+     * Establece el dominio de la clínica (se convierte automáticamente a minúsculas)
+     */
+    public function setDomain(string $domain): self
+    {
+        $this->domain = strtolower(trim($domain));
+        return $this;
+    }
+
+    /**
+     * Genera la URL pública de reservas para esta clínica
+     */
+    public function getBookingUrl(): string
+    {
+        return '/reservas/' . $this->domain;
     }
 }

@@ -383,6 +383,72 @@ class AgendaController extends AbstractController
                 throw new \InvalidArgumentException('Profesional o servicio no encontrado');
             }
             
+            // Obtener duración efectiva del servicio
+            $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
+                ->findOneBy(['professional' => $professional, 'service' => $service]);
+            
+            $duration = $professionalService ? $professionalService->getEffectiveDuration() : $service->getDurationMinutes();
+            
+            // Calcular hora de finalización
+            $endTime = (clone $scheduledAt)->add(new \DateInterval('PT' . $duration . 'M'));
+            
+            // VALIDACIÓN 1: Verificar que no haya superposición con citas existentes
+            $conflictingAppointments = $this->entityManager->createQueryBuilder()
+                ->select('a')
+                ->from(Appointment::class, 'a')
+                ->where('a.professional = :professional')
+                ->andWhere('a.clinic = :clinic')
+                ->andWhere('a.status NOT IN (:canceledStatus)')
+                ->andWhere('
+                    (a.scheduledAt < :endTime AND 
+                    DATE_ADD(a.scheduledAt, a.durationMinutes, \'MINUTE\') > :startTime)
+                ')
+                ->setParameter('professional', $professional)
+                ->setParameter('clinic', $clinic)
+                ->setParameter('canceledStatus', [StatusEnum::CANCELLED]) // Array incluso con 1 elemento
+                ->setParameter('startTime', $scheduledAt)
+                ->setParameter('endTime', $endTime)
+                ->getQuery()
+                ->getResult();
+            
+            if (!empty($conflictingAppointments)) {
+                $conflictTime = $conflictingAppointments[0]->getScheduledAt()->format('H:i');
+                throw new \InvalidArgumentException(
+                    "El horario seleccionado se superpone con una cita existente a las {$conflictTime}. Por favor, seleccione otro horario."
+                );
+            }
+            
+            // VALIDACIÓN 2: Verificar disponibilidad del profesional en ese horario
+            $dayOfWeek = (int)$scheduledAt->format('w'); // 0=domingo, 1=lunes, etc.
+            $timeSlot = $scheduledAt->format('H:i:s');
+            
+            $availability = $this->entityManager->createQueryBuilder()
+                ->select('pa')
+                ->from('App\Entity\ProfessionalAvailability', 'pa')
+                ->where('pa.professional = :professional')
+                ->andWhere('pa.weekday = :weekday')
+                ->andWhere('pa.startTime <= :timeSlot')
+                ->andWhere('pa.endTime >= :endTimeSlot')
+                ->setParameter('professional', $professional)
+                ->setParameter('weekday', $dayOfWeek)
+                ->setParameter('timeSlot', $timeSlot)
+                ->setParameter('endTimeSlot', $endTime->format('H:i:s'))
+                ->getQuery()
+                ->getOneOrNullResult();
+            
+            if (!$availability) {
+                throw new \InvalidArgumentException(
+                    'El profesional no está disponible en el horario seleccionado. Por favor, seleccione otro horario.'
+                );
+            }
+            
+            // VALIDACIÓN 3: Verificar que la cita no sea en el pasado
+            if ($scheduledAt <= new \DateTime()) {
+                throw new \InvalidArgumentException(
+                    'No se pueden crear citas en el pasado. Por favor, seleccione una fecha y hora futura.'
+                );
+            }
+            
             // Preparar datos del paciente
             $patientData = [];
             if (isset($data['patient_id']) && !empty($data['patient_id'])) {
@@ -402,14 +468,7 @@ class AgendaController extends AbstractController
             }
             
             // Crear o buscar paciente
-            // En createAppointment y updateAppointment
             $patient = $this->patientService->findOrCreatePatient($patientData, $clinic);
-            
-            // Obtener duración efectiva del servicio
-            $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
-                ->findOneBy(['professional' => $professional, 'service' => $service]);
-            
-            $duration = $professionalService ? $professionalService->getEffectiveDuration() : $service->getDurationMinutes();
             
             $appointment = new Appointment();
             $appointment->setClinic($clinic)

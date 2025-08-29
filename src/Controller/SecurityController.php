@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Clinic;
 use App\Form\ClinicType;
 use App\Form\LoginType;
+use App\Entity\StatusEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -48,16 +49,110 @@ class SecurityController extends AbstractController
     }
 
     #[Route('/', name: 'app_index')]
-    public function index(): Response
+    public function index(EntityManagerInterface $entityManager): Response
     {
         // Verificar que el usuario esté autenticado
         $this->denyAccessUnlessGranted('IS_AUTHENTICATED_FULLY');
         
         $user = $this->getUser();
         
+        // Obtener la clínica del usuario
+        $clinic = $entityManager->getRepository(Clinic::class)
+            ->findOneBy(['createdBy' => $user]);
+        
+        if (!$clinic) {
+            // Si no tiene clínica, mostrar datos vacíos
+            return $this->render('security/index.html.twig', [
+                'user' => $user,
+                'stats' => [
+                    'appointments_today' => 0,
+                    'total_patients' => 0,
+                    'pending_appointments' => 0,
+                    'appointments_this_month' => 0
+                ]
+            ]);
+        }
+        
+        // Obtener todas las estadísticas en una sola query optimizada
+        $stats = $this->getDashboardStats($entityManager, $clinic);
+        
         return $this->render('security/index.html.twig', [
             'user' => $user,
+            'stats' => $stats
         ]);
+    }
+
+    private function getDashboardStats(EntityManagerInterface $entityManager, Clinic $clinic): array
+    {
+        $today = new \DateTime('today');
+        $tomorrow = new \DateTime('tomorrow');
+        $firstDayOfMonth = new \DateTime('first day of this month');
+        $firstDayOfNextMonth = new \DateTime('first day of next month');
+        
+        // Query 1: Citas de hoy
+        $appointmentsToday = $entityManager->createQuery('
+            SELECT COUNT(a.id) as count
+            FROM App\Entity\Appointment a
+            WHERE a.clinic = :clinic
+            AND a.scheduledAt >= :today
+            AND a.scheduledAt < :tomorrow
+            AND a.status != :cancelled
+        ')
+        ->setParameters([
+            'clinic' => $clinic,
+            'today' => $today,
+            'tomorrow' => $tomorrow,
+            'cancelled' => StatusEnum::CANCELLED
+        ])
+        ->getSingleScalarResult();
+        
+        // Query 2: Total de pacientes únicos
+        $totalPatients = $entityManager->createQuery('
+            SELECT COUNT(DISTINCT p.id) as count
+            FROM App\Entity\Patient p
+            WHERE p.clinic = :clinic
+        ')
+        ->setParameter('clinic', $clinic)
+        ->getSingleScalarResult();
+        
+        // Query 3: Citas pendientes (scheduled + confirmed)
+        $pendingAppointments = $entityManager->createQuery('
+            SELECT COUNT(a.id) as count
+            FROM App\Entity\Appointment a
+            WHERE a.clinic = :clinic
+            AND a.scheduledAt >= :now
+            AND a.status IN (:pending_statuses)
+        ')
+        ->setParameters([
+            'clinic' => $clinic,
+            'now' => new \DateTime(),
+            'pending_statuses' => [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED]
+        ])
+        ->getSingleScalarResult();
+        
+        // Query 4: Citas de este mes
+        $appointmentsThisMonth = $entityManager->createQuery('
+            SELECT COUNT(a.id) as count
+            FROM App\Entity\Appointment a
+            WHERE a.clinic = :clinic
+            AND a.scheduledAt >= :first_day
+            AND a.scheduledAt < :first_day_next
+            AND a.status != :cancelled
+        ')
+        ->setParameters([
+            'clinic' => $clinic,
+            'first_day' => $firstDayOfMonth,
+            'first_day_next' => $firstDayOfNextMonth,
+            'cancelled' => StatusEnum::CANCELLED
+        ])
+        ->getSingleScalarResult();
+        
+        return [
+            'appointments_today' => (int) $appointmentsToday,
+            'total_patients' => (int) $totalPatients,
+            'pending_appointments' => (int) $pendingAppointments,
+            'appointments_this_month' => (int) $appointmentsThisMonth
+        ];
     }
 
     #[Route('/mi-empresa', name: 'app_my_company')]

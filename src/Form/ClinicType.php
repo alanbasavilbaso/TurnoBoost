@@ -13,6 +13,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\Email;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
+use Symfony\Component\Validator\Constraints\Regex;
 
 class ClinicType extends AbstractType
 {
@@ -26,6 +27,19 @@ class ClinicType extends AbstractType
                     'placeholder' => 'Ingrese el nombre de la clínica'
                 ]
                 // Eliminé las constraints
+            ])
+            ->add('domain', TextType::class, [
+                'label' => 'Dominio de Reservas',
+                'help' => 'URL única para que tus clientes reserven turnos online. Solo letras minúsculas, números y guiones. Ejemplo: mi-clinica',
+                'attr' => [
+                    'class' => 'form-control',
+                    'placeholder' => 'mi-clinica-belleza',
+                    'pattern' => '[a-z0-9-]+',
+                    'title' => 'Solo letras minúsculas, números y guiones'
+                ],
+                'help_attr' => [
+                    'class' => 'form-text text-muted'
+                ]
             ])
             ->add('address', TextareaType::class, [
                 'label' => 'Dirección',
