@@ -21,6 +21,10 @@ php bin/console cache:clear
 php bin/console asset-map:compile
 
 
+Comparte tu link de reserva con tus clientes:
+https://tuturno.io/test35
+
+
 
 ##  Generar la migración
 Una vez que hayas creado las entidades, genera la migración:

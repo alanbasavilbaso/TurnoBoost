@@ -118,6 +118,13 @@
         </div>
     </div>
 
+    <!-- Botón Flotante de Reservar -->
+    <div id="floating-reserve-btn" class="floating-reserve-btn" style="display: none;">
+        <button class="btn btn-primary btn-lg" onclick="openBookingModal()">
+            <i class="fas fa-calendar-check me-2"></i>Reservar
+        </button>
+    </div>
+
     <!-- Modal Selección de Servicios -->
     <div class="modal fade" id="serviceModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
@@ -152,6 +159,100 @@
         </div>
     </div>
 
+    <!-- Modal Confirmación de Reserva -->
+    <div class="modal fade" id="bookingModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-calendar-check me-2"></i>Turno a Reservar</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="booking-summary">
+                        <div class="row mb-3">
+                            <div class="col-4"><strong>Servicio:</strong></div>
+                            <div class="col-8" id="booking-service">-</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-4"><strong>Profesional:</strong></div>
+                            <div class="col-8" id="booking-professional">-</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-4"><strong>Fecha:</strong></div>
+                            <div class="col-8" id="booking-date">-</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-4"><strong>Hora:</strong></div>
+                            <div class="col-8" id="booking-time">-</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-4"><strong>Duración:</strong></div>
+                            <div class="col-8" id="booking-duration">-</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-4"><strong>Precio:</strong></div>
+                            <div class="col-8" id="booking-price">-</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-4"><strong>Lugar:</strong></div>
+                            <div class="col-8" id="booking-location">{{ clinic.address }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="auth-and-book-btn" onclick="handleBooking()">
+                        <i class="fas fa-user-check me-2"></i>Autenticarme y Reservar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Autenticación -->
+    <div class="modal fade" id="authModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-sign-in-alt me-2"></i>Autenticación</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="auth-step-1">
+                        <h6 class="mb-3">Acceder con tu email</h6>
+                        <div class="mb-3">
+                            <label for="auth-email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="auth-email" placeholder="tu@email.com">
+                        </div>
+                        <div class="d-grid">
+                            <button type="button" class="btn btn-primary" onclick="sendAuthCode()">
+                                <i class="fas fa-paper-plane me-2"></i>Enviarme código
+                            </button>
+                        </div>
+                    </div>
+                    <!-- esta es la mejor forma? -->
+                    <div id="auth-step-2" style="display: none;">
+                        <h6 class="mb-3">Ingresa el código enviado a tu email</h6>
+                        <div class="mb-3">
+                            <label for="auth-code" class="form-label">Código de verificación</label>
+                            <input type="text" class="form-control" id="auth-code" placeholder="123456">
+                        </div>
+                        <div class="d-grid">
+                            <button type="button" class="btn btn-success" onclick="verifyCodeAndBook()">
+                                <i class="fas fa-check me-2"></i>Verificar y Reservar
+                            </button>
+                        </div>
+                        <div class="text-center mt-2">
+                            <button type="button" class="btn btn-link btn-sm" onclick="backToEmailStep()">
+                                Cambiar email
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap JS -->
     <script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 
@@ -160,5 +261,9 @@
     
     <!-- Pasar datos de la clínica al JavaScript -->
     <div data-clinic-domain="{{ clinic.domain }}" style="display: none;"></div>
+    
+    <!-- Simular estado de autenticación (en producción esto vendría del servidor) -->
+    <!-- ALAN -->
+    <div data-user-authenticated="false" style="display: none;"></div>
 </body>
 </html>

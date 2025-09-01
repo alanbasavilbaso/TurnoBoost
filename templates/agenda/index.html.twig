@@ -1,147 +1,402 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Agenda - {{ clinic.name }}{% endblock %}
+{% block title %}Agenda{% endblock %}
 
 {% block stylesheets %}
     {{ parent() }}
-    <link href="{{ asset('styles/agenda.css') }}" rel="stylesheet">
+    {# <link href="{{ asset('styles/agenda.css') }}" rel="stylesheet"> #}
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+    <style>
+        .agenda-container {
+            display: flex;
+            height: calc(100vh - 120px);
+            gap: 15px;
+        }
+        
+        .sidebar {
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .filters-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        
+        .mini-calendar-section {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex-grow: 1;
+        }
+        
+        .main-calendar {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .custom-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .nav-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .nav-btn {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .nav-btn:hover {
+            background: #e9ecef;
+        }
+        
+        .current-date {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .view-controls {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .view-btn {
+            padding: 8px 16px;
+            border: 1px solid #dee2e6;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .view-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .mini-calendar {
+            width: 100%;
+        }
+        
+        .mini-calendar table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .mini-calendar th,
+        .mini-calendar td {
+            text-align: center;
+            padding: 8px 4px;
+            border: none;
+        }
+        
+        .mini-calendar th {
+            font-size: 0.8rem;
+            color: #6c757d;
+            font-weight: 600;
+        }
+        
+        .mini-calendar td {
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .mini-calendar td:hover {
+            background: #e9ecef;
+        }
+        
+        .mini-calendar td.today {
+            background: #007bff;
+            color: white;
+        }
+        
+        .mini-calendar td.selected {
+            background: #28a745;
+            color: white;
+        }
+        
+        .mini-calendar td.has-appointments {
+            position: relative;
+        }
+        
+        .mini-calendar td.has-appointments::after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            background: #dc3545;
+            border-radius: 50%;
+        }
+        
+        .calendar-content {
+            height: calc(100% - 80px);
+            overflow: hidden;
+        }
+        
+        /* Ocultar header de FullCalendar */
+        .fc-header-toolbar {
+            display: none !important;
+        }
+        
+        /* Estilos para vista de columnas por profesional */
+        .professionals-columns {
+            display: none;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        .professionals-header {
+            display: flex;
+            border-bottom: 2px solid #dee2e6;
+            background: #f8f9fa;
+            margin-bottom: 10px;
+        }
+        
+        .time-column {
+            width: 80px;
+            padding: 10px;
+            border-right: 1px solid #dee2e6;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .professional-column {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            border-right: 1px solid #dee2e6;
+            font-weight: 600;
+        }
+        
+        .professional-column:last-child {
+            border-right: none;
+        }
+        
+        .time-slots {
+            height: calc(100% - 60px);
+            overflow-y: auto;
+        }
+        
+        .time-slot {
+            display: flex;
+            min-height: 60px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .time-label {
+            width: 80px;
+            padding: 10px;
+            border-right: 1px solid #dee2e6;
+            font-size: 0.85rem;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .professional-slot {
+            flex: 1;
+            padding: 5px;
+            border-right: 1px solid #dee2e6;
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .professional-slot:last-child {
+            border-right: none;
+        }
+        
+        .professional-slot:hover {
+            background: #f8f9fa;
+        }
+        
+        .appointment-block {
+            background: #007bff;
+            color: white;
+            border-radius: 4px;
+            padding: 4px 8px;
+            margin: 2px 0;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .appointment-block:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
 {% endblock %}
 
 {% block body %}
-<div class="container-fluid py-4">
-    <!-- Header Section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="form-card">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center">
-                        <a href="{{ path('app_index') }}" class="btn btn-outline-secondary me-3">
-                            <i class="fas fa-arrow-left"></i>
-                        </a>
-                        <div>
-                            <h2 class="mb-1">
-                                <i class="fas fa-calendar-alt text-primary me-2"></i>
-                                Agenda
-                            </h2>
-                            <p class="text-muted mb-0">Gestiona los turnos de tu clínica</p>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">Agenda</h1>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#appointmentModal">
+            <i class="fas fa-plus me-2"></i>Nuevo Turno
+        </button>
+    </div>
+    
+    <div class="agenda-container">
+        <!-- Sidebar con filtros y mini calendario -->
+        <div class="sidebar">
+            <!-- Filtros -->
+            <div class="filters-section">
+                <h6 class="mb-3"><i class="fas fa-filter me-2"></i>Filtros</h6>
+                
+                <div class="mb-3">
+                    <label for="professionalFilter" class="form-label">Profesional</label>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="professionalFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="professionalFilterText">Todos los profesionales</span>
+                        </button>
+                        <ul class="dropdown-menu w-100" aria-labelledby="professionalFilterDropdown" id="professionalFilterMenu">
+                            <li>
+                                <div class="form-check px-3 py-1">
+                                    <input class="form-check-input" type="checkbox" name="professionals[]" value="all" id="prof_all" checked>
+                                    <label class="form-check-label" for="prof_all">
+                                        Todos los profesionales
+                                    </label>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% for professional in professionals %}
+                            <li>
+                                <div class="form-check px-3 py-1">
+                                    <input class="form-check-input" type="checkbox" name="professionals[]" value="{{ professional.id }}" id="prof_{{ professional.id }}">
+                                    <label class="form-check-label" for="prof_{{ professional.id }}">
+                                        {{ professional.name }}
+                                    </label>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="serviceFilter" class="form-label">Servicio</label>
+                    <select class="form-select" id="serviceFilter">
+                        <option value="">Todos los servicios</option>
+                        {% for service in services %}
+                            <option value="{{ service.id }}">{{ service.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Leyenda de colores -->
+                <div class="mt-4">
+                    <h6 class="mb-2">Estado de Turnos</h6>
+                    <div class="d-flex flex-column gap-1">
+                        <div class="d-flex align-items-center">
+                            <div class="me-2" style="width: 12px; height: 12px; background: #28a745; border-radius: 2px;"></div>
+                            <small>Confirmado</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2" style="width: 12px; height: 12px; background: #ffc107; border-radius: 2px;"></div>
+                            <small>Pendiente</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2" style="width: 12px; height: 12px; background: #dc3545; border-radius: 2px;"></div>
+                            <small>Cancelado</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2" style="width: 12px; height: 12px; background: #6c757d; border-radius: 2px;"></div>
+                            <small>Completado</small>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#appointmentModal">
-                        <i class="fas fa-plus me-2"></i>Nuevo Turno
+                </div>
+            </div>
+            
+            <!-- Mini Calendario -->
+            <div class="mini-calendar-section">
+                <h6 class="mb-3"><i class="fas fa-calendar-alt me-2"></i>Navegación</h6>
+                <div id="miniCalendar" class="mini-calendar"></div>
+            </div>
+        </div>
+        
+        <!-- Calendario Principal -->
+        <div class="main-calendar">
+            <!-- Header personalizado -->
+            <div class="custom-header">
+                <div class="nav-controls">
+                    <button class="nav-btn" id="prevBtn">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button class="nav-btn" id="todayBtn">Hoy</button>
+                    <button class="nav-btn" id="nextBtn">
+                        <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Filters Section -->
-    <div class="row mb-1">
-        <div class="col-12">
-            <div class="form-card">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label for="professionalFilter" class="form-label">
-                            <i class="fas fa-user-md me-1"></i>Profesional
-                        </label>
-                        <select class="form-select" id="professionalFilter">
-                            <option value="">Todos los profesionales</option>
-                            {% for professional in professionals %}
-                                <option value="{{ professional.id }}">{{ professional.name }}</option>
-                            {% endfor %}
-                        </select>
+                
+                <div class="current-date" id="currentDateDisplay"></div>
+                
+                <div class="view-controls">
+                    <!-- Botones de vista ocultos - la vista se determina automáticamente -->
+                    <div class="view-indicator">
+                        <span id="currentViewIndicator" class="badge bg-primary">Vista Automática</span>
                     </div>
-                    <div class="col-md-6">
-                        <label for="serviceFilter" class="form-label">
-                            <i class="fas fa-stethoscope me-1"></i>Servicio
-                        </label>
-                        <select class="form-select" id="serviceFilter">
-                            <option value="">Todos los servicios</option>
-                            {% for service in services %}
-                                <option value="{{ service.id }}">{{ service.name }}</option>
-                            {% endfor %}
-                        </select>
+                    
+                    <!-- Botón de intervalos sigue visible -->
+                    <div class="dropdown ms-3">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="timeIntervalDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-clock me-1"></i>30 min
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="timeIntervalDropdown">
+                            <li><a class="dropdown-item" href="#" data-interval="5">5 minutos</a></li>
+                            <li><a class="dropdown-item" href="#" data-interval="10">10 minutos</a></li>
+                            <li><a class="dropdown-item" href="#" data-interval="15">15 minutos</a></li>
+                            <li><a class="dropdown-item" href="#" data-interval="20">20 minutos</a></li>
+                            <li><a class="dropdown-item active" href="#" data-interval="30">30 minutos</a></li>
+                            <li><a class="dropdown-item" href="#" data-interval="40">40 minutos</a></li>
+                            <li><a class="dropdown-item" href="#" data-interval="45">45 minutos</a></li>
+                            <li><a class="dropdown-item" href="#" data-interval="60">60 minutos</a></li>
+                        </ul>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Calendar Section -->
-    <div class="row">
-        <div class="col-12">
-            <div class="form-card">
+            
+            <!-- Contenido del calendario -->
+            <div class="calendar-content">
+                <!-- FullCalendar (para vista semana/mes) -->
                 <div id="calendar"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Legend Section -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="form-card">
-                <h6 class="mb-3">
-                    <i class="fas fa-info-circle me-2"></i>Leyenda
-                </h6>
                 
-                <!-- Estados de Turnos -->
-                <div class="mb-3">
-                    <h6 class="text-muted mb-2">Estados de Turnos</h6>
-                    <div class="d-flex flex-wrap gap-3">
-                        <div class="d-flex align-items-center">
-                            <div class="legend-color" style="background-color: #007bff; border: 2px solid #0056b3;"></div>
-                            <span class="ms-2">Programado</span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div class="legend-color" style="background-color: #28a745; border: 2px solid #1e7e34;"></div>
-                            <span class="ms-2">Confirmado</span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div class="legend-color" style="background-color: #dc3545; border: 2px solid #bd2130;"></div>
-                            <span class="ms-2">Cancelado</span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div class="legend-color" style="background-color: #6c757d; border: 2px solid #545b62;"></div>
-                            <span class="ms-2">Completado</span>
-                        </div>
+                <!-- Vista de columnas por profesional (para vista día con múltiples profesionales) -->
+                <div id="professionalsColumns" class="professionals-columns">
+                    <div class="professionals-header" id="professionalsHeader">
+                        <div class="time-column">Hora</div>
                     </div>
-                </div>
-                
-                <!-- Colores de Profesionales -->
-                <div>
-                    <h6 class="text-muted mb-2">Colores por Profesional</h6>
-                    <div class="d-flex flex-wrap gap-3" id="professional-legend">
-                        <!-- Los colores de profesionales se cargarán dinámicamente -->
-                        <div class="d-flex align-items-center">
-                            <div class="legend-color" style="background-color: #3498db;"></div>
-                            <span class="ms-2">Profesional 1</span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div class="legend-color" style="background-color: #e74c3c;"></div>
-                            <span class="ms-2">Profesional 2</span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div class="legend-color" style="background-color: #2ecc71;"></div>
-                            <span class="ms-2">Profesional 3</span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div class="legend-color" style="background-color: #f39c12;"></div>
-                            <span class="ms-2">Profesional 4</span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div class="legend-color" style="background-color: #9b59b6;"></div>
-                            <span class="ms-2">Profesional 5</span>
-                        </div>
-                        <small class="text-muted ms-3 align-self-center">Los colores se asignan automáticamente</small>
-                    </div>
-                </div>
-                
-                <!-- Nota explicativa -->
-                <div class="mt-3 p-2 bg-light rounded">
-                    <small class="text-muted">
-                        <i class="fas fa-lightbulb me-1"></i>
-                        <strong>Cómo leer el calendario:</strong> El color de fondo indica el profesional, el borde indica el estado del turno.
-                    </small>
+                    <div class="time-slots" id="timeSlots"></div>
                 </div>
             </div>
         </div>

@@ -1,10 +1,16 @@
 let agendaManager;
+
 // Agenda Management JavaScript
 class AgendaManager {
     constructor() {
         this.calendar = null;
         this.calendarEl = null;
-        this.allAppointments = []; // Agregar esta línea
+        this.miniCalendar = null;
+        this.allAppointments = [];
+        this.selectedProfessionals = [];
+        this.allProfessionals = []; // Agregar esta línea
+        this.currentDate = new Date();
+        this.currentView = 'week';
         this.currentFilters = {
             professional: '',
             service: '',
@@ -14,24 +20,54 @@ class AgendaManager {
 
     async init() {
         this.calendarEl = document.getElementById('calendar');
+        this.loadProfessionalsFromDOM(); // Agregar esta línea
         await this.initializeCalendar();
+        this.initializeMiniCalendar();
+        this.initializeProfessionalFilter();
         this.bindEvents();
+        this.bindCustomControls();
+        this.changeView();
         await this.loadAppointments();
+        this.updateCurrentDateDisplay();
     }
 
+    // Nuevo método para cargar profesionales del DOM
+    loadProfessionalsFromDOM() {
+        const professionalCheckboxes = document.querySelectorAll('input[name="professionals[]"][value]:not([value="all"])');
+        this.allProfessionals = Array.from(professionalCheckboxes).map(checkbox => {
+            const label = document.querySelector(`label[for="${checkbox.id}"]`);
+            return {
+                id: parseInt(checkbox.value),
+                name: label.textContent.trim()
+            };
+        });
+    }
+    
+    // MANTENER solo este método síncrono (líneas 46-58)
+    getFilteredProfessionals() {
+        const selectedProfessionals = this.getSelectedProfessionals();
+        
+        if (selectedProfessionals.length > 0) {
+            // Retornar solo los profesionales seleccionados usando datos locales
+            return this.allProfessionals.filter(prof => 
+                selectedProfessionals.includes(prof.id.toString())
+            );
+        } else {
+            // Retornar todos los profesionales (cuando está seleccionado "Todos")
+            return this.allProfessionals;
+        }
+    }
     async initializeCalendar() {
-        // Cargar configuración de horarios desde la base de datos
+        const calendarEl = document.getElementById('calendar');
+        
+        // Cargar configuración de horarios de negocio
         const businessHoursConfig = await this.loadBusinessHours();
         
-        this.calendar = new FullCalendar.Calendar(this.calendarEl, {
+        this.calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'timeGridWeek',
             locale: 'es',
             timeZone: 'UTC',
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
-            },
+            headerToolbar: false, // Ocultar header por defecto
             height: 'auto',
             selectable: true,
             selectMirror: true,
@@ -41,116 +77,37 @@ class AgendaManager {
                 dayGridMonth: {
                     dayMaxEvents: false,
                     moreLinkClick: false,
-                    selectable: false // Deshabilitar selección en vista mensual
+                    selectable: false
                 },
                 timeGridWeek: {
                     dayMaxEvents: false,
                     slotEventOverlap: true,
                     eventOverlap: true,
-                    selectable: true // Habilitar selección en vista semanal
+                    selectable: true
                 },
                 timeGridDay: {
                     dayMaxEvents: false,
                     slotEventOverlap: true,
                     eventOverlap: true,
-                    selectable: true // Habilitar selección en vista diaria
+                    selectable: true
                 }
             },
             
             weekends: true,
             editable: true,
             allDaySlot: false,
-            
-            // Configuraciones generales
             eventConstraint: 'businessHours',
             
-            // Ocultar eventos en vista mensual
-            eventDidMount: (info) => {
-                if (this.calendar.view.type === 'dayGridMonth') {
-                    info.el.style.display = 'none';
-                }
-            },
-            
-            // Agregar contadores personalizados en vista mensual
-            dayCellDidMount: (info) => {
-                if (info.view.type === 'dayGridMonth') {
-                    // Usar el mismo formato que FullCalendar usa internamente
-                    const cellDate = info.date;
-                    const cellDateStr = cellDate.toISOString().split('T')[0]; // YYYY-MM-DD
-                    
-                    // Filtrar eventos del día usando comparación de fechas mejorada
-                    const dayEvents = this.calendar.getEvents().filter(event => {
-                        // Obtener solo la fecha (sin hora) del evento
-                        const eventDate = new Date(event.start);
-                        const eventDateStr = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
-                        return eventDateStr === cellDateStr;
-                    });
-                    
-                    if (dayEvents.length > 0) {
-                        // Remover contador existente si existe
-                        const existingCounter = info.el.querySelector('.turnos-counter');
-                        if (existingCounter) {
-                            existingCounter.remove();
-                        }
-                        
-                        // Crear nuevo contador
-                        const counter = document.createElement('div');
-                        counter.className = 'turnos-counter';
-                        counter.textContent = `${dayEvents.length} turno${dayEvents.length !== 1 ? 's' : ''}`;
-                        counter.style.cssText = `
-                            background: #007bff;
-                            color: white;
-                            padding: 2px 6px;
-                            border-radius: 3px;
-                            font-size: 11px;
-                            margin-top: 2px;
-                            cursor: pointer;
-                            text-align: center;
-                        `;
-                        
-                        // Agregar evento click para mostrar detalles
-                        counter.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            this.showDayAppointments(dayEvents);
-                        });
-                        
-                        // Agregar al contenido de la celda
-                        const dayContent = info.el.querySelector('.fc-daygrid-day-top');
-                        if (dayContent) {
-                            dayContent.appendChild(counter);
-                        }
-                    }
-                }
-            },
-            
-            // Configuración mejorada para eventos concurrentes
-            eventMaxStack: 9,
-            dayMaxEventRows: true,
-            
-            // Eventos del calendario - Modificar para controlar selección por vista
-            select: (info) => {
-                // Solo permitir selección si NO estamos en vista mensual
-                if (this.calendar.view.type !== 'dayGridMonth') {
-                    this.handleDateSelect(info);
-                } else {
-                    // Deseleccionar si estamos en vista mensual
-                    this.calendar.unselect();
-                }
-            },
+            // Eventos
+            select: (info) => this.handleDateSelect(info),
             eventClick: (info) => this.handleEventClick(info),
             eventDrop: (info) => this.handleEventDrop(info),
             eventResize: (info) => this.handleEventResize(info),
             
-            // Configuración de eventos
-            eventDisplay: 'block',
-            eventTextColor: '#fff',
-            
-            // Configuración dinámica de horarios desde la base de datos
+            // Configurar horarios de negocio
             slotMinTime: businessHoursConfig.slotMinTime,
             slotMaxTime: businessHoursConfig.slotMaxTime,
             slotDuration: businessHoursConfig.slotDuration || '00:15:00',
-            
-            // Configuración dinámica de días laborables desde la base de datos
             businessHours: {
                 daysOfWeek: businessHoursConfig.daysOfWeek,
                 startTime: businessHoursConfig.startTime,
@@ -161,79 +118,484 @@ class AgendaManager {
         this.calendar.render();
     }
 
-    async loadBusinessHours() {
-        try {
-            // Usar los filtros actuales para obtener horarios específicos
-            const params = new URLSearchParams();
+    initializeMiniCalendar() {
+        const miniCalendarEl = document.getElementById('miniCalendar');
+        this.renderMiniCalendar(miniCalendarEl, this.currentDate);
+    }
+
+    renderMiniCalendar(container, date) {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const today = new Date();
+        
+        // Crear header del mini calendario
+        const header = document.createElement('div');
+        header.className = 'd-flex justify-content-between align-items-center mb-2';
+        header.innerHTML = `
+            <button class="btn btn-sm btn-outline-secondary" id="miniPrev">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <span class="fw-bold">${date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</span>
+            <button class="btn btn-sm btn-outline-secondary" id="miniNext">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        `;
+        
+        // Crear tabla del calendario
+        const table = document.createElement('table');
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>D</th><th>L</th><th>M</th><th>M</th><th>J</th><th>V</th><th>S</th>
+                </tr>
+            </thead>
+            <tbody id="miniCalendarBody"></tbody>
+        `;
+        
+        const tbody = table.querySelector('#miniCalendarBody');
+        
+        // Calcular primer día del mes y días en el mes
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startDate = new Date(firstDay);
+        startDate.setDate(startDate.getDate() - firstDay.getDay());
+        
+        // Generar semanas
+        for (let week = 0; week < 6; week++) {
+            const row = document.createElement('tr');
             
-            if (this.currentFilters.professional) {
-                params.append('professional', this.currentFilters.professional);
+            for (let day = 0; day < 7; day++) {
+                const cellDate = new Date(startDate);
+                cellDate.setDate(startDate.getDate() + (week * 7) + day);
+                
+                const cell = document.createElement('td');
+                cell.textContent = cellDate.getDate();
+                cell.dataset.date = cellDate.toISOString().split('T')[0];
+                
+                // Clases CSS
+                if (cellDate.getMonth() !== month) {
+                    cell.classList.add('text-muted');
+                }
+                if (cellDate.toDateString() === today.toDateString()) {
+                    cell.classList.add('today');
+                }
+                if (cellDate.toDateString() === this.currentDate.toDateString()) {
+                    cell.classList.add('selected');
+                }
+                
+                // Verificar si tiene citas
+                if (this.hasAppointmentsOnDate(cellDate)) {
+                    cell.classList.add('has-appointments');
+                }
+                
+                // Event listener
+                cell.addEventListener('click', () => {
+                    this.selectMiniCalendarDate(cellDate);
+                });
+                
+                row.appendChild(cell);
             }
             
-            if (this.currentFilters.service) {
-                params.append('service', this.currentFilters.service);
-            }
-            
-            const url = `/agenda/business-hours${params.toString() ? '?' + params.toString() : ''}`;
-            const response = await fetch(url);
-            
-            if (!response.ok) {
-                throw new Error('Error al cargar horarios de negocio');
-            }
-            
-            const data = await response.json();
-            return data;
-        } catch (error) {
-            console.error('Error loading business hours:', error);
-            // Valores por defecto en caso de error
-            return {
-                daysOfWeek: [1, 2, 3, 4, 5, 6],
-                startTime: '08:00',
-                endTime: '18:00',
-                slotMinTime: '08:00:00',
-                slotMaxTime: '18:00:00',
-                slotDuration: '00:15:00'
-            };
+            tbody.appendChild(row);
+        }
+        
+        // Limpiar y agregar contenido
+        container.innerHTML = '';
+        container.appendChild(header);
+        container.appendChild(table);
+        
+        // Bind navigation events
+        document.getElementById('miniPrev').addEventListener('click', () => {
+            const newDate = new Date(date);
+            newDate.setMonth(newDate.getMonth() - 1);
+            this.renderMiniCalendar(container, newDate);
+        });
+        
+        document.getElementById('miniNext').addEventListener('click', () => {
+            const newDate = new Date(date);
+            newDate.setMonth(newDate.getMonth() + 1);
+            this.renderMiniCalendar(container, newDate);
+        });
+    }
+
+    selectMiniCalendarDate(date) {
+        this.currentDate = new Date(date);
+        this.calendar.gotoDate(date);
+        this.updateCurrentDateDisplay();
+        this.updateMiniCalendarSelection();
+        
+        // Si estamos en vista día con múltiples profesionales, actualizar vista de columnas
+        if (this.currentView === 'day' && this.shouldShowProfessionalColumns()) {
+            this.renderProfessionalColumns(date);
         }
     }
 
-    async updateBusinessHours() {
-        const businessHours = await this.loadBusinessHours();
+    updateMiniCalendarSelection() {
+        const miniCalendarEl = document.getElementById('miniCalendar');
+        const cells = miniCalendarEl.querySelectorAll('td');
+        const currentDateStr = this.currentDate.toISOString().split('T')[0];
         
-        // Actualizar las opciones del calendario
-        this.calendar.setOption('slotMinTime', businessHours.slotMinTime);
-        this.calendar.setOption('slotMaxTime', businessHours.slotMaxTime);
-        this.calendar.setOption('slotDuration', businessHours.slotDuration || '00:15:00');
-        this.calendar.setOption('businessHours', {
-            daysOfWeek: businessHours.daysOfWeek,
-            startTime: businessHours.startTime,
-            endTime: businessHours.endTime
+        cells.forEach(cell => {
+            cell.classList.remove('selected');
+            if (cell.dataset.date === currentDateStr) {
+                cell.classList.add('selected');
+            }
+        });
+    }
+
+    bindCustomControls() {
+        // Navegación
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (this.calendar) {
+                this.calendar.prev();
+                this.updateCurrentDateDisplay();
+            }
         });
         
-        // Refrescar la vista del calendario
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (this.calendar) {
+                this.calendar.next();
+                this.updateCurrentDateDisplay();
+            }
+        });
+        
+        document.getElementById('todayBtn').addEventListener('click', () => {
+            if (this.calendar) {
+                this.calendar.today();
+                this.updateCurrentDateDisplay();
+            }
+        });
+        
+        // Intervalos de tiempo
+        document.querySelectorAll('[data-interval]').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const interval = parseInt(e.target.getAttribute('data-interval'));
+                this.changeTimeInterval(interval);
+            });
+        });
+                
+        document.getElementById('serviceFilter').addEventListener('change', () => {
+            this.loadAppointments();
+        });
+    }
+
+    changeTimeInterval(interval) {
+        this.timeInterval = interval;
+        
+        // Actualizar el texto del botón
+        const dropdownButton = document.getElementById('timeIntervalDropdown');
+        dropdownButton.innerHTML = `<i class="fas fa-clock me-1"></i>${interval} min`;
+        
+        // Actualizar items activos
+        document.querySelectorAll('[data-interval]').forEach(item => {
+            item.classList.remove('active');
+        });
+        document.querySelector(`[data-interval="${interval}"]`).classList.add('active');
+        
+        // Aplicar el nuevo intervalo al calendario
+        this.applyTimeInterval();
+    }
+
+    applyTimeInterval() {
+        if (this.calendar) {
+            // Para FullCalendar, configurar el slotDuration
+            this.calendar.setOption('slotDuration', `00:${this.timeInterval.toString().padStart(2, '0')}:00`);
+            this.calendar.setOption('slotLabelInterval', `00:${this.timeInterval.toString().padStart(2, '0')}:00`);
+        }
+        
+        // Si estamos en vista de columnas profesionales, re-renderizar
+        if (document.getElementById('professionalsColumns').style.display !== 'none') {
+            this.renderProfessionalColumns(this.currentDate);
+        }
+    }
+
+    async initializeCalendar() {
+        const calendarEl = document.getElementById('calendar');
+        
+        // Cargar configuración de horarios de negocio
+        const businessHoursConfig = await this.loadBusinessHours();
+        
+        this.calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'timeGridWeek',
+            locale: 'es',
+            timeZone: 'UTC',
+            headerToolbar: false, // Ocultar header por defecto
+            height: 'auto',
+            selectable: true,
+            selectMirror: true,
+            
+            // Configuración específica por vista
+            views: {
+                dayGridMonth: {
+                    dayMaxEvents: false,
+                    moreLinkClick: false,
+                    selectable: false
+                },
+                timeGridWeek: {
+                    dayMaxEvents: false,
+                    slotEventOverlap: true,
+                    eventOverlap: true,
+                    selectable: true
+                },
+                timeGridDay: {
+                    dayMaxEvents: false,
+                    slotEventOverlap: true,
+                    eventOverlap: true,
+                    selectable: true
+                }
+            },
+            
+            weekends: true,
+            editable: true,
+            allDaySlot: false,
+            eventConstraint: 'businessHours',
+            
+            // Eventos
+            select: (info) => this.handleDateSelect(info),
+            eventClick: (info) => this.handleEventClick(info),
+            eventDrop: (info) => this.handleEventDrop(info),
+            eventResize: (info) => this.handleEventResize(info),
+            
+            // Configurar horarios de negocio
+            slotMinTime: businessHoursConfig.slotMinTime,
+            slotMaxTime: businessHoursConfig.slotMaxTime,
+            slotDuration: businessHoursConfig.slotDuration || '00:15:00',
+            businessHours: {
+                daysOfWeek: businessHoursConfig.daysOfWeek,
+                startTime: businessHoursConfig.startTime,
+                endTime: businessHoursConfig.endTime
+            }
+        });
+        
         this.calendar.render();
     }
 
+    async renderProfessionalColumns(date) {
+        const professionals = this.getFilteredProfessionals();
+        const header = document.getElementById('professionalsHeader');
+        const timeSlots = document.getElementById('timeSlots');
+        
+        // Limpiar contenido existente
+        header.innerHTML = '<div class="time-column">Hora</div>';
+        timeSlots.innerHTML = '';
+        
+        // Agregar columnas de profesionales
+        professionals.forEach(prof => {
+            const col = document.createElement('div');
+            col.className = 'professional-column';
+            col.textContent = prof.name;
+            col.dataset.professionalId = prof.id;
+            header.appendChild(col);
+        });
+        
+        // Generar slots de tiempo
+        const businessHours = await this.loadBusinessHours();
+        const startTime = this.parseTime(businessHours.startTime);
+        const endTime = this.parseTime(businessHours.endTime);
+        const slotDuration = this.timeInterval || 30; // Usar timeInterval dinámico
+        
+        for (let time = startTime; time < endTime; time += slotDuration) {
+            const timeSlot = document.createElement('div');
+            timeSlot.className = 'time-slot';
+            
+            // Etiqueta de tiempo
+            const timeLabel = document.createElement('div');
+            timeLabel.className = 'time-label';
+            timeLabel.textContent = this.formatTime(time);
+            timeSlot.appendChild(timeLabel);
+            
+            // Slots por profesional
+            professionals.forEach(prof => {
+                const profSlot = document.createElement('div');
+                profSlot.className = 'professional-slot';
+                profSlot.dataset.professionalId = prof.id;
+                profSlot.dataset.time = this.formatTime(time);
+                profSlot.dataset.date = date.toISOString().split('T')[0];
+                
+                // Buscar citas en este slot
+                const appointments = this.getAppointmentsForSlot(date, time, prof.id);
+                // Dentro del forEach de appointments en renderProfessionalColumns
+                appointments.forEach(apt => {
+                    const aptBlock = document.createElement('div');
+                    aptBlock.className = 'appointment-block';
+                    aptBlock.dataset.id = apt.id;
+                    
+                    // Mostrar información completa del turno
+                    aptBlock.innerHTML = `
+                        <div class="appointment-title">${apt.title}</div>
+                        <div class="appointment-time">${new Date(apt.start).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</div>
+                    `;
+                    aptBlock.addEventListener('click', async () => {
+                        // Cargar información completa de la cita
+                        try {
+                            const response = await fetch(`/agenda/appointment/${apt.id}`);
+                            const fullAppointmentData = await response.json();
+                            this.showAppointmentDetails(fullAppointmentData);
+                        } catch (error) {
+                            console.error('Error loading appointment details:', error);
+                            // Fallback: usar los datos disponibles
+                            this.showAppointmentDetails(apt);
+                        }
+                    });
+                    
+                    // Calcular posición y altura total de la cita
+                    const aptStart = new Date(apt.start);
+                    const aptEnd = new Date(apt.end);
+                    const aptStartMinutes = aptStart.getHours() * 60 + aptStart.getMinutes();
+                    const aptEndMinutes = aptEnd.getHours() * 60 + aptEnd.getMinutes();
+                    const aptDurationMinutes = aptEndMinutes - aptStartMinutes;
+                    
+                    const slotStartMinutes = time;
+                    
+                    // Posición dentro del slot donde comienza
+                    const minutesFromSlotStart = aptStartMinutes - slotStartMinutes;
+                    const positionPercentage = (minutesFromSlotStart / slotDuration) * 100;
+                    
+                    // Altura total de la cita (puede extenderse más allá del slot actual)
+                    const heightInPixels = (aptDurationMinutes / slotDuration) * 60; // Asumiendo 60px por slot
+                    
+                    // Aplicar posicionamiento CSS
+                    aptBlock.style.position = 'absolute';
+                    aptBlock.style.top = `${positionPercentage}%`;
+                    aptBlock.style.left = '0';
+                    aptBlock.style.right = '0';
+                    aptBlock.style.height = `${heightInPixels}px`;
+                    aptBlock.style.minHeight = '15px';
+                    aptBlock.style.zIndex = '10';
+                    
+                    aptBlock.addEventListener('click', () => {
+                        this.showAppointmentDetails(apt);
+                    });
+                    profSlot.appendChild(aptBlock);
+                });
+                
+                // Altura del slot proporcional al intervalo de tiempo
+                const slotHeight = Math.max(60, slotDuration * 2); // Mínimo 60px, 2px por minuto
+                profSlot.style.position = 'relative';
+                profSlot.style.height = `${slotHeight}px`;
+                
+                // Event listener para crear nueva cita
+                profSlot.addEventListener('click', (e) => {
+                    if (e.target === profSlot) {
+                        this.openAppointmentModal({
+                            date: date.toISOString().split('T')[0],
+                            time: this.formatTime(time),
+                            professionalId: prof.id,
+                            isNew: true
+                        });
+                    }
+                });
+                
+                timeSlot.appendChild(profSlot);
+            });
+            
+            timeSlots.appendChild(timeSlot);
+        }
+    }
+
+    updateCurrentDateDisplay() {
+        const display = document.getElementById('currentDateDisplay');
+        let text = '';
+        
+        if (this.currentView === 'day') {
+            text = this.currentDate.toLocaleDateString('es-ES', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+        } else if (this.currentView === 'week') {
+            const startOfWeek = new Date(this.currentDate);
+            startOfWeek.setDate(this.currentDate.getDate() - this.currentDate.getDay());
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+            
+            text = `${startOfWeek.getDate()} - ${endOfWeek.getDate()} de ${startOfWeek.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`;
+        } else if (this.currentView === 'month') {
+            text = this.currentDate.toLocaleDateString('es-ES', {
+                month: 'long',
+                year: 'numeric'
+            });
+        }
+        
+        display.textContent = text;
+    }
+
+    // Funciones auxiliares
+    hasAppointmentsOnDate(date) {
+        const dateStr = date.toISOString().split('T')[0];
+        return this.allAppointments.some(apt => {
+            const aptDate = new Date(apt.start).toISOString().split('T')[0];
+            return aptDate === dateStr;
+        });
+    }
+
+    getAppointmentsForSlot(date, time, professionalId) {
+        const dateStr = date.toISOString().split('T')[0];
+        const slotStartMinutes = time;
+        const slotDuration = this.timeInterval || 30;
+        
+        return this.allAppointments.filter(apt => {
+            const aptDate = new Date(apt.start).toISOString().split('T')[0];
+            const aptStart = new Date(apt.start);
+            const aptStartMinutes = aptStart.getHours() * 60 + aptStart.getMinutes();
+            
+            // Solo mostrar la cita en el slot donde COMIENZA
+            // La cita debe comenzar dentro de este slot específico
+            const appointmentStartsInThisSlot = (
+                aptStartMinutes >= slotStartMinutes && 
+                aptStartMinutes < slotStartMinutes + slotDuration
+            );
+            
+            return aptDate === dateStr && 
+                   appointmentStartsInThisSlot && 
+                   apt.extendedProps.professionalId == professionalId;
+        });
+    }
+
+    parseTime(timeStr) {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+    }
+
+    formatTime(minutes) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    }
+
+    async loadBusinessHours() {
+        // Configuración por defecto de horarios de negocio
+        return {
+            slotMinTime: '08:00:00',
+            slotMaxTime: '20:00:00',
+            slotDuration: '00:30:00',
+            daysOfWeek: [1, 2, 3, 4, 5, 6], // Lunes a Sábado
+            startTime: '08:00',
+            endTime: '20:00'
+        };
+    }
+
     bindEvents() {
-        // Filtros - IDs corregidos para coincidir con el template
+        // Bind filtros de profesional y servicio
         const professionalFilter = document.getElementById('professionalFilter');
-        if (professionalFilter) {
-            professionalFilter.addEventListener('change', async (e) => {
-                this.currentFilters.professional = e.target.value;
-                await this.updateBusinessHours(); // Actualizar horarios cuando cambie el filtro
-                this.loadAppointments();
-            });
-        }
-        
         const serviceFilter = document.getElementById('serviceFilter');
-        if (serviceFilter) {
-            serviceFilter.addEventListener('change', async (e) => {
-                this.currentFilters.service = e.target.value;
-                await this.updateBusinessHours(); // Actualizar horarios cuando cambie el filtro
+        
+        if (professionalFilter) {
+            professionalFilter.addEventListener('change', () => {
+                this.currentFilters.professional = professionalFilter.value;
                 this.loadAppointments();
             });
         }
         
+        if (serviceFilter) {
+            serviceFilter.addEventListener('change', () => {
+                this.currentFilters.service = serviceFilter.value;
+                this.loadAppointments();
+            });
+        }
+
         // Modal de turno - verificar que existan los elementos
         const saveAppointment = document.getElementById('save-appointment');
         if (saveAppointment) {
@@ -257,7 +619,7 @@ class AgendaManager {
                 this.showNewPatientForm();
             });
         }
-        
+
         // Cambio de profesional en modal
         const modalProfessional = document.getElementById('modal-professional');
         if (modalProfessional) {
@@ -286,67 +648,72 @@ class AgendaManager {
 
     async loadAppointments() {
         try {
-            this.showLoading(true);
-            
             const params = new URLSearchParams();
-            if (this.currentFilters.professional) {
-                params.append('professional', this.currentFilters.professional);
+            
+            // Obtener profesionales seleccionados
+            const selectedProfessionals = this.getSelectedProfessionals();
+            if (selectedProfessionals.length > 0) {
+                // Si hay profesionales específicos seleccionados
+                selectedProfessionals.forEach(profId => {
+                    params.append('professionals[]', profId);
+                });
+            } else {
+                // Si está seleccionado "Todos", enviar todos los IDs
+                this.allProfessionals.forEach(prof => {
+                    params.append('professionals[]', prof.id);
+                });
             }
+            
             if (this.currentFilters.service) {
                 params.append('service', this.currentFilters.service);
             }
             
-            const response = await fetch(`/agenda/appointments?${params}`);
+            const response = await fetch(`/agenda/appointments?${params.toString()}`);
             const appointments = await response.json();
             
-            // Limpiar eventos existentes
-            this.calendar.removeAllEvents();
+            this.allAppointments = appointments;
             
-            // Agregar nuevos eventos
-            appointments.forEach(appointment => {
-                this.calendar.addEvent({
-                    id: appointment.id,
-                    title: appointment.title,
-                    start: appointment.start,
-                    end: appointment.end,
-                    backgroundColor: appointment.backgroundColor,
-                    borderColor: appointment.borderColor,
-                    extendedProps: appointment.extendedProps
-                });
-            });
-            
-            // Si estamos en vista mensual, forzar re-render para actualizar contadores
-            if (this.calendar.view.type === 'dayGridMonth') {
-                setTimeout(() => {
-                    this.calendar.render();
-                }, 100);
+            // Solo actualizar FullCalendar si está visible
+            if (this.calendar && document.getElementById('calendar').style.display !== 'none') {
+                this.calendar.removeAllEvents();
+                this.calendar.addEventSource(appointments);
             }
             
+            // Si estamos en vista de columnas, re-renderizar
+            if (document.getElementById('professionalsColumns').style.display !== 'none') {
+                this.renderProfessionalColumns(this.currentDate);
+            }
         } catch (error) {
             console.error('Error loading appointments:', error);
-            this.showAlert('Error al cargar los turnos', 'error');
-        } finally {
-            this.showLoading(false);
+            this.allAppointments = [];
         }
     }
 
     handleDateSelect(info) {
-        // Extraer fecha y hora del clic en el calendario
-        const selectedDate = new Date(info.start);
-        const dateStr = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD
-        const timeStr = selectedDate.toTimeString().slice(0, 5); // HH:MM
+        // Manejar selección de fecha para crear nueva cita
+        const startTime = info.start;
+        const endTime = info.end;
         
-        this.openAppointmentModal({
-            date: dateStr,
-            time: timeStr,
-            isNew: true
-        });
-        this.calendar.unselect();
+        // Aquí puedes abrir un modal para crear nueva cita
+        console.log('Selected time slot:', startTime, 'to', endTime);
+        
+        // Ejemplo de creación de evento temporal
+        const newEvent = {
+            title: 'Nueva Cita',
+            start: startTime,
+            end: endTime,
+            backgroundColor: '#007bff',
+            borderColor: '#007bff'
+        };
+        
+        this.calendar.addEvent(newEvent);
     }
 
     handleEventClick(info) {
+        // Manejar click en evento existente
         const event = info.event;
-        this.showAppointmentDetails({
+        console.log('Event clicked:', event.title, event.start);
+         this.showAppointmentDetails({
             id: event.id,
             title: event.title,
             start: event.start,
@@ -363,8 +730,8 @@ class AgendaManager {
             serviceId: event.extendedProps.serviceId
         });
     }
-    
-    showAppointmentDetails(eventData) {
+
+     showAppointmentDetails(eventData) {
         console.log('showAppointmentDetails', eventData);
         // Formatear fecha en formato DD/MM/YYYY
         const startDate = new Date(eventData.start);
@@ -612,67 +979,74 @@ class AgendaManager {
         modal.show();
     }
     
-    // Agregar esta nueva función después del método openAppointmentModal
     clearPatientFields() {
-    // Limpiar búsqueda de pacientes
-    const patientSearch = document.getElementById('patient-search');
-    if (patientSearch) {
-        patientSearch.value = '';
-    }
-    
-    // Limpiar resultados de búsqueda
-    const patientResults = document.getElementById('patient-results');
-    if (patientResults) {
-        patientResults.innerHTML = '';
-    }
-    
-    // Limpiar paciente seleccionado
-    const selectedPatientId = document.getElementById('selected-patient-id');
-    if (selectedPatientId) {
-        selectedPatientId.value = '';
-    }
-    
-    // Limpiar información del paciente seleccionado
-    const selectedPatientInfo = document.getElementById('selected-patient-info');
-    if (selectedPatientInfo) {
-        selectedPatientInfo.innerHTML = '';
-    }
-    
-    // Ocultar formulario de nuevo paciente
-    const newPatientForm = document.getElementById('new-patient-form');
-    if (newPatientForm) {
-        newPatientForm.style.display = 'none';
-    }
-    
-    // Limpiar campos del formulario de nuevo paciente
-    const patientNameField = document.getElementById('patient-name');
-    if (patientNameField) {
-        patientNameField.value = '';
-    }
-    
-    const patientEmailField = document.getElementById('patient-email');
-    if (patientEmailField) {
-        patientEmailField.value = '';
-    }
-    
-    const patientPhoneField = document.getElementById('patient-phone');
-    if (patientPhoneField) {
-        patientPhoneField.value = '';
-    }
-    
-    const patientBirthDateField = document.getElementById('patient-birth-date');
-    if (patientBirthDateField) {
-        patientBirthDateField.value = '';
-    }
+        // Limpiar búsqueda de pacientes
+        const patientSearch = document.getElementById('patient-search');
+        if (patientSearch) {
+            patientSearch.value = '';
+        }
+        
+        // Limpiar resultados de búsqueda
+        const patientResults = document.getElementById('patient-results');
+        if (patientResults) {
+            patientResults.innerHTML = '';
+        }
+        
+        // Limpiar paciente seleccionado
+        const selectedPatientId = document.getElementById('selected-patient-id');
+        if (selectedPatientId) {
+            selectedPatientId.value = '';
+        }
+        
+        // Limpiar información del paciente seleccionado
+        const selectedPatientInfo = document.getElementById('selected-patient-info');
+        if (selectedPatientInfo) {
+            selectedPatientInfo.innerHTML = '';
+        }
+        
+        // Ocultar formulario de nuevo paciente
+        const newPatientForm = document.getElementById('new-patient-form');
+        if (newPatientForm) {
+            newPatientForm.style.display = 'none';
+        }
+        
+        // Limpiar campos del formulario de nuevo paciente
+        const patientNameField = document.getElementById('patient-name');
+        if (patientNameField) {
+            patientNameField.value = '';
+        }
+        
+        const patientEmailField = document.getElementById('patient-email');
+        if (patientEmailField) {
+            patientEmailField.value = '';
+        }
+        
+        const patientPhoneField = document.getElementById('patient-phone');
+        if (patientPhoneField) {
+            patientPhoneField.value = '';
+        }
+        
+        const patientBirthDateField = document.getElementById('patient-birth-date');
+        if (patientBirthDateField) {
+            patientBirthDateField.value = '';
+        }
     }
 
     async populateModalFields(data) {
         document.getElementById('modal-professional').value = data.professionalId;
-        // NO establecer el servicio aquí todavía
-        document.getElementById('appointment-date').value = data.start.toISOString().split('T')[0];
+        
+        // Manejar data.start como string o Date
+        let startDate;
+        if (typeof data.start === 'string') {
+            startDate = new Date(data.start);
+        } else {
+            startDate = data.start;
+        }
+        
+        document.getElementById('appointment-date').value = startDate.toISOString().split('T')[0];
         
         // Extraer y establecer la hora
-        const timeStr = data.start.toTimeString().slice(0, 5); // HH:MM
+        const timeStr = startDate.toTimeString().slice(0, 5); // HH:MM
         const appointmentTime = document.getElementById('appointment-time');
         if (appointmentTime) {
             // Crear opción temporal con la hora del turno existente
@@ -696,8 +1070,8 @@ class AgendaManager {
             this.selectPatient(data.patientId, data.patientName, data.patientEmail, data.patientPhone);
         }
         
-        // Ahora cargar horarios disponibles - ya no necesitamos setTimeout
-        if (data.professionalId && data.serviceId && data.start) {
+        // Ahora cargar horarios disponibles
+        if (data.professionalId && data.serviceId && startDate) {
             this.loadAvailableSlots();
         }
     }
@@ -906,25 +1280,6 @@ class AgendaManager {
         return response.json();
     }
 
-    changeCalendarView(view) {
-        const viewMap = {
-            'month': 'dayGridMonth',
-            'week': 'timeGridWeek',
-            'day': 'timeGridDay'
-        };
-        
-        this.currentFilters.view = view;
-        
-        if (viewMap[view]) {
-            this.calendar.changeView(viewMap[view]);
-        } else {
-            this.calendar.changeView(view);
-        }
-        
-        // Recargar appointments cuando cambie la vista
-        this.loadAppointments();
-    }
-
     showLoading(show) {
         const loadingEl = document.getElementById('loading-spinner');
         if (loadingEl) {
@@ -952,75 +1307,213 @@ class AgendaManager {
         }, 5000);
     }
 
-    // En lugar de solo colores por estado, usar colores por profesional
-    getProfessionalColor(professionalId) {
-        const colors = [
-            '#3498db', '#e74c3c', '#2ecc71', '#f39c12', 
-            '#9b59b6', '#1abc9c', '#34495e', '#e67e22'
-        ];
-        return colors[professionalId % colors.length];
+    handleEventDrop(info) {
+        // Manejar cuando se arrastra un evento a nueva posición
+        const event = info.event;
+        console.log('Event moved:', event.title, 'to', event.start);
+        
+        // Aquí puedes hacer una llamada AJAX para actualizar la cita en el servidor
+        // Si falla, puedes revertir con: info.revert();
     }
 
-    // Combinar color de profesional con intensidad por estado
-    getEventColor(appointment) {
-        const baseColor = this.getProfessionalColor(appointment.professionalId);
-        const opacity = appointment.status === 'confirmed' ? '1' : '0.7';
-        return baseColor + Math.floor(255 * opacity).toString(16);
+    handleEventResize(info) {
+        // Manejar cuando se redimensiona un evento
+        const event = info.event;
+        console.log('Event resized:', event.title, 'new end:', event.end);
+        
+        // Aquí puedes hacer una llamada AJAX para actualizar la duración en el servidor
+        // Si falla, puedes revertir con: info.revert();
+    }
+
+    // Método para obtener profesionales seleccionados (actualizado para múltiples)
+    getSelectedProfessionals() {
+        const checkboxes = document.querySelectorAll('input[name="professionals[]"]:checked');
+        const selectedIds = Array.from(checkboxes).map(cb => cb.value).filter(val => val !== 'all');
+        
+        // Si está seleccionado "todos" o no hay ninguno seleccionado, retornar array vacío
+        const allSelected = document.querySelector('input[name="professionals[]"][value="all"]:checked');
+        if (allSelected || selectedIds.length === 0) {
+            return [];
+        }
+        
+        return selectedIds;
+    }
+
+    // Método para determinar si mostrar columnas de profesionales
+    shouldShowProfessionalColumns() {
+        const selectedProfessionals = this.getSelectedProfessionals();
+        // Mostrar columnas cuando hay múltiples profesionales seleccionados O cuando no hay ninguno seleccionado (todos)
+        return selectedProfessionals.length === 0 || selectedProfessionals.length > 1;
     }
     
-    // Agregar un panel lateral con resumen del día
-    showDaySummary(date) {
-        const dayAppointments = this.getAppointmentsForDate(date);
-        const summary = {
-            total: dayAppointments.length,
-            byProfessional: {},
-            byStatus: {},
-            nextAppointment: this.getNextAppointment(dayAppointments)
-        };
-        
-        // Mostrar en panel lateral
-        this.updateSummaryPanel(summary);
-    }
-    
-    showDayAppointments(dayEvents) {
-        const modal = document.createElement('div');
-        modal.className = 'modal fade';
-        modal.innerHTML = `
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Turnos del día</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="list-group">
-                            ${dayEvents.map(event => `
-                                <div class="list-group-item">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1">${event.title}</h6>
-                                         <small>${event.start.toLocaleTimeString('es-ES', {
-                                            hour: '2-digit', 
-                                            minute: '2-digit',
-                                            timeZone: 'UTC'
-                                        })}</small>
-                                    </div>
-                                    <p class="mb-1">${event.extendedProps?.service || ''}</p>
-                                    <small>${event.extendedProps?.professional || ''}</small>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
-        
-        modal.addEventListener('hidden.bs.modal', () => {
-            modal.remove();
+    // Actualizar botones de vista (solo visual, no funcional)
+    updateViewButtons(activeView) {
+        // Remover clase active de todos los botones
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.classList.remove('active');
         });
+        
+        // Agregar clase active al botón correspondiente
+        const activeButton = document.getElementById(activeView);
+        if (activeButton) {
+            activeButton.classList.add('active');
+        }
+    }
+    
+    // Cambia la vista según la lógica automática
+    changeView() {
+        const viewType = this.determineAutoView();
+        
+        if (viewType === 'week') {
+            // Vista semana con FullCalendar
+            document.getElementById('calendar').style.display = 'block';
+            document.getElementById('professionalsColumns').style.display = 'none';
+            
+            if (this.calendar) {
+                this.calendar.changeView('timeGridWeek');
+            }
+        } else {
+            // Vista día con columnas profesionales
+            document.getElementById('calendar').style.display = 'none';
+            document.getElementById('professionalsColumns').style.display = 'block';
+            this.renderProfessionalColumns(this.currentDate);
+        }
+        
+        this.updateCurrentDateDisplay();
+    }
+    
+    // Modificar bindCustomControls para remover los event listeners de los botones de vista
+    bindCustomControls() {
+        // Navegación
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (this.calendar) {
+                this.calendar.prev();
+                this.updateCurrentDateDisplay();
+            }
+        });
+        
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (this.calendar) {
+                this.calendar.next();
+                this.updateCurrentDateDisplay();
+            }
+        });
+        
+        document.getElementById('todayBtn').addEventListener('click', () => {
+            if (this.calendar) {
+                this.calendar.today();
+                this.updateCurrentDateDisplay();
+            }
+        });
+        
+        // Intervalos de tiempo
+        document.querySelectorAll('[data-interval]').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const interval = parseInt(e.target.getAttribute('data-interval'));
+                this.changeTimeInterval(interval);
+            });
+        });
+        
+        document.getElementById('serviceFilter').addEventListener('change', () => {
+            this.loadAppointments();
+        });
+    }
+    
+    // Determina automáticamente qué vista usar
+    determineAutoView() {
+        const selectedProfessionals = this.getSelectedProfessionals();
+        
+        if (selectedProfessionals.length === 1) {
+            // Un profesional seleccionado → Vista semana
+            this.currentView = 'timeGridWeek';
+            this.updateViewIndicator('week');
+            return 'week';
+        } else {
+            // Múltiples profesionales o todos → Vista de columnas (día)
+            this.currentView = 'columns';
+            this.updateViewIndicator('day');
+            return 'day';
+        }
+    }
+
+    // Actualizar indicador de vista (reemplaza updateViewButtons)
+    updateViewIndicator(viewType) {
+        const indicator = document.getElementById('currentViewIndicator');
+        if (indicator) {
+            const selectedProfessionals = this.getSelectedProfessionals();
+            if (viewType === 'week') {
+                indicator.textContent = 'Vista Semana (1 Profesional)';
+                indicator.className = 'badge bg-success';
+            } else {
+                if (selectedProfessionals.length === 0) {
+                    indicator.textContent = 'Vista Día (Todos los Profesionales)';
+                } else {
+                    indicator.textContent = `Vista Día (${selectedProfessionals.length} Profesionales)`;
+                }
+                indicator.className = 'badge bg-info';
+            }
+        }
+    }
+
+    // Método para inicializar el filtro de profesionales con checkboxes
+    initializeProfessionalFilter() {
+        const allCheckbox = document.querySelector('input[name="professionals[]"][value="all"]');
+        const professionalCheckboxes = document.querySelectorAll('input[name="professionals[]"]:not([value="all"])');
+        const filterText = document.getElementById('professionalFilterText');
+        
+        // Manejar checkbox "Todos"
+        allCheckbox.addEventListener('change', () => {
+            if (allCheckbox.checked) {
+                // Desmarcar todos los demás
+                professionalCheckboxes.forEach(cb => cb.checked = false);
+                filterText.textContent = 'Todos los profesionales';
+            }
+            this.updateProfessionalFilter();
+        });
+        
+        // Manejar checkboxes individuales
+        professionalCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    // Si se selecciona uno individual, desmarcar "Todos"
+                    allCheckbox.checked = false;
+                }
+                
+                // Si no hay ninguno seleccionado, marcar "Todos"
+                const anyChecked = Array.from(professionalCheckboxes).some(cb => cb.checked);
+                if (!anyChecked) {
+                    allCheckbox.checked = true;
+                }
+                
+                this.updateProfessionalFilterText();
+                this.updateProfessionalFilter();
+            });
+        });
+    }
+    
+    // Actualizar texto del filtro
+    updateProfessionalFilterText() {
+        const filterText = document.getElementById('professionalFilterText');
+        const allCheckbox = document.querySelector('input[name="professionals[]"][value="all"]');
+        const selectedCheckboxes = document.querySelectorAll('input[name="professionals[]"]:checked:not([value="all"])');
+        
+        if (allCheckbox.checked) {
+            filterText.textContent = 'Todos los profesionales';
+        } else if (selectedCheckboxes.length === 0) {
+            filterText.textContent = 'Ningún profesional seleccionado';
+        } else if (selectedCheckboxes.length === 1) {
+            const label = document.querySelector(`label[for="${selectedCheckboxes[0].id}"]`);
+            filterText.textContent = label.textContent;
+        } else {
+            filterText.textContent = `${selectedCheckboxes.length} profesionales seleccionados`;
+        }
+    }
+    
+    // Actualizar filtro y vista
+    updateProfessionalFilter() {
+        this.changeView(); // Recalcular vista automáticamente
+        this.loadAppointments();
     }
 }
 
@@ -1029,4 +1522,3 @@ document.addEventListener('DOMContentLoaded', async function() {
     agendaManager = new AgendaManager();
     await agendaManager.init();
 });
-

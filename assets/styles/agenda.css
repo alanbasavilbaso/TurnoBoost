@@ -307,6 +307,14 @@
     color: #6c757d;
     cursor: not-allowed;
     opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.time-slot.unavailable.active {
+    background-color: #007bff;
+    color: white;
+    opacity: 0.8;
 }
 
 /* Leyenda de estados */
@@ -712,4 +720,46 @@
 #confirmationModal .btn {
     min-width: 120px;
     font-weight: 500;
+}
+
+.professional-slot {
+    position: relative;
+    height: 60px;
+    border: 1px solid #e0e0e0;
+    margin-bottom: 1px;
+}
+
+.appointment-block {
+    background-color: #3498db;
+    color: white;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    border: 1px solid #dee2e6;
+}
+
+.appointment-title {
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.appointment-time {
+    font-size: 10px;
+    opacity: 0.9;
+}
+
+.appointment-block.appointment-continuation {
+    border-top: 2px dashed rgba(255,255,255,0.5);
+}
+
+.appointment-block.appointment-extends {
+    border-bottom: 2px dashed rgba(255,255,255,0.5);
+}
+
+.appointment-block.appointment-continuation .appointment-time {
+    display: none; /* Ocultar hora en continuaciones */
 }

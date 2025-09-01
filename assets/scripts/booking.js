@@ -4,6 +4,7 @@ let selectedProfessional = null;
 let selectedDate = null;
 let selectedTimeSlot = null;
 let clinicDomain = null;
+let isUserAuthenticated = false;
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', function() {
@@ -11,6 +12,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const clinicElement = document.querySelector('[data-clinic-domain]');
     if (clinicElement) {
         clinicDomain = clinicElement.dataset.clinicDomain;
+    }
+    
+    // Verificar estado de autenticación
+    const authElement = document.querySelector('[data-user-authenticated]');
+    if (authElement) {
+        isUserAuthenticated = authElement.dataset.userAuthenticated === 'true';
     }
     
     // Establecer fecha de hoy por defecto
@@ -98,17 +105,17 @@ function selectService(service) {
         
         // Escuchar el evento de cierre del modal para abrir el siguiente
         document.getElementById('serviceModal').addEventListener('hidden.bs.modal', function onServiceModalHidden() {
-            // Remover el listener para evitar múltiples ejecuciones
+            // Remover el listener para evitar múltiples llamadas
             this.removeEventListener('hidden.bs.modal', onServiceModalHidden);
             
             // Cargar profesionales y abrir modal
             loadProfessionals(service.id).then(() => {
                 openProfessionalModal();
             });
-        }, { once: true });
+        });
     }
     
-    updateConfirmButton();
+    updateFloatingButton();
 }
 
 // Cargar profesionales
@@ -131,11 +138,6 @@ function displayProfessionals(professionals) {
     
     container.innerHTML = '';
     
-    if (professionals.length === 0) {
-        container.innerHTML = '<p class="text-muted text-center">No hay profesionales disponibles para este servicio.</p>';
-        return;
-    }
-    
     professionals.forEach(professional => {
         const professionalElement = document.createElement('div');
         professionalElement.className = 'modal-professional-item';
@@ -145,13 +147,13 @@ function displayProfessionals(professionals) {
             <div class="d-flex justify-content-between align-items-start">
                 <div>
                     <h6 class="mb-1">${professional.name}</h6>
-                    <p class="text-muted mb-1">${professional.specialization || 'Profesional'}</p>
+                    <p class="text-muted mb-1">${professional.specialization}</p>
                     <small class="text-info">
-                        <i class="fas fa-star me-1"></i>Experiencia profesional
+                        <i class="fas fa-phone me-1"></i>${professional.phone}
                     </small>
                 </div>
                 <div class="text-end">
-                    <span class="price-badge">$${professional.price || '0'}</span>
+                    <span class="price-badge">$${professional.priceFormatted}</span>
                 </div>
             </div>
         `;
@@ -170,27 +172,18 @@ function selectProfessional(professional) {
     const professionalCard = document.getElementById('selected-professional-card');
     
     if (professionalName) professionalName.textContent = professional.name;
-    if (professionalPrice) professionalPrice.textContent = `$${professional.price || '0'}`;
+    if (professionalPrice) professionalPrice.textContent = `$${professional.priceFormatted}`;
     if (professionalCard) professionalCard.classList.add('selected');
     
     // Cerrar modal
     const professionalModal = bootstrap.Modal.getInstance(document.getElementById('professionalModal'));
     if (professionalModal) {
         professionalModal.hide();
-        
-        // Escuchar el evento de cierre del modal para cargar horarios
-        document.getElementById('professionalModal').addEventListener('hidden.bs.modal', function onProfessionalModalHidden() {
-            // Remover el listener para evitar múltiples ejecuciones
-            this.removeEventListener('hidden.bs.modal', onProfessionalModalHidden);
-            
-            // Cargar horarios automáticamente
-            if (selectedDate) {
-                loadTimeSlots();
-            }
-        }, { once: true });
     }
     
-    updateConfirmButton();
+    // Cargar horarios disponibles
+    loadTimeSlots();
+    updateFloatingButton();
 }
 
 // Cargar horarios disponibles
@@ -282,6 +275,7 @@ function selectTimeSlot(slot, element) {
     selectedTimeSlot = slot;
     
     updateConfirmButton();
+    updateFloatingButton();
 }
 
 // Actualizar estado del botón de confirmación
@@ -298,6 +292,190 @@ function updateConfirmButton() {
     } else {
         button.innerHTML = '<i class="fas fa-check me-2"></i>Completa tu selección';
     }
+}
+
+// Actualizar botón flotante
+function updateFloatingButton() {
+    const floatingBtn = document.getElementById('floating-reserve-btn');
+    if (!floatingBtn) return;
+    
+    const isComplete = selectedService && selectedProfessional && selectedDate && selectedTimeSlot;
+    
+    if (isComplete) {
+        floatingBtn.style.display = 'block';
+    } else {
+        floatingBtn.style.display = 'none';
+    }
+}
+
+// Abrir modal de reserva
+function openBookingModal() {
+    if (!selectedService || !selectedProfessional || !selectedDate || !selectedTimeSlot) {
+        alert('Por favor completa toda la selección');
+        return;
+    }
+    
+    // Llenar datos del modal
+    document.getElementById('booking-service').textContent = selectedService.name;
+    document.getElementById('booking-professional').textContent = selectedProfessional.name;
+    document.getElementById('booking-date').textContent = formatDate(selectedDate);
+    document.getElementById('booking-time').textContent = selectedTimeSlot.time;
+    document.getElementById('booking-duration').textContent = selectedService.durationFormatted;
+    document.getElementById('booking-price').textContent = `$${selectedProfessional.priceFormatted}`;
+    
+    // Actualizar botón según estado de autenticación
+    const authBtn = document.getElementById('auth-and-book-btn');
+    if (isUserAuthenticated) {
+        authBtn.innerHTML = '<i class="fas fa-calendar-check me-2"></i>Reservar';
+    } else {
+        authBtn.innerHTML = '<i class="fas fa-user-check me-2"></i>Autenticarme y Reservar';
+    }
+    
+    // Mostrar modal
+    const bookingModal = new bootstrap.Modal(document.getElementById('bookingModal'));
+    bookingModal.show();
+}
+
+// Manejar proceso de reserva
+function handleBooking() {
+    if (isUserAuthenticated) {
+        // Usuario ya autenticado, proceder con la reserva
+        processBooking();
+    } else {
+        // Usuario no autenticado, abrir modal de autenticación
+        const bookingModal = bootstrap.Modal.getInstance(document.getElementById('bookingModal'));
+        bookingModal.hide();
+        
+        setTimeout(() => {
+            const authModal = new bootstrap.Modal(document.getElementById('authModal'));
+            authModal.show();
+        }, 300);
+    }
+}
+
+// Enviar código de autenticación
+function sendAuthCode() {
+    const email = document.getElementById('auth-email').value;
+    
+    if (!email || !email.includes('@')) {
+        alert('Por favor ingresa un email válido');
+        return;
+    }
+    
+    // Simular envío de código (aquí harías la llamada al servidor)
+    console.log('Enviando código a:', email);
+    
+    // Mostrar paso 2
+    document.getElementById('auth-step-1').style.display = 'none';
+    document.getElementById('auth-step-2').style.display = 'block';
+    
+    // En un caso real, aquí harías:
+    // fetch('/api/send-auth-code', { method: 'POST', body: JSON.stringify({email}) })
+}
+
+// Verificar código y reservar
+function verifyCodeAndBook() {
+    const code = document.getElementById('auth-code').value;
+    
+    if (!code || code.length < 4) {
+        alert('Por favor ingresa el código de verificación');
+        return;
+    }
+    
+    // Simular verificación (aquí harías la llamada al servidor)
+    console.log('Verificando código:', code);
+    
+    // Simular autenticación exitosa
+    isUserAuthenticated = true;
+    
+    // Cerrar modal de auth
+    const authModal = bootstrap.Modal.getInstance(document.getElementById('authModal'));
+    authModal.hide();
+    
+    // Procesar reserva
+    setTimeout(() => {
+        processBooking();
+    }, 300);
+}
+
+// Procesar reserva
+async function processBooking() {
+    try {
+        // Aquí harías la llamada al servidor para crear la reserva
+        const bookingData = {
+            service: selectedService.id,
+            professional: selectedProfessional.id,
+            date: selectedDate,
+            time: selectedTimeSlot.time,
+            // otros datos necesarios
+        };
+        
+        console.log('Procesando reserva:', bookingData);
+        
+        // Simular llamada al servidor
+        // const response = await fetch('/api/create-booking', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify(bookingData)
+        // });
+        
+        // Simular éxito
+        alert(`¡Reserva confirmada!\n\nServicio: ${selectedService.name}\nProfesional: ${selectedProfessional.name}\nFecha: ${formatDate(selectedDate)}\nHora: ${selectedTimeSlot.time}\nPrecio: $${selectedProfessional.priceFormatted}`);
+        
+        // Cerrar modal
+        const bookingModal = bootstrap.Modal.getInstance(document.getElementById('bookingModal'));
+        if (bookingModal) {
+            bookingModal.hide();
+        }
+        
+        // Resetear selecciones
+        resetSelections();
+        
+    } catch (error) {
+        console.error('Error al procesar reserva:', error);
+        alert('Error al procesar la reserva. Por favor intenta nuevamente.');
+    }
+}
+
+// Volver al paso de email
+function backToEmailStep() {
+    document.getElementById('auth-step-2').style.display = 'none';
+    document.getElementById('auth-step-1').style.display = 'block';
+    document.getElementById('auth-code').value = '';
+}
+
+// Resetear selecciones
+function resetSelections() {
+    selectedService = null;
+    selectedProfessional = null;
+    selectedTimeSlot = null;
+    
+    // Resetear UI
+    document.getElementById('selected-service-name').textContent = 'Seleccionar servicio';
+    document.getElementById('selected-service-duration').textContent = '';
+    document.getElementById('selected-professional-name').textContent = 'Seleccionar profesional';
+    document.getElementById('selected-professional-price').textContent = '';
+    
+    document.getElementById('selected-service-card').classList.remove('selected');
+    document.getElementById('selected-professional-card').classList.remove('selected');
+    
+    document.querySelectorAll('.time-slot.selected').forEach(el => {
+        el.classList.remove('selected');
+    });
+    
+    updateFloatingButton();
+    updateConfirmButton();
+}
+
+// Formatear fecha
+function formatDate(dateString) {
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
 }
 
 // Abrir modales
@@ -319,18 +497,12 @@ function openProfessionalModal() {
     }
 }
 
-// Confirmar reserva
+// Confirmar reserva (botón del sidebar)
 document.addEventListener('DOMContentLoaded', function() {
     const confirmButton = document.getElementById('confirm-booking-btn');
     if (confirmButton) {
         confirmButton.addEventListener('click', function() {
-            if (!selectedService || !selectedProfessional || !selectedDate || !selectedTimeSlot) {
-                alert('Por favor completa toda la selección');
-                return;
-            }
-            
-            // Aquí implementarías la lógica de confirmación
-            alert(`Reserva confirmada:\n\nServicio: ${selectedService.name}\nProfesional: ${selectedProfessional.name}\nFecha: ${selectedDate}\nHora: ${selectedTimeSlot.time}\nPrecio: $${selectedProfessional.price}`);
+            openBookingModal();
         });
     }
 });

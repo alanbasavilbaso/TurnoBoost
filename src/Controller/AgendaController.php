@@ -75,10 +75,11 @@ class AgendaController extends AbstractController
         
         $startDate = new \DateTime($request->query->get('start', 'now'));
         $endDate = new \DateTime($request->query->get('end', '+1 week'));
-        // Cambiar los nombres de parámetros para coincidir con el frontend
-        $professionalId = $request->query->get('professional'); // Era 'professional_id'
-        $serviceId = $request->query->get('service'); // Era 'service_id'
-
+        
+        // Manejar array de profesionales
+        $professionalIds = $request->query->all('professionals');
+        $serviceId = $request->query->get('service');
+    
         $queryBuilder = $this->entityManager->createQueryBuilder()
             ->select('a', 'p', 's', 'pat')
             ->from(Appointment::class, 'a')
@@ -87,7 +88,6 @@ class AgendaController extends AbstractController
             ->leftJoin('a.patient', 'pat')
             ->where('a.clinic = :clinic')
             ->andWhere('a.scheduledAt BETWEEN :start AND :end')
-            // Opción alternativa: mostrar solo estados específicos
             ->andWhere('a.status IN (:allowedStatuses)')
             ->setParameter('allowedStatuses', [
                 StatusEnum::SCHEDULED,
@@ -98,12 +98,13 @@ class AgendaController extends AbstractController
             ->setParameter('start', $startDate)
             ->setParameter('end', $endDate)
             ->orderBy('a.scheduledAt', 'ASC');
-
-        if ($professionalId) {
-            $queryBuilder->andWhere('p.id = :professionalId')
-                        ->setParameter('professionalId', $professionalId);
+    
+        // Filtrar por profesionales si se especifican
+        if (!empty($professionalIds)) {
+            $queryBuilder->andWhere('p.id IN (:professionalIds)')
+                        ->setParameter('professionalIds', $professionalIds);
         }
-
+    
         if ($serviceId) {
             $queryBuilder->andWhere('s.id = :serviceId')
                         ->setParameter('serviceId', $serviceId);
@@ -371,6 +372,58 @@ class AgendaController extends AbstractController
                 'error' => 'Ha ocurrido un error interno. Por favor, inténtelo nuevamente.'
             ], 500);
         }
+    }
+
+    #[Route('/appointment/{id}', name: 'app_agenda_get_appointment', methods: ['GET'])]
+    public function getAppointment(int $id): JsonResponse
+    {
+        $user = $this->getUser();
+        $clinic = $user->getOwnedClinics()->first();
+        
+        if (!$clinic) {
+            return new JsonResponse(['error' => 'No se encontró la clínica'], 404);
+        }
+
+        $appointment = $this->entityManager->getRepository(Appointment::class)->find($id);
+        
+        if (!$appointment) {
+            return new JsonResponse(['error' => 'Turno no encontrado'], 404);
+        }
+
+        // Verificar que la cita pertenece a la clínica del usuario
+        if ($appointment->getClinic() !== $clinic) {
+            return new JsonResponse(['error' => 'Acceso denegado'], 403);
+        }
+
+        // Calcular hora de finalización
+        $endTime = clone $appointment->getScheduledAt();
+        $endTime->modify('+' . $appointment->getDurationMinutes() . ' minutes');
+
+        return new JsonResponse([
+            'id' => $appointment->getId(),
+            'title' => sprintf('%s - %s (%s)', 
+                $appointment->getProfessional()->getName(),
+                $appointment->getPatient()->getName(),
+                $appointment->getService()?->getName() ?? 'Sin servicio'
+            ),
+            'start' => $appointment->getScheduledAt()->format('Y-m-d\\TH:i:s'),
+            'end' => $endTime->format('Y-m-d\\TH:i:s'),
+            'professionalId' => $appointment->getProfessional()->getId(),
+            'professionalName' => $appointment->getProfessional()->getName(),
+            'serviceId' => $appointment->getService()?->getId(),
+            'serviceName' => $appointment->getService()?->getName(),
+            'patientId' => $appointment->getPatient()->getId(),
+            'patientName' => $appointment->getPatient()->getName(),
+            'patientEmail' => $appointment->getPatient()->getEmail(),
+            'patientPhone' => $appointment->getPatient()->getPhone(),
+            // 'patientBirthDate' => $appointment->getPatient()->getBirthDate()?->format('Y-m-d'),
+            'durationMinutes' => $appointment->getDurationMinutes(),
+            'status' => $appointment->getStatus()->value,
+            'notes' => $appointment->getNotes(),
+            'scheduledAt' => $appointment->getScheduledAt()->format('Y-m-d\\TH:i:s'),
+            'createdAt' => $appointment->getCreatedAt()->format('Y-m-d\\TH:i:s'),
+            'updatedAt' => $appointment->getUpdatedAt()?->format('Y-m-d\\TH:i:s')
+        ]);
     }
 
     #[Route('/appointment/{id}', name: 'app_agenda_update_appointment', methods: ['PUT'])]
@@ -822,5 +875,47 @@ class AgendaController extends AbstractController
                 'status' => $appointment->getStatus()->value
             ]
         ]);
+    }
+
+    /**
+     * Obtiene información de profesionales específicos por sus IDs
+     */
+    #[Route('/professionals/{ids}', name: 'app_agenda_professionals_by_ids', methods: ['GET'], requirements: ['ids' => '[\d,]+'])]
+    public function getProfessionalsByIds(string $ids): JsonResponse
+    {
+        $user = $this->getUser();
+        $clinic = $user->getOwnedClinics()->first();
+        
+        if (!$clinic) {
+            return new JsonResponse(['error' => 'Clínica no encontrada'], 404);
+        }
+
+        // Convertir string de IDs separados por comas a array
+        $professionalIds = array_filter(array_map('intval', explode(',', $ids)));
+        
+        if (empty($professionalIds)) {
+            return new JsonResponse(['error' => 'IDs de profesionales inválidos'], 400);
+        }
+
+        $professionals = $this->professionalRepository->createQueryBuilder('p')
+            ->where('p.clinic = :clinic')
+            ->andWhere('p.active = true')
+            ->andWhere('p.id IN (:ids)')
+            ->setParameter('clinic', $clinic)
+            ->setParameter('ids', $professionalIds)
+            ->getQuery()
+            ->getResult();
+
+        $professionalData = [];
+        foreach ($professionals as $professional) {
+            $professionalData[] = [
+                'id' => $professional->getId(),
+                'name' => $professional->getName(),
+                'email' => $professional->getEmail(),
+                'phone' => $professional->getPhone()
+            ];
+        }
+
+        return new JsonResponse($professionalData);
     }
 }
