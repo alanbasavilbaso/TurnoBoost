@@ -149,6 +149,8 @@ class AgendaController extends AbstractController
                     'professionalId' => $appointment->getProfessional()->getId(),
                     'professionalName' => $appointment->getProfessional()->getName(),
                     'patientId' => $appointment->getPatient()->getId(), // Agregar esta línea
+                    'patientEmail' => $appointment->getPatient()->getEmail(),
+                    'patientPhone' => $appointment->getPatient()->getPhone(),
                     'patientName' => $appointment->getPatient()->getName(),
                     'email' => $appointment->getPatient()->getEmail(), // También agregar email para consistencia
                     'serviceName' => $appointment->getService()?->getName(),

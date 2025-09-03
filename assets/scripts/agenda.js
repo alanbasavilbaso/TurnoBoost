@@ -1505,18 +1505,6 @@ class AgendaManager {
     }
     
     clearPatientFields() {
-        // Limpiar búsqueda de pacientes
-        const patientSearch = document.getElementById('patient-search');
-        if (patientSearch) {
-            patientSearch.value = '';
-        }
-        
-        // Limpiar resultados de búsqueda
-        const patientResults = document.getElementById('patient-results');
-        if (patientResults) {
-            patientResults.innerHTML = '';
-        }
-        
         // Limpiar paciente seleccionado
         const selectedPatientId = document.getElementById('selected-patient-id');
         if (selectedPatientId) {
@@ -1529,10 +1517,28 @@ class AgendaManager {
             selectedPatientInfo.innerHTML = '';
         }
         
+        // Mostrar el botón de crear nuevo paciente
+        const createNewPatientBtn = document.getElementById('create-new-patient');
+        if (createNewPatientBtn) {
+            createNewPatientBtn.style.display = 'block';
+        }
+        
         // Ocultar formulario de nuevo paciente
         const newPatientForm = document.getElementById('new-patient-form');
         if (newPatientForm) {
             newPatientForm.style.display = 'none';
+        }
+        
+        // Limpiar búsqueda de pacientes
+        const patientSearch = document.getElementById('patient-search');
+        if (patientSearch) {
+            patientSearch.value = '';
+        }
+        
+        // Limpiar resultados de búsqueda
+        const patientResults = document.getElementById('patient-results');
+        if (patientResults) {
+            patientResults.innerHTML = '';
         }
         
         // Limpiar campos del formulario de nuevo paciente
@@ -1774,6 +1780,7 @@ class AgendaManager {
     }
 
     selectPatient(patientId, patientName, patientEmail, patientPhone) {
+        debugger;
         document.getElementById('selected-patient-id').value = patientId;
         document.getElementById('patient-search').value = '';
         document.getElementById('patient-results').innerHTML = '';
@@ -1786,11 +1793,26 @@ class AgendaManager {
     // Reemplazar displaySelectedPatient con esta nueva función
     displaySelectedPatientInfo(patientId, patientName, patientEmail, patientPhone) {
         document.getElementById('selected-patient-info').innerHTML = `
-            <div class="alert alert-info">
-                <strong>Paciente seleccionado:</strong> ${patientName}<br>
-                <small>${patientEmail} - ${patientPhone}</small>
+            <div class="alert alert-info d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>Paciente seleccionado:</strong> ${patientName}<br>
+                    <small>${patientEmail} - ${patientPhone}</small>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="remove-selected-patient" title="Remover paciente seleccionado">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
         `;
+        // Ocultar el botón de crear nuevo paciente
+        const createNewPatientBtn = document.getElementById('create-new-patient');
+        if (createNewPatientBtn) {
+            createNewPatientBtn.style.display = 'none';
+        }
+        // Agregar event listener al botón de remover
+        const removeBtn = document.getElementById('remove-selected-patient');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => this.removeSelectedPatient());
+        }
     }
 
     showNewPatientForm() {
@@ -2243,6 +2265,33 @@ class AgendaManager {
             // Múltiples profesionales o todos → Vista de columnas (día)
             this.currentView = 'columns';
             return 'day';
+        }
+    }
+
+    // Método para remover paciente seleccionado
+    removeSelectedPatient() {
+        // Limpiar el campo hidden del paciente seleccionado
+        const selectedPatientId = document.getElementById('selected-patient-id');
+        if (selectedPatientId) {
+            selectedPatientId.value = '';
+        }
+        
+        // Limpiar la información del paciente seleccionado
+        const selectedPatientInfo = document.getElementById('selected-patient-info');
+        if (selectedPatientInfo) {
+            selectedPatientInfo.innerHTML = '';
+        }
+        
+        // Mostrar nuevamente el botón de crear nuevo paciente
+        const createNewPatientBtn = document.getElementById('create-new-patient');
+        if (createNewPatientBtn) {
+            createNewPatientBtn.style.display = 'block';
+        }
+        
+        // Limpiar resultados de búsqueda si existen
+        const patientResults = document.getElementById('patient-results');
+        if (patientResults) {
+            patientResults.innerHTML = '';
         }
     }
 

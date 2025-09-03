@@ -489,6 +489,17 @@
 
 /* Agregar al final del archivo, después de los estilos existentes del tooltip */
 
+/* Botón de cerrar visible en modales */
+#appointmentModal .btn-close {
+    filter: none;
+    opacity: 0.8;
+    background-color: transparent;
+}
+
+#appointmentModal .btn-close:hover {
+    opacity: 1;
+}
+
 /* Flecha del tooltip */
 .appointment-tooltip::before {
     content: '';
@@ -578,4 +589,14 @@
 
 .status-option span {
     font-size: 10px;
+}
+
+.modal-dialog {
+    max-width: 700px !important;
+}
+
+@media (max-width: 700px) {
+    .modal-dialog {
+        max-width: 500px !important;
+    }
 }

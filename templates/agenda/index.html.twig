@@ -9,12 +9,6 @@
 
 {% block body %}
 <div class="container-fluid">
-    {# <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Agenda</h1>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#appointmentModal">
-            <i class="fas fa-plus me-2"></i>Nuevo Turno
-        </button>
-    </div> #}
     
     <div class="agenda-container">
         <!-- Sidebar con filtros y mini calendario -->
@@ -156,7 +150,7 @@
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Hora desde *</label>
                             <div class="row">
-                                <div class="col-6">
+                                <div class="col-5">
                                     <select class="form-select" id="appointment-hour-from" name="hour_from" required>
                                         <option value="">Hora</option>
                                         {% for hour in 0..23 %}
@@ -164,7 +158,7 @@
                                         {% endfor %}
                                     </select>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-5">
                                     <select class="form-select" id="appointment-minute-from" name="minute_from" required>
                                         <option value="">Min</option>
                                         {% for minute in 0..59 %}
@@ -178,7 +172,7 @@
                         <div id="time-until-container" class="col-md-4 mb-3 hide">
                             <label class="form-label">Hora hasta *</label>
                             <div class="row">
-                                <div class="col-6">
+                                <div class="col-5">
                                     <select class="form-select" id="appointment-hour-to" name="hour_to">
                                         <option value="">Hora</option>
                                         {% for hour in 0..23 %}
@@ -186,7 +180,7 @@
                                         {% endfor %}
                                     </select>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-5">
                                     <select class="form-select" id="appointment-minute-to" name="minute_to">
                                         <option value="">Min</option>
                                         {% for minute in 0..59 %}
@@ -218,7 +212,7 @@
                     
                     <div class="mb-3">
                         <label for="patient-search" class="form-label">Buscar Paciente</label>
-                        <input type="text" class="form-control" id="patient-search" placeholder="Escriba el nombre, email o teléfono del paciente...">
+                        <input type="text" class="form-control" id="patient-search" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="Escriba el nombre, email o teléfono del paciente...">
                         <input type="hidden" id="selected-patient-id" name="patient_id">
                         <div id="patient-results"></div>
                         <div id="selected-patient-info"></div>

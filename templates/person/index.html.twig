@@ -1,0 +1,168 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Clientes - {{ location.name }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link href="{{ asset('styles/person.css') }}" rel="stylesheet">
+{% endblock %}
+
+{% block body %}
+<div class="persons-container">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <!-- Header -->
+                <div class="persons-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="h2 mb-2" style="color: #2c3e50; font-weight: 700;">👥 Clientes</h1>
+                            <p class="text-muted mb-0" style="font-size: 1.1rem;">Gestiona tus clientes</p>
+                        </div>
+                        <!-- Botón Nuevo Cliente -->
+                        <button type="button" class="btn btn-success" data-entity="cliente" data-action="new">
+                            <i class="fas fa-plus me-2"></i>Nuevo Cliente
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Flash Messages -->
+                {% for message in app.flashes('success') %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert" style="border-radius: 15px; border: none; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);">
+                        <i class="fas fa-check-circle me-2"></i>{{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+
+                {% for message in app.flashes('error') %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert" style="border-radius: 15px; border: none; box-shadow: 0 4px 15px rgba(220, 53, 69, 0.2);">
+                        <i class="fas fa-exclamation-circle me-2"></i>{{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+
+                {% if patients is empty %}
+                    <!-- Estado Vacío -->
+                    <div class="empty-state-modern">
+                        <div class="mb-4">
+                            <i class="fas fa-users" style="font-size: 4rem; color: #28a745; margin-bottom: 1rem;"></i>
+                        </div>
+                        <h3 class="text-muted mb-3">👥 No hay clientes registrados</h3>
+                        <p class="text-muted mb-4" style="font-size: 1.1rem;">Crea tu primer cliente para comenzar a gestionar citas</p>
+                    </div>
+                {% else %}
+                    <!-- Tabla de Clientes -->
+                    <div class="table-card">
+                        <div class="table-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h4 class="mb-0">
+                                    <i class="fas fa-users me-2"></i>
+                                    ({{ patients|length }})
+                                </h4>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="position-relative">
+                                        <i class="fas fa-search position-absolute" style="left: 1rem; top: 50%; transform: translateY(-50%); color: #6c757d; z-index: 10;"></i>
+                                        <input type="text" 
+                                               class="form-control search-input-header ps-5" 
+                                               id="searchInput"
+                                               placeholder="Buscar clientes...">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-modern">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 35%;">Cliente</th>
+                                        <th class="hide-md" style="width: 20%;">Teléfono</th>
+                                        <th class="hide-md" style="width: 25%;">Email</th>
+                                        <th class="hide-lg" style="width: 10%;">Citas</th>
+                                        <th style="width: 10%;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="patientsTableBody">
+                                    {% for patient in patients %}
+                                        <tr class="patient-row" 
+                                            data-name="{{ patient.name|lower }}" 
+                                            data-email="{{ patient.email|default('')|lower }}"
+                                            data-phone="{{ patient.phone|default('')|lower }}">
+                                            <td>
+                                                <div class="patient-info">
+                                                    <div class="patient-avatar hide-md">
+                                                        <i class="fas fa-user" style="font-size: 1.5rem;"></i>
+                                                    </div>
+                                                    <div class="patient-details">
+                                                        <span>{{ patient.name }}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="hide-md">
+                                                {% if patient.phone %}
+                                                    <span class="phone-display">
+                                                        <i class="fas fa-phone me-1"></i>
+                                                        {{ patient.phone }}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="hide-md">
+                                                {% if patient.email %}
+                                                    <span class="email-display">
+                                                        <i class="fas fa-envelope me-1"></i>
+                                                        {{ patient.email }}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="hide-lg">
+                                                <div class="appointments-count">
+                                                    {{ patient.appointments|length }}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <button type="button" 
+                                                            class="btn btn-outline-primary btn-sm view-btn"
+                                                            data-patient-id="{{ patient.id }}"
+                                                            title="Ver detalles">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button type="button" 
+                                                            class="btn btn-outline-warning btn-sm edit-btn"
+                                                            data-patient-id="{{ patient.id }}"
+                                                            title="Editar">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button type="button" 
+                                                            class="btn btn-outline-danger btn-sm delete-btn"
+                                                            data-patient-id="{{ patient.id }}"
+                                                            data-patient-name="{{ patient.name }}"
+                                                            data-csrf-token="{{ csrf_token('delete' ~ patient.id) }}"
+                                                            title="Eliminar">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    
+    <script src="{{ asset('scripts/person-modal.js') }}"></script>
+    <script src="{{ asset('scripts/person-index.js') }}"></script>
+{% endblock %}

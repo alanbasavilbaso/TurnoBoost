@@ -1,0 +1,51 @@
+{{ form_start(form, {'attr': {'class': 'needs-validation', 'novalidate': true, 'id': 'personForm'}}) }}
+<div class="modal-body">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="mb-3">
+                {{ form_label(form.name, null, {'label_attr': {'class': 'form-label required'}}) }}
+                {{ form_widget(form.name) }}
+                {{ form_errors(form.name) }}
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="mb-3">
+                {{ form_label(form.phone, null, {'label_attr': {'class': 'form-label'}}) }}
+                {{ form_widget(form.phone) }}
+                {{ form_errors(form.phone) }}
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="mb-3">
+                {{ form_label(form.email, null, {'label_attr': {'class': 'form-label'}}) }}
+                {{ form_widget(form.email) }}
+                {{ form_errors(form.email) }}
+            </div>
+        </div>
+        
+        <div class="col-md-12">
+            <div class="mb-3">
+                {{ form_label(form.notes, null, {'label_attr': {'class': 'form-label'}}) }}
+                {{ form_widget(form.notes) }}
+                {{ form_errors(form.notes) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+        <i class="fas fa-times me-2"></i>Cancelar
+    </button>
+    <button type="submit" class="btn btn-success">
+        <i class="fas fa-save me-2"></i>
+        {% if is_edit %}
+            Actualizar Cliente
+        {% else %}
+            Crear Cliente
+        {% endif %}
+    </button>
+</div>
+{{ form_end(form) }}
