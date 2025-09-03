@@ -22,13 +22,13 @@ class ProfessionalRepository extends ServiceEntityRepository
     }
 
     /**
-     * Encuentra profesionales por clínica
+     * Encuentra profesionales por locales
      */
-    public function findByClinic($clinic, array $orderBy = []): array
+    public function findByLocation($location, array $orderBy = []): array
     {
         $qb = $this->createQueryBuilder('p')
-            ->andWhere('p.clinic = :clinic')
-            ->setParameter('clinic', $clinic);
+            ->andWhere('p.location = :location')
+            ->setParameter('location', $location);
 
         foreach ($orderBy as $field => $direction) {
             $qb->addOrderBy('p.' . $field, $direction);
@@ -38,14 +38,14 @@ class ProfessionalRepository extends ServiceEntityRepository
     }
 
     /**
-     * Encuentra profesionales activos por clínica
+     * Encuentra profesionales activos por locales
      */
-    public function findActiveByClinic($clinic): array
+    public function findActiveByLocation($location): array
     {
         return $this->createQueryBuilder('p')
-            ->andWhere('p.clinic = :clinic')
+            ->andWhere('p.location = :location')
             ->andWhere('p.active = :active')
-            ->setParameter('clinic', $clinic)
+            ->setParameter('location', $location)
             ->setParameter('active', true)
             ->orderBy('p.name', 'ASC')
             ->getQuery()
@@ -55,12 +55,12 @@ class ProfessionalRepository extends ServiceEntityRepository
     /**
      * Busca profesionales por nombre o especialidad
      */
-    public function searchByNameOrSpecialty($clinic, string $searchTerm): array
+    public function searchByNameOrSpecialty($location, string $searchTerm): array
     {
         return $this->createQueryBuilder('p')
-            ->andWhere('p.clinic = :clinic')
+            ->andWhere('p.location = :location')
             ->andWhere('p.name LIKE :searchTerm OR p.specialty LIKE :searchTerm')
-            ->setParameter('clinic', $clinic)
+            ->setParameter('location', $location)
             ->setParameter('searchTerm', '%' . $searchTerm . '%')
             ->orderBy('p.name', 'ASC')
             ->getQuery()
@@ -68,14 +68,14 @@ class ProfessionalRepository extends ServiceEntityRepository
     }
 
     /**
-     * Cuenta profesionales por clínica
+     * Cuenta profesionales por locales
      */
-    public function countByClinic($clinic): int
+    public function countByLocation($location): int
     {
         return $this->createQueryBuilder('p')
             ->select('COUNT(p.id)')
-            ->andWhere('p.clinic = :clinic')
-            ->setParameter('clinic', $clinic)
+            ->andWhere('p.location = :location')
+            ->setParameter('location', $location)
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -83,13 +83,13 @@ class ProfessionalRepository extends ServiceEntityRepository
     /**
      * Encuentra profesionales con citas en un rango de fechas
      */
-    public function findWithAppointmentsInDateRange($clinic, \DateTimeInterface $startDate, \DateTimeInterface $endDate): array
+    public function findWithAppointmentsInDateRange($location, \DateTimeInterface $startDate, \DateTimeInterface $endDate): array
     {
         return $this->createQueryBuilder('p')
             ->leftJoin('p.appointments', 'a')
-            ->andWhere('p.clinic = :clinic')
+            ->andWhere('p.location = :location')
             ->andWhere('a.appointmentDate BETWEEN :startDate AND :endDate')
-            ->setParameter('clinic', $clinic)
+            ->setParameter('location', $location)
             ->setParameter('startDate', $startDate)
             ->setParameter('endDate', $endDate)
             ->groupBy('p.id')

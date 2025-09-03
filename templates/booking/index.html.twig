@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reservar Turno - {{ clinic.name }}</title>
+    <title>Reservar Turno - {{ location.name }}</title>
     
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap/bootstrap.min.css') }}">
@@ -15,13 +15,13 @@
 </head>
 <body>
     <!-- Header de la Clínica -->
-    <div class="clinic-header">
+    <div class="location-header">
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-md-8">
-                    <h1 class="mb-2"><i class="fas fa-calendar-check me-2"></i>{{ clinic.name }}</h1>
-                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{{ clinic.address }}</p>
-                    <p class="mb-0"><i class="fas fa-phone me-2"></i>{{ clinic.phone }}</p>
+                    <h1 class="mb-2"><i class="fas fa-calendar-check me-2"></i>{{ location.name }}</h1>
+                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{{ location.address }}</p>
+                    <p class="mb-0"><i class="fas fa-phone me-2"></i>{{ location.phone }}</p>
                 </div>
                 <div class="col-md-4 text-end">
                     <h3 class="mb-0">Reservar Turno</h3>
@@ -99,10 +99,10 @@
                         <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Información</h5>
                     </div>
                     <div class="card-body">
-                        <p><strong>Dirección:</strong><br>{{ clinic.address }}</p>
-                        <p><strong>Teléfono:</strong><br>{{ clinic.phone }}</p>
-                        {% if clinic.email %}
-                        <p><strong>Email:</strong><br>{{ clinic.email }}</p>
+                        <p><strong>Dirección:</strong><br>{{ location.address }}</p>
+                        <p><strong>Teléfono:</strong><br>{{ location.phone }}</p>
+                        {% if location.email %}
+                        <p><strong>Email:</strong><br>{{ location.email }}</p>
                         {% endif %}
                         
                         <hr>
@@ -195,7 +195,7 @@
                         </div>
                         <div class="row mb-3">
                             <div class="col-4"><strong>Lugar:</strong></div>
-                            <div class="col-8" id="booking-location">{{ clinic.address }}</div>
+                            <div class="col-8" id="booking-location">{{ location.address }}</div>
                         </div>
                     </div>
                 </div>
@@ -259,8 +259,8 @@
     <!-- Booking JavaScript -->
     <script src="{{ asset('scripts/booking.js') }}"></script>
     
-    <!-- Pasar datos de la clínica al JavaScript -->
-    <div data-clinic-domain="{{ clinic.domain }}" style="display: none;"></div>
+    <!-- Pasar datos de el local al JavaScript -->
+    <div data-location-domain="{{ location.domain }}" style="display: none;"></div>
     
     <!-- Simular estado de autenticación (en producción esto vendría del servidor) -->
     <!-- ALAN -->

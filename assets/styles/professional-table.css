@@ -1,3 +1,9 @@
+.professionals-container {
+    /* background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); */
+    min-height: 100vh;
+    padding: 2rem 0;
+}
+
 /* Estilos para la tabla de profesionales */
 .avatar-circle {
     width: 40px;
@@ -27,7 +33,15 @@
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-
+/* Header mejorado */
+.professionals-header {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
 .badge {
     font-size: 0.75em;
     padding: 0.375em 0.75em;
@@ -81,4 +95,9 @@
     background-color: #fff3cd;
     padding: 0.1em 0.2em;
     border-radius: 0.2em;
+}
+
+.professional-info {
+    display: flex;
+    align-items: center;
 }

@@ -15,9 +15,9 @@ class Appointment
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: Clinic::class, inversedBy: 'appointments')]
-    #[ORM\JoinColumn(name: 'clinic_id', referencedColumnName: 'id', nullable: false)]
-    private Clinic $clinic;
+    #[ORM\ManyToOne(targetEntity: Location::class, inversedBy: 'professionals')]
+    #[ORM\JoinColumn(name: 'location_id', referencedColumnName: 'id', nullable: false)]
+    private Location $location;
 
     #[ORM\ManyToOne(targetEntity: Professional::class, inversedBy: 'appointments')]
     #[ORM\JoinColumn(name: 'professional_id', referencedColumnName: 'id', nullable: false)]
@@ -69,9 +69,15 @@ class Appointment
         return $this->id;
     }
 
-    public function getClinic(): Clinic
+    public function getLocation(): Location
     {
-        return $this->clinic;
+        return $this->location;
+    }
+
+    public function setLocation(Location $location): self
+    {
+        $this->location = $location;
+        return $this;
     }
 
     public function getProfessional(): Professional
@@ -117,13 +123,6 @@ class Appointment
     public function getUpdatedAt(): \DateTimeInterface
     {
         return $this->updatedAt;
-    }
-
-    // Setters
-    public function setClinic(Clinic $clinic): static
-    {
-        $this->clinic = $clinic;
-        return $this;
     }
 
     public function setProfessional(Professional $professional): static

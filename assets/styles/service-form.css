@@ -1,0 +1,72 @@
+/* Estilos para los campos de tipo de entrega y servicio */
+.delivery-type-container .form-check,
+.service-type-container .form-check,
+.frequency-container .form-check {
+    display: inline-block;
+    margin-right: 20px;
+    margin-bottom: 10px;
+    padding: 10px 15px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.delivery-type-container .form-check:hover,
+.service-type-container .form-check:hover,
+.frequency-container .form-check:hover {
+    border-color: #007bff;
+    background-color: #e7f3ff;
+}
+
+.delivery-type-container .form-check input:checked + label,
+.service-type-container .form-check input:checked + label,
+.frequency-container .form-check input:checked + label {
+    color: #007bff;
+    font-weight: 600;
+}
+
+.delivery-type-container .form-check:has(input:checked),
+.service-type-container .form-check:has(input:checked),
+.frequency-container .form-check:has(input:checked) {
+    border-color: #007bff;
+    background-color: #e7f3ff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.delivery-type-container .form-check-input,
+.service-type-container .form-check-input,
+.frequency-container .form-check-input {
+    margin-top: 0.25rem;
+    margin-right: 8px;
+}
+
+.delivery-type-container .form-check-label,
+.service-type-container .form-check-label,
+.frequency-container .form-check-label {
+    cursor: pointer;
+    margin-bottom: 0;
+    font-size: 0.95rem;
+}
+
+/* Estilos para el campo de frecuencia */
+.frequency-row {
+    transition: all 0.3s ease;
+}
+
+.frequency-message {
+    font-size: 0.875rem;
+    margin-top: 10px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .delivery-type-container .form-check,
+    .service-type-container .form-check,
+    .frequency-container .form-check {
+        display: block;
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+}

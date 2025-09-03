@@ -1,151 +1,126 @@
-{% extends 'base.html.twig' %}
-
-{% block title %}{{ is_edit ? 'Editar Servicio' : 'Nuevo Servicio' }}{% endblock %}
-
-{% block javascripts %}
-    {{ parent() }}
-    <script src="{{ asset('scripts/service-form.js') }}"></script>
-{% endblock %}
-
-{% block body %}
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-12">
-            <!-- Header -->
-            <div class="form-card d-flex align-items-center mb-4">
-                <a href="{{ path('app_service_index') }}" class="btn btn-outline-secondary me-3">
-                    <i class="fas fa-arrow-left"></i>
-                </a>
-                <div>
-                    <h2 class="mb-0">
-                        <i class="fas fa-concierge-bell text-primary me-2"></i>
-                        {{ is_edit ? 'Editar Servicio' : 'Nuevo Servicio' }}
-                    </h2>
+<form method="post" action="{{ path(is_edit ? 'app_service_edit' : 'app_service_new', is_edit ? {'id': service.id} : {}) }}">
+    {{ form_start(form, {'render_rest': false}) }}
+    
+    <!-- Información del Servicio -->
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            {{ form_label(form.name, 'Nombre del Servicio *', {'label_attr': {'class': 'form-label'}}) }}
+            {{ form_widget(form.name, {'attr': {'class': 'form-control'}}) }}
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    {{ form_label(form.onlineBookingEnabled, 'Reservas Online', {'label_attr': {'class': 'form-label mb-1 fw-semibold'}}) }}
+                    <small class="text-muted d-block">Permite a los pacientes reservar online</small>
                 </div>
-            </div>
-            
-            <!-- Flash Messages -->
-            {% for type, messages in app.flashes %}
-                {% for message in messages %}
-                    <div class="alert alert-{{ type == 'error' ? 'danger' : type }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endfor %}
-
-            <!-- Form -->
-            <div class="form-card">
-                
-                {{ form_start(form) }}
-                
-                <!-- Información del Servicio -->
-                <h4 class="mb-3">
-                    <i class="fas fa-info-circle text-primary me-2"></i>
-                    Información del Servicio
-                </h4>
-                
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        {{ form_label(form.name) }}
-                        {{ form_widget(form.name) }}
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="online-booking-card">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-globe text-primary me-3"></i>
-                                <div class="flex-grow-1">
-                                    {{ form_label(form.onlineBookingEnabled, null, {'label_attr': {'class': 'mb-1 fw-semibold'}}) }}
-                                    <small class="text-muted d-block">Permite a los pacientes reservar online</small>
-                                </div>
-                                <div class="form-check form-switch ms-3">
-                                    {{ form_widget(form.onlineBookingEnabled, {'attr': {'class': 'form-check-input', 'role': 'switch'}}) }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="form-check form-switch ms-3">
+                    {{ form_widget(form.onlineBookingEnabled, {'attr': {'class': 'form-check-input', 'role': 'switch'}}) }}
                 </div>
-                
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        {{ form_label(form.defaultDurationMinutes) }}
-                        {{ form_widget(form.defaultDurationMinutes) }}
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        {{ form_label(form.price) }}
-                        {{ form_widget(form.price) }}
-                    </div>
-                </div>
-                {# <div class="row">
-                    <div class="col-md-6 mb-3 d-flex align-items-end">
-                        <div class="form-check">
-                            {{ form_widget(form.active) }}
-                            {{ form_label(form.active) }}
-                        </div>
-                    </div>
-                </div> #}
-                <div class="mb-4">
-                    {{ form_label(form.description) }}
-                    {{ form_widget(form.description) }}
-                </div>
-
-                <!-- Configuración de Reservas -->
-                <h4 class="mb-3 mt-4">
-                    <i class="fas fa-cogs text-primary me-2"></i>
-                    Configuración de Reservas
-                </h4>
-                
-                <div class="row">
-                    <div class="col-md-12">
-                        {{ form_row(form.deliveryType) }}
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        {{ form_row(form.serviceType) }}
-                    </div>
-                </div>
-                
-                {# Campo de frecuencia - solo visible para servicios recurrentes #}
-                <div class="row mb-3 frequency-row" style="display: none;">
-                    <div class="col-md-12">
-                        <div class="frequency-field" style="display: none;">
-                            {{ form_label(form.frequencyWeeks) }}
-                            {{ form_widget(form.frequencyWeeks) }}
-                            {{ form_help(form.frequencyWeeks) }}
-                            <!-- El mensaje dinámico se insertará aquí via JavaScript -->
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    {{ form_label(form.reminderNote) }}
-                    {{ form_widget(form.reminderNote) }}
-                    <div class="form-text">
-                        Texto adicional que se incluirá en los recordatorios de citas para este servicio.
-                    </div>
-                </div>
-                
-                {% if is_edit and service.appointments|length > 0 %}
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        <strong>Nota:</strong> Este servicio tiene {{ service.appointments|length }} cita(s) asociada(s). 
-                        Los cambios en precio y duración no afectarán las citas existentes.
-                    </div>
-                {% endif %}
-                
-                <div class="d-flex justify-content-between gap-2 mt-4">
-                    <a href="{{ path('app_service_index') }}" class="btn btn-secondary">
-                        <i class="fas fa-times"></i> Cancelar
-                    </a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> {{ is_edit ? 'Actualizar' : 'Crear' }} Servicio
-                    </button>
-                </div>
-                
-                {{ form_end(form) }}
             </div>
         </div>
     </div>
-</div>
-{% endblock %}
+    
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            {{ form_label(form.defaultDurationMinutes, 'Duración (minutos) *', {'label_attr': {'class': 'form-label'}}) }}
+            {{ form_widget(form.defaultDurationMinutes, {'attr': {'class': 'form-control', 'min': '1'}}) }}
+        </div>
+        <div class="col-md-6 mb-3">
+            {{ form_label(form.price, 'Precio', {'label_attr': {'class': 'form-label'}}) }}
+            <div class="input-group">
+                <span class="input-group-text">$</span>
+                {{ form_widget(form.price, {'attr': {'class': 'form-control', 'step': '0.01', 'min': '0'}}) }}
+            </div>
+        </div>
+    </div>
+    
+    <div class="mb-3">
+        {{ form_label(form.description, 'Descripción', {'label_attr': {'class': 'form-label'}}) }}
+        {{ form_widget(form.description, {'attr': {'class': 'form-control', 'rows': '3'}}) }}
+    </div>
+    
+    <!-- Configuración de Reservas -->
+    <hr class="my-4">
+    <h6 class="mb-3">
+        <i class="fas fa-cogs text-primary me-2"></i>
+        Configuración de Reservas
+    </h6>
+    
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            {{ form_label(form.deliveryType, 'Tipo de Entrega', {'label_attr': {'class': 'form-label'}}) }}
+            <div class="delivery-type-container">
+                {{ form_widget(form.deliveryType) }}
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            {{ form_label(form.serviceType, 'Tipo de Servicio', {'label_attr': {'class': 'form-label'}}) }}
+            <div class="service-type-container">
+                {{ form_widget(form.serviceType) }}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Campo de frecuencia - solo visible para servicios recurrentes -->
+    <div class="row mb-3 frequency-row" style="display: none;">
+        <div class="col-md-12">
+            <div class="frequency-field">
+                {{ form_label(form.frequencyWeeks, 'Frecuencia (semanas)', {'label_attr': {'class': 'form-label'}}) }}
+                <div class="frequency-container">
+                    {{ form_widget(form.frequencyWeeks) }}
+                </div>
+                <div class="form-text">
+                    Cada cuántas semanas se debe repetir este servicio.
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mb-3">
+        {{ form_label(form.reminderNote, 'Nota de Recordatorio', {'label_attr': {'class': 'form-label'}}) }}
+        {{ form_widget(form.reminderNote, {'attr': {'class': 'form-control', 'rows': '2'}}) }}
+        <div class="form-text">
+            Texto adicional que se incluirá en los recordatorios de citas para este servicio.
+        </div>
+    </div>
+    
+    {% if is_edit and service.appointments|length > 0 %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Nota:</strong> Este servicio tiene {{ service.appointments|length }} cita(s) asociada(s). 
+            Los cambios en precio y duración no afectarán las citas existentes.
+        </div>
+    {% endif %}
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-2"></i>Cancelar
+        </button>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-2"></i>{{ is_edit ? 'Actualizar' : 'Crear' }} Servicio
+        </button>
+    </div>
+    
+    {{ form_rest(form) }}
+    {{ form_end(form, {'render_rest': false}) }}
+</form>
+
+<script>
+// Lógica para mostrar/ocultar campo de frecuencia
+document.addEventListener('DOMContentLoaded', function() {
+    const serviceTypeSelect = document.getElementById('serviceType');
+    const frequencyRow = document.querySelector('.frequency-row');
+    
+    function toggleFrequencyField() {
+        if (serviceTypeSelect && frequencyRow) {
+            const isRecurrent = serviceTypeSelect.value === 'recurrent';
+            frequencyRow.style.display = isRecurrent ? 'block' : 'none';
+        }
+    }
+    
+    if (serviceTypeSelect) {
+        serviceTypeSelect.addEventListener('change', toggleFrequencyField);
+        toggleFrequencyField(); // Ejecutar al cargar
+    }
+});
+</script>

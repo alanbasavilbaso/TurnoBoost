@@ -7,10 +7,9 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Symfony\Component\Validator\Constraints as Assert;
 
-
 #[ORM\Entity]
-#[ORM\Table(name: 'clinics')]
-class Clinic
+#[ORM\Table(name: 'locations')]
+class Location
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -18,7 +17,7 @@ class Clinic
     private ?int $id = null;
 
     #[ORM\Column(type: 'string', length: 255)]
-    #[Assert\NotBlank(message: 'El nombre de la clínica es obligatorio')]
+    #[Assert\NotBlank(message: 'El nombre de la ubicación es obligatorio')]
     #[Assert\Length(
         min: 2,
         max: 255,
@@ -72,8 +71,7 @@ class Clinic
     )]
     private string $domain;
 
-    // NUEVA RELACIÓN: Usuario que creó la clínica
-    #[ORM\ManyToOne(targetEntity: User::class, inversedBy: 'ownedClinics')]
+    #[ORM\ManyToOne(targetEntity: User::class, inversedBy: 'ownedLocations')]
     #[ORM\JoinColumn(name: 'created_by_id', referencedColumnName: 'id', nullable: false)]
     private User $createdBy;
 
@@ -83,20 +81,19 @@ class Clinic
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $updatedAt;
 
-    #[ORM\OneToMany(mappedBy: 'clinic', targetEntity: User::class)]
+    #[ORM\OneToMany(mappedBy: 'location', targetEntity: User::class)]
     private Collection $users;
 
-    #[ORM\OneToMany(mappedBy: 'clinic', targetEntity: Professional::class)]
+    #[ORM\OneToMany(mappedBy: 'location', targetEntity: Professional::class)]
     private Collection $professionals;
 
-    #[ORM\OneToMany(mappedBy: 'clinic', targetEntity: Patient::class)]
+    #[ORM\OneToMany(mappedBy: 'location', targetEntity: Patient::class)]
     private Collection $patients;
 
-    #[ORM\OneToMany(mappedBy: 'clinic', targetEntity: Service::class)]
+    #[ORM\OneToMany(mappedBy: 'location', targetEntity: Service::class)]
     private Collection $services;
 
-    // NUEVA RELACIÓN
-    #[ORM\OneToMany(mappedBy: 'clinic', targetEntity: Appointment::class)]
+    #[ORM\OneToMany(mappedBy: 'location', targetEntity: Appointment::class)]
     private Collection $appointments;
 
     public function __construct()
@@ -107,7 +104,7 @@ class Clinic
         $this->professionals = new ArrayCollection();
         $this->patients = new ArrayCollection();
         $this->services = new ArrayCollection();
-        $this->appointments = new ArrayCollection(); // NUEVO
+        $this->appointments = new ArrayCollection();
     }
 
     // Getters y Setters
@@ -194,7 +191,7 @@ class Clinic
     {
         if (!$this->users->contains($user)) {
             $this->users->add($user);
-            $user->setClinic($this);
+            $user->setLocation($this);
         }
 
         return $this;
@@ -203,9 +200,8 @@ class Clinic
     public function removeUser(User $user): self
     {
         if ($this->users->removeElement($user)) {
-            // set the owning side to null (unless already changed)
-            if ($user->getClinic() === $this) {
-                $user->setClinic(null);
+            if ($user->getLocation() === $this) {
+                $user->setLocation(null);
             }
         }
 
@@ -224,7 +220,7 @@ class Clinic
     {
         if (!$this->professionals->contains($professional)) {
             $this->professionals->add($professional);
-            $professional->setClinic($this);
+            $professional->setLocation($this);
         }
 
         return $this;
@@ -233,9 +229,8 @@ class Clinic
     public function removeProfessional(Professional $professional): self
     {
         if ($this->professionals->removeElement($professional)) {
-            // set the owning side to null (unless already changed)
-            if ($professional->getClinic() === $this) {
-                $professional->setClinic(null);
+            if ($professional->getLocation() === $this) {
+                $professional->setLocation(null);
             }
         }
 
@@ -254,7 +249,7 @@ class Clinic
     {
         if (!$this->patients->contains($patient)) {
             $this->patients->add($patient);
-            $patient->setClinic($this);
+            $patient->setLocation($this);
         }
 
         return $this;
@@ -263,9 +258,8 @@ class Clinic
     public function removePatient(Patient $patient): self
     {
         if ($this->patients->removeElement($patient)) {
-            // set the owning side to null (unless already changed)
-            if ($patient->getClinic() === $this) {
-                $patient->setClinic(null);
+            if ($patient->getLocation() === $this) {
+                $patient->setLocation(null);
             }
         }
 
@@ -284,7 +278,7 @@ class Clinic
     {
         if (!$this->services->contains($service)) {
             $this->services->add($service);
-            $service->setClinic($this);
+            $service->setLocation($this);
         }
 
         return $this;
@@ -293,16 +287,14 @@ class Clinic
     public function removeService(Service $service): self
     {
         if ($this->services->removeElement($service)) {
-            // set the owning side to null (unless already changed)
-            if ($service->getClinic() === $this) {
-                $service->setClinic(null);
+            if ($service->getLocation() === $this) {
+                $service->setLocation(null);
             }
         }
 
         return $this;
     }
 
-    // NUEVOS MÉTODOS PARA createdBy
     public function getCreatedBy(): User
     {
         return $this->createdBy;
@@ -314,13 +306,11 @@ class Clinic
         return $this;
     }
 
-    // Método helper para verificar si un usuario puede editar esta clínica
     public function canBeEditedBy(User $user): bool
     {
         return $this->createdBy->getId() === $user->getId();
     }
 
-    // NUEVOS MÉTODOS PARA APPOINTMENTS
     /**
      * @return Collection<int, Appointment>
      */
@@ -333,7 +323,7 @@ class Clinic
     {
         if (!$this->appointments->contains($appointment)) {
             $this->appointments->add($appointment);
-            $appointment->setClinic($this);
+            $appointment->setLocation($this);
         }
 
         return $this;
@@ -342,34 +332,45 @@ class Clinic
     public function removeAppointment(Appointment $appointment): self
     {
         if ($this->appointments->removeElement($appointment)) {
-            if ($appointment->getClinic() === $this) {
-                $appointment->setClinic(null);
+            if ($appointment->getLocation() === $this) {
+                $appointment->setLocation(null);
             }
         }
 
         return $this;
     }
 
-    /**
-     * Obtiene el dominio de la clínica para acceso público
-     */
     public function getDomain(): string
     {
         return $this->domain;
     }
 
-    /**
-     * Establece el dominio de la clínica (se convierte automáticamente a minúsculas)
-     */
     public function setDomain(string $domain): self
     {
         $this->domain = strtolower(trim($domain));
         return $this;
     }
 
-    /**
-     * Genera la URL pública de reservas para esta clínica
-     */
+    public function getRandomDomain(): string
+    {
+        return $this->generateRandomDomainPart();
+    }
+
+    private function generateRandomDomainPart(int $length = 15): string
+    {
+        $characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        $charactersLength = strlen($characters);
+
+        // Generar cadena continua
+        $randomString = '';
+        for ($i = 0; $i < $length; $i++) {
+            $randomString .= $characters[random_int(0, $charactersLength - 1)];
+        }
+
+        // Dividir en partes de 5 y unir con "-"
+        return implode('-', str_split($randomString, 5));
+    }
+
     public function getBookingUrl(): string
     {
         return '/reservas/' . $this->domain;

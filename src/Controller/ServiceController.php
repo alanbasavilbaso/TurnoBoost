@@ -9,6 +9,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -20,11 +21,11 @@ class ServiceController extends AbstractController
     public function index(Request $request, ServiceRepository $serviceRepository): Response
     {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
-            $this->addFlash('error', 'Debe crear una clínica antes de gestionar servicios.');
-            return $this->redirectToRoute('app_my_company');
+        if (!$location) {
+            $this->addFlash('error', 'Debe crear un local antes de gestionar servicios.');
+            return $this->redirectToRoute('location_index');
         }
 
         // Obtener el parámetro de búsqueda
@@ -32,31 +33,31 @@ class ServiceController extends AbstractController
         
         // Buscar servicios con filtro por nombre si se proporciona
         if (!empty($search)) {
-            $services = $serviceRepository->findByNameAndClinic($search, $clinic);
+            $services = $serviceRepository->findByNameAndLocation($search, $location);
         } else {
-            $services = $serviceRepository->findBy(['clinic' => $clinic], ['name' => 'ASC']);
+            $services = $serviceRepository->findBy(['location' => $location], ['name' => 'ASC']);
         }
 
         return $this->render('service/index.html.twig', [
             'services' => $services,
-            'clinic' => $clinic,
+            'location' => $location,
             'search' => $search,
         ]);
     }
 
-    #[Route('/nuevo', name: 'app_service_new', methods: ['GET', 'POST'])]
+    #[Route('/new', name: 'app_service_new', methods: ['GET', 'POST'])]
     public function new(Request $request, EntityManagerInterface $entityManager): Response
     {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
-            $this->addFlash('error', 'Debe crear una clínica antes de gestionar servicios.');
-            return $this->redirectToRoute('app_my_company');
+        if (!$location) {
+            $this->addFlash('error', 'Debe crear un local antes de gestionar servicios.');
+            return $this->redirectToRoute('location_index');
         }
         
         $service = new Service();
-        $service->setClinic($clinic);
+        $service->setLocation($location);
         $service->setActive(true); // Por defecto activo
         
         $form = $this->createForm(ServiceType::class, $service, ['is_edit' => false]);
@@ -81,7 +82,31 @@ class ServiceController extends AbstractController
         return $this->render('service/form.html.twig', [
             'form' => $form,
             'service' => $service,
-            'clinic' => $clinic,
+            'location' => $location,
+            'is_edit' => false
+        ]);
+    }
+
+    #[Route('/new/form', name: 'app_service_new_form', methods: ['GET'])]
+    public function newForm(): Response
+    {
+        $user = $this->getUser();
+        $location = $user->getOwnedLocations()->first();
+        
+        if (!$location) {
+            return new Response('<div class="alert alert-danger">Debe crear un local antes de gestionar servicios.</div>');
+        }
+        
+        $service = new Service();
+        $service->setLocation($location);
+        $service->setActive(true);
+        
+        $form = $this->createForm(ServiceType::class, $service, ['is_edit' => false]);
+        
+        return $this->render('service/form.html.twig', [
+            'form' => $form,
+            'service' => $service,
+            'location' => $location,
             'is_edit' => false
         ]);
     }
@@ -99,7 +124,7 @@ class ServiceController extends AbstractController
         ]);
     }
 
-    #[Route('/{id}/editar', name: 'app_service_edit', methods: ['GET', 'POST'])]
+    #[Route('/{id}/edit', name: 'app_service_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request, Service $service, EntityManagerInterface $entityManager): Response
     {
         if (!$this->canAccess($service)) {
@@ -128,8 +153,48 @@ class ServiceController extends AbstractController
         return $this->render('service/form.html.twig', [
             'form' => $form,
             'service' => $service,
-            'clinic' => $service->getClinic(),
+            'location' => $service->getLocation(),
             'is_edit' => true
+        ]);
+    }
+
+    #[Route('/{id}/form', name: 'app_service_edit_form', methods: ['GET'])]
+    public function editForm(Service $service): Response
+    {
+        if (!$this->canAccess($service)) {
+            throw $this->createAccessDeniedException('No tiene permisos para editar este servicio.');
+        }
+        
+        $form = $this->createForm(ServiceType::class, $service, ['is_edit' => true]);
+        
+        return $this->render('service/form.html.twig', [
+            'form' => $form,
+            'service' => $service,
+            'location' => $service->getLocation(),
+            'is_edit' => true
+        ]);
+    }
+
+    #[Route('/{id}/details', name: 'app_service_details', methods: ['GET'])]
+    public function getDetails(Service $service): JsonResponse
+    {
+        if (!$this->canAccess($service)) {
+            return new JsonResponse(['error' => 'No autorizado'], 403);
+        }
+    
+        return new JsonResponse([
+            'id' => $service->getId(),
+            'name' => $service->getName(),
+            'description' => $service->getDescription(),
+            'duration' => $service->getDefaultDurationMinutes(),
+            'price' => $service->getPriceAsFloat(),
+            'active' => $service->isActive(),
+            'professionals_count' => $service->getProfessionalServices()->count(),
+            'delivery_type' => $service->getDeliveryType()?->getLabel(),
+            'service_type' => $service->getServiceType()?->getLabel(),
+            'frequency_weeks' => $service->getFrequencyWeeks(),
+            'reminder_note' => $service->getReminderNote(),
+            'online_booking_enabled' => $service->isOnlineBookingEnabled()
         ]);
     }
 
@@ -159,8 +224,8 @@ class ServiceController extends AbstractController
     private function canAccess(Service $service): bool
     {
         $user = $this->getUser();
-        $userClinic = $user->getOwnedClinics()->first();
+        $userLocation = $user->getOwnedLocations()->first();
         
-        return $userClinic && $service->getClinic() === $userClinic;
+        return $userLocation && $service->getLocation() === $userLocation;
     }
 }

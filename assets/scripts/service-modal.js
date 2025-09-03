@@ -1,93 +1,81 @@
-// Función para encontrar el botón de eliminar correcto
-function findDeleteButton(element) {
-    // Si el elemento clickeado es el botón mismo
-    if (element.hasAttribute('data-service-id')) {
-        return element;
-    }
-    
-    // Si el elemento clickeado es un hijo (como el ícono <i>), buscar el botón padre
-    let parent = element.parentElement;
-    while (parent && !parent.hasAttribute('data-service-id')) {
-        parent = parent.parentElement;
-    }
-    
-    return parent;
-}
-
-// Función para resetear el modal
-function resetModal() {
-    const modal = document.getElementById('deleteModal');
-    const form = modal.querySelector('form');
-    const serviceName = modal.querySelector('#serviceName');
-    const csrfInput = modal.querySelector('input[name="_token"]');
-    
-    if (form) {
-        form.action = '';
-    }
-    if (serviceName) {
-        serviceName.textContent = '';
-    }
-    if (csrfInput) {
-        csrfInput.value = '';
-    }
-}
-
-// Función para configurar el modal con datos del botón
-function configureModalFromButton(button) {
-    if (!button) {
-        return false;
-    }
-    
-    const serviceId = button.getAttribute('data-service-id');
-    const serviceName = button.getAttribute('data-service-name');
-    const deleteUrl = button.getAttribute('data-delete-url');
-    const csrfToken = button.getAttribute('data-csrf-token');
-    
-    const modal = document.getElementById('deleteModal');
-    const form = modal.querySelector('form');
-    const serviceNameElement = modal.querySelector('#serviceName');
-    const csrfInput = modal.querySelector('input[name="_token"]');
-    
-    if (form && deleteUrl) {
-        form.action = deleteUrl;
-    }
-    
-    if (serviceNameElement && serviceName) {
-        serviceNameElement.textContent = serviceName;
-    }
-    
-    if (csrfInput && csrfToken) {
-        csrfInput.value = csrfToken;
-    }
-    
-    return true;
-}
-
-// Configurar event listeners cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('deleteModal');
-    
-    if (modal) {
-        // Reset cuando el modal se cierra completamente
-        modal.addEventListener('hidden.bs.modal', function() {
-            resetModal();
+// Gestor específico para servicios
+class ServiceModalManager extends EntityModalManager {
+    constructor() {
+        super({
+            entityName: 'servicio',
+            entityNamePlural: 'servicios',
+            baseUrl: '/servicios',
+            deleteWarning: 'Esta acción no se puede deshacer y eliminará todas las citas asociadas.'
         });
     }
-    
-    // Event delegation para los botones de eliminar
-    document.addEventListener('click', function(event) {
-        // Buscar el botón de eliminar correcto
-        const deleteButton = findDeleteButton(event.target);
-        
-        if (deleteButton && deleteButton.hasAttribute('data-bs-toggle') && deleteButton.getAttribute('data-bs-target') === '#deleteModal') {
-            // Configurar el modal antes de que se abra
-            const configured = configureModalFromButton(deleteButton);
-            
-            if (!configured) {
-                event.preventDefault();
-                event.stopPropagation();
-                return false;
-            }
+
+    // Sobrescribir los métodos para usar los atributos correctos
+    handleViewClick(button) {
+        const entityId = button.dataset.serviceId; // Usar serviceId en lugar de entityId
+        if (entityId) {
+            this.loadEntityDetails(entityId);
         }
-    });
+    }
+
+    handleEditClick(button) {
+        const entityId = button.dataset.serviceId; // Usar serviceId en lugar de entityId
+        if (entityId) {
+            this.loadEditForm(entityId);
+        }
+    }
+
+    handleDeleteClick(button) {
+        const entityId = button.dataset.serviceId; // Usar serviceId en lugar de entityId
+        const entityName = button.dataset.serviceName; // Usar serviceName en lugar de entityName
+        const csrfToken = button.dataset.csrfToken; // Obtener el token del botón
+        if (entityId && entityName) {
+            this.showDeleteModal(entityId, entityName, csrfToken);
+        }
+    }
+
+    // Sobrescribir showDeleteModal para usar el token del botón
+    showDeleteModal(entityId, entityName, csrfToken) {
+        document.getElementById('entityTypeLabel').textContent = `el ${this.config.entityName}`;
+        document.getElementById('entityName').textContent = entityName;
+        document.getElementById('entityDeleteWarning').textContent = this.config.deleteWarning;
+        document.getElementById('entityDeleteForm').action = `${this.config.baseUrl}/${entityId}`;
+        document.getElementById('entityDeleteToken').value = csrfToken; // Usar el token pasado como parámetro
+        
+        const modal = new bootstrap.Modal(document.getElementById('entityDeleteModal'));
+        modal.show();
+    }
+
+    renderEntityDetails(data) {
+        return `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6><i class="fas fa-tag text-primary me-2"></i>Información Básica</h6>
+                    <p><strong>Nombre:</strong> ${data.name}</p>
+                    <p><strong>Descripción:</strong> ${data.description || 'Sin descripción'}</p>
+                    <p><strong>Duración:</strong> ${data.duration} minutos</p>
+                    <p><strong>Precio:</strong> $${data.price}</p>
+                </div>
+                <div class="col-md-6">
+                    <h6><i class="fas fa-cogs text-info me-2"></i>Configuración</h6>
+                    <p><strong>Estado:</strong> ${data.active ? 'Activo' : 'Inactivo'}</p>
+                    <p><strong>Tipo de Entrega:</strong> ${data.delivery_type}</p>
+                    <p><strong>Tipo de Servicio:</strong> ${data.service_type}</p>
+                    ${data.frequency_weeks ? `<p><strong>Frecuencia:</strong> Cada ${data.frequency_weeks} semanas</p>` : ''}
+                    <p><strong>Profesionales:</strong> ${data.professionals_count}</p>
+                </div>
+            </div>
+        `;
+    }
+
+    initializeForm() {
+        // Inicializar funcionalidad específica de servicios
+        if (typeof initializeServiceForm === 'function') {
+            initializeServiceForm();
+        }
+    }
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    new ServiceModalManager();
 });

@@ -11,6 +11,8 @@ class AgendaManager {
         this.allProfessionals = []; // Agregar esta línea
         this.currentDate = new Date();
         this.currentView = 'week';
+        // Cargar la preferencia de timeInterval desde localStorage, por defecto 30 minutos
+        this.timeInterval = parseInt(localStorage.getItem('agenda_time_interval')) || 30;
         this.currentFilters = {
             professional: '',
             service: '',
@@ -20,7 +22,7 @@ class AgendaManager {
 
     async init() {
         this.calendarEl = document.getElementById('calendar');
-        this.loadProfessionalsFromDOM(); // Agregar esta línea
+        this.loadProfessionalsFromDOM();
         await this.initializeCalendar();
         this.initializeMiniCalendar();
         this.initializeProfessionalFilter();
@@ -29,6 +31,9 @@ class AgendaManager {
         this.changeView();
         await this.loadAppointments();
         this.updateCurrentDateDisplay();
+        // Aplicar la preferencia de timeInterval guardada
+        this.applyTimeInterval();
+        this.updateTimeIntervalUI();
     }
 
     // Nuevo método para cargar profesionales del DOM
@@ -224,6 +229,9 @@ class AgendaManager {
         this.updateCurrentDateDisplay();
         this.updateMiniCalendarSelection();
         
+        // Recargar turnos para la nueva fecha
+        this.loadAppointments();
+        
         // Si estamos en vista día con múltiples profesionales, actualizar vista de columnas
         if (this.currentView === 'day' && this.shouldShowProfessionalColumns()) {
             this.renderProfessionalColumns(date);
@@ -246,24 +254,15 @@ class AgendaManager {
     bindCustomControls() {
         // Navegación
         document.getElementById('prevBtn').addEventListener('click', () => {
-            if (this.calendar) {
-                this.calendar.prev();
-                this.updateCurrentDateDisplay();
-            }
+            this.navigatePrevious();
         });
         
         document.getElementById('nextBtn').addEventListener('click', () => {
-            if (this.calendar) {
-                this.calendar.next();
-                this.updateCurrentDateDisplay();
-            }
+            this.navigateNext();
         });
         
         document.getElementById('todayBtn').addEventListener('click', () => {
-            if (this.calendar) {
-                this.calendar.today();
-                this.updateCurrentDateDisplay();
-            }
+            this.navigateToday();
         });
         
         // Intervalos de tiempo
@@ -280,8 +279,78 @@ class AgendaManager {
         });
     }
 
+    // Nuevo método para navegación anterior
+    navigatePrevious() {
+        const viewType = this.determineAutoView();
+        
+        if (viewType === 'week') {
+            // Vista semanal: retroceder una semana
+            this.currentDate.setDate(this.currentDate.getDate() - 7);
+            if (this.calendar) {
+                this.calendar.gotoDate(this.currentDate);
+            }
+        } else {
+            // Vista diaria: retroceder un día
+            this.currentDate.setDate(this.currentDate.getDate() - 1);
+            if (this.shouldShowProfessionalColumns()) {
+                this.renderProfessionalColumns(this.currentDate);
+            }
+        }
+        
+        this.updateCurrentDateDisplay();
+        this.updateMiniCalendarSelection();
+        this.loadAppointments();
+    }
+
+    // Nuevo método para navegación siguiente
+    navigateNext() {
+        const viewType = this.determineAutoView();
+        
+        if (viewType === 'week') {
+            // Vista semanal: avanzar una semana
+            this.currentDate.setDate(this.currentDate.getDate() + 7);
+            if (this.calendar) {
+                this.calendar.gotoDate(this.currentDate);
+            }
+        } else {
+            // Vista diaria: avanzar un día
+            this.currentDate.setDate(this.currentDate.getDate() + 1);
+            if (this.shouldShowProfessionalColumns()) {
+                this.renderProfessionalColumns(this.currentDate);
+            }
+        }
+        
+        this.updateCurrentDateDisplay();
+        this.updateMiniCalendarSelection();
+        this.loadAppointments();
+    }
+
+    // Nuevo método para ir a hoy
+    navigateToday() {
+        this.currentDate = new Date();
+        
+        const viewType = this.determineAutoView();
+        
+        if (viewType === 'week') {
+            if (this.calendar) {
+                this.calendar.gotoDate(this.currentDate);
+            }
+        } else {
+            if (this.shouldShowProfessionalColumns()) {
+                this.renderProfessionalColumns(this.currentDate);
+            }
+        }
+        
+        this.updateCurrentDateDisplay();
+        this.updateMiniCalendarSelection();
+        this.loadAppointments();
+    }
+
     changeTimeInterval(interval) {
         this.timeInterval = interval;
+        
+        // Guardar la preferencia en localStorage
+        localStorage.setItem('agenda_time_interval', interval.toString());
         
         // Actualizar el texto del botón
         const dropdownButton = document.getElementById('timeIntervalDropdown');
@@ -297,7 +366,26 @@ class AgendaManager {
         this.applyTimeInterval();
     }
 
+    updateTimeIntervalUI() {
+        const dropdownButton = document.getElementById('timeIntervalDropdown');
+        if (dropdownButton) {
+            dropdownButton.innerHTML = `<i class="fas fa-clock me-1"></i>${this.timeInterval} min`;
+        }
+        
+        // Actualizar items activos
+        document.querySelectorAll('[data-interval]').forEach(item => {
+            item.classList.remove('active');
+        });
+        const activeItem = document.querySelector(`[data-interval="${this.timeInterval}"]`);
+        if (activeItem) {
+            activeItem.classList.add('active');
+        }
+    }
+
     applyTimeInterval() {
+        // Cerrar cualquier tooltip existente antes de re-renderizar
+        this.removeExistingTooltip();
+        
         if (this.calendar) {
             // Para FullCalendar, configurar el slotDuration
             this.calendar.setOption('slotDuration', `00:${this.timeInterval.toString().padStart(2, '0')}:00`);
@@ -372,6 +460,9 @@ class AgendaManager {
     }
 
     async renderProfessionalColumns(date) {
+        // Cerrar cualquier tooltip existente antes de re-renderizar
+        this.removeExistingTooltip();
+        
         const professionals = this.getFilteredProfessionals();
         const header = document.getElementById('professionalsHeader');
         const timeSlots = document.getElementById('timeSlots');
@@ -415,46 +506,57 @@ class AgendaManager {
                 
                 // Buscar citas en este slot
                 const appointments = this.getAppointmentsForSlot(date, time, prof.id);
-                // Dentro del forEach de appointments en renderProfessionalColumns
                 appointments.forEach(apt => {
                     const aptBlock = document.createElement('div');
                     aptBlock.className = 'appointment-block';
                     aptBlock.dataset.id = apt.id;
-                    
+
+                    // Aplicar colores dinámicos desde el backend
+                    if (apt.backgroundColor) {
+                        aptBlock.style.backgroundColor = apt.backgroundColor;
+                    }
+                    if (apt.borderColor) {
+                        aptBlock.style.borderColor = apt.borderColor;
+                        aptBlock.style.borderWidth = '2px';
+                        aptBlock.style.borderStyle = 'solid';
+                    }
+
                     // Mostrar información completa del turno
                     aptBlock.innerHTML = `
+                        <div class="appointment-time">${new Date(apt.start).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})} - ${new Date(apt.end).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</div>
                         <div class="appointment-title">${apt.title}</div>
-                        <div class="appointment-time">${new Date(apt.start).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</div>
                     `;
-                    aptBlock.addEventListener('click', async () => {
+                    // UN SOLO EVENT LISTENER CON EL EVENTO PASADO CORRECTAMENTE
+                    aptBlock.addEventListener('click', async (event) => {
+                        event.stopPropagation(); // Evitar que se propague al slot
                         // Cargar información completa de la cita
                         try {
                             const response = await fetch(`/agenda/appointment/${apt.id}`);
                             const fullAppointmentData = await response.json();
-                            this.showAppointmentDetails(fullAppointmentData);
+                            this.showAppointmentDetails(fullAppointmentData, event);
                         } catch (error) {
                             console.error('Error loading appointment details:', error);
                             // Fallback: usar los datos disponibles
-                            this.showAppointmentDetails(apt);
+                            this.showAppointmentDetails(apt, event);
                         }
                     });
-                    
+
                     // Calcular posición y altura total de la cita
                     const aptStart = new Date(apt.start);
                     const aptEnd = new Date(apt.end);
                     const aptStartMinutes = aptStart.getHours() * 60 + aptStart.getMinutes();
                     const aptEndMinutes = aptEnd.getHours() * 60 + aptEnd.getMinutes();
                     const aptDurationMinutes = aptEndMinutes - aptStartMinutes;
-                    
+
                     const slotStartMinutes = time;
-                    
+
                     // Posición dentro del slot donde comienza
                     const minutesFromSlotStart = aptStartMinutes - slotStartMinutes;
                     const positionPercentage = (minutesFromSlotStart / slotDuration) * 100;
-                    
+
                     // Altura total de la cita (puede extenderse más allá del slot actual)
-                    const heightInPixels = (aptDurationMinutes / slotDuration) * 60; // Asumiendo 60px por slot
-                    
+                    const heightInPixels = (aptDurationMinutes / slotDuration) * 35; // Asumiendo 35px por slot
+
                     // Aplicar posicionamiento CSS
                     aptBlock.style.position = 'absolute';
                     aptBlock.style.top = `${positionPercentage}%`;
@@ -463,15 +565,12 @@ class AgendaManager {
                     aptBlock.style.height = `${heightInPixels}px`;
                     aptBlock.style.minHeight = '15px';
                     aptBlock.style.zIndex = '10';
-                    
-                    aptBlock.addEventListener('click', () => {
-                        this.showAppointmentDetails(apt);
-                    });
+
                     profSlot.appendChild(aptBlock);
                 });
                 
                 // Altura del slot proporcional al intervalo de tiempo
-                const slotHeight = Math.max(60, slotDuration * 2); // Mínimo 60px, 2px por minuto
+                const slotHeight = 35;
                 profSlot.style.position = 'relative';
                 profSlot.style.height = `${slotHeight}px`;
                 
@@ -495,31 +594,37 @@ class AgendaManager {
     }
 
     updateCurrentDateDisplay() {
-        const display = document.getElementById('currentDateDisplay');
-        let text = '';
+        const headerDisplay = document.getElementById('currentDateHeader');
+        let headerText = '';
         
-        if (this.currentView === 'day') {
-            text = this.currentDate.toLocaleDateString('es-ES', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
+        if (this.currentView === 'columns') {
+            headerText = this.currentDate.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
                 year: 'numeric'
             });
-        } else if (this.currentView === 'week') {
+        } else if (this.currentView === 'timeGridWeek') {
             const startOfWeek = new Date(this.currentDate);
             startOfWeek.setDate(this.currentDate.getDate() - this.currentDate.getDay());
             const endOfWeek = new Date(startOfWeek);
             endOfWeek.setDate(startOfWeek.getDate() + 6);
             
-            text = `${startOfWeek.getDate()} - ${endOfWeek.getDate()} de ${startOfWeek.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`;
-        } else if (this.currentView === 'month') {
-            text = this.currentDate.toLocaleDateString('es-ES', {
-                month: 'long',
+            const startFormatted = startOfWeek.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
                 year: 'numeric'
             });
+            const endFormatted = endOfWeek.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            headerText = `${startFormatted} a ${endFormatted}`;
         }
         
-        display.textContent = text;
+        if (headerDisplay) {
+            headerDisplay.textContent = headerText;
+        }
     }
 
     // Funciones auxiliares
@@ -650,6 +755,40 @@ class AgendaManager {
         try {
             const params = new URLSearchParams();
             
+            // Determinar el tipo de vista actual
+            const viewType = this.determineAutoView();
+            
+            // Agregar filtro de fecha según la vista
+            if (this.currentDate) {
+                if (viewType === 'week') {
+                    // Vista semanal: enviar start y end (domingo a sábado)
+                    const currentDate = new Date(this.currentDate);
+                    
+                    // Calcular el domingo de la semana actual
+                    const dayOfWeek = currentDate.getDay(); // 0 = domingo, 1 = lunes, etc.
+                    const startOfWeek = new Date(currentDate);
+                    startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
+                    
+                    // Calcular el sábado de la semana actual
+                    const endOfWeek = new Date(startOfWeek);
+                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+                    
+                    // Formatear fechas
+                    const startStr = startOfWeek.toISOString().split('T')[0];
+                    const endStr = endOfWeek.toISOString().split('T')[0];
+                    
+                    params.append('start', startStr);
+                    params.append('end', endStr);
+                } else {
+                    // Vista diaria: enviar solo date (o start/end con la misma fecha)
+                    const dateStr = this.currentDate.toISOString().split('T')[0];
+                    params.append('date', dateStr);
+                    // Alternativamente, puedes usar start/end con la misma fecha:
+                    // params.append('start', dateStr);
+                    // params.append('end', dateStr);
+                }
+            }
+            
             // Obtener profesionales seleccionados
             const selectedProfessionals = this.getSelectedProfessionals();
             if (selectedProfessionals.length > 0) {
@@ -694,45 +833,50 @@ class AgendaManager {
         const startTime = info.start;
         const endTime = info.end;
         
-        // Aquí puedes abrir un modal para crear nueva cita
-        console.log('Selected time slot:', startTime, 'to', endTime);
+        // Formatear la fecha para el modal
+        const appointmentDate = startTime.toISOString().split('T')[0];
+        const appointmentTime = startTime.toTimeString().slice(0, 5);
         
-        // Ejemplo de creación de evento temporal
-        const newEvent = {
-            title: 'Nueva Cita',
+        // Abrir el modal de turnos con los datos de fecha y hora
+        this.openAppointmentModal({
+            isNew: true,
+            date: appointmentDate,
+            time: appointmentTime,
             start: startTime,
-            end: endTime,
-            backgroundColor: '#007bff',
-            borderColor: '#007bff'
-        };
+            end: endTime
+        });
         
-        this.calendar.addEvent(newEvent);
+        // Limpiar la selección del calendario
+        this.calendar.unselect();
     }
 
     handleEventClick(info) {
-        // Manejar click en evento existente
-        const event = info.event;
-        console.log('Event clicked:', event.title, event.start);
-         this.showAppointmentDetails({
-            id: event.id,
-            title: event.title,
-            start: event.start,
-            end: event.end,
-            patientId: event.extendedProps.patientId, // Agregar esta línea
-            patientName: event.extendedProps.patientName,
-            patientEmail: event.extendedProps.patientEmail || event.extendedProps.email,
-            patientPhone: event.extendedProps.phone,
-            professionalName: event.extendedProps.professionalName,
-            serviceName: event.extendedProps.serviceName,
-            status: event.extendedProps.status,
-            notes: event.extendedProps.notes,
-            professionalId: event.extendedProps.professionalId,
-            serviceId: event.extendedProps.serviceId
-        });
+        console.log('Event clicked:', info.event);
+        
+        const eventData = {
+            id: info.event.id,
+            title: info.event.title,
+            start: info.event.start,
+            end: info.event.end,
+            professionalId: info.event.extendedProps?.professionalId,
+            serviceId: info.event.extendedProps?.serviceId,
+            status: info.event.extendedProps?.status,
+            notes: info.event.extendedProps?.notes,
+            patientId: info.event.extendedProps?.patientId,
+            patientName: info.event.extendedProps?.patientName,
+            patientEmail: info.event.extendedProps?.patientEmail,
+            patientPhone: info.event.extendedProps?.patientPhone,
+            professionalName: info.event.extendedProps?.professionalName,
+            serviceName: info.event.extendedProps?.serviceName
+        };
+        
+        this.showAppointmentDetails(eventData, info.jsEvent);
     }
 
-     showAppointmentDetails(eventData) {
+    showAppointmentDetails(eventData, clickEvent) {
         console.log('showAppointmentDetails', eventData);
+        // Remover tooltip existente si hay uno
+        this.removeExistingTooltip();
         // Formatear fecha en formato DD/MM/YYYY
         const startDate = new Date(eventData.start);
         const formattedDate = startDate.toLocaleDateString('es-ES', {
@@ -740,70 +884,192 @@ class AgendaManager {
             month: '2-digit', 
             year: 'numeric'
         });
-        
-        // Formatear hora en UTC (como está guardado en la base de datos)
-        const startTimeUTC = startDate.toISOString().substring(11, 16); // HH:MM en UTC
+        const startTimeUTC = startDate.toTimeString().substring(0,5) // HH:MM en UTC
         const endDate = new Date(eventData.end);
-        const endTimeUTC = endDate.toISOString().substring(11, 16); // HH:MM en UTC
-        
+        const endTimeUTC = endDate.toTimeString().substring(0, 5); // HH:MM en UTC
         // Calcular duración
         const durationMs = endDate - startDate;
         const durationMinutes = Math.round(durationMs / (1000 * 60));
         const hours = Math.floor(durationMinutes / 60);
         const minutes = durationMinutes % 60;
         const durationText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-        
-        // Poblar el modal con los datos
-        document.getElementById('detailPatientName').textContent = eventData.patientName || 'No especificado';
-        document.getElementById('detailPatientEmail').textContent = eventData.patientEmail || 'No especificado';
-        document.getElementById('detailPatientPhone').textContent = eventData.patientPhone || 'No especificado';
-        
-        document.getElementById('detailAppointmentDate').textContent = formattedDate;
-        document.getElementById('detailAppointmentTime').textContent = `${startTimeUTC} - ${endTimeUTC}`;
-        document.getElementById('detailAppointmentDuration').textContent = durationText;
-        
-        // Corregido: usar eventData en lugar de appointmentData
-        document.getElementById('detailProfessionalName').textContent = eventData.professionalName || 'No especificado';
-        document.getElementById('detailServiceName').textContent = eventData.serviceName || 'No especificado';
-        
-        // Configurar badge de estado
-        const statusElement = document.getElementById('detailAppointmentStatus');
-        statusElement.textContent = this.getStatusText(eventData.status);
-        statusElement.className = `badge ${this.getStatusBadgeClass(eventData.status)}`;
-        
-        // Mostrar/ocultar notas
-        const notesCard = document.getElementById('detailNotesCard');
-        const notesElement = document.getElementById('detailAppointmentNotes');
-        if (eventData.notes && eventData.notes.trim()) {
-            notesElement.textContent = eventData.notes;
-            notesCard.style.display = 'block';
-        } else {
-            notesCard.style.display = 'none';
-        }
-        
-        // Configurar botones de acción (corregido: usar eventData)
-        this.setupAppointmentActions(eventData);
-        
-        // Mostrar el modal
-        const modal = new bootstrap.Modal(document.getElementById('appointmentDetailsModal'));
-        modal.show();
-        
-        // Configurar acciones de los botones con TODOS los datos
-        this.setupAppointmentActions({
-            id: eventData.id,
-            title: eventData.title,
-            start: eventData.start,
-            end: eventData.end,
-            professionalId: eventData.professionalId,
-            serviceId: eventData.serviceId,
+        // Crear el tooltip
+        const tooltip = this.createAppointmentTooltip({
+            patientName: eventData.patientName || 'No especificado',
+            serviceName: eventData.serviceName || 'No especificado',
+            professionalName: eventData.professionalName || 'No especificado',
+            date: formattedDate,
+            time: `${startTimeUTC} - ${endTimeUTC}`,
+            duration: durationText,
             status: eventData.status,
             notes: eventData.notes,
-            // Incluir datos del paciente
-            patientId: eventData.patientId,
-            patientName: eventData.patientName,
-            patientEmail: eventData.patientEmail,
-            patientPhone: eventData.patientPhone
+            appointmentData: eventData
         });
+        // Posicionar el tooltip
+        this.positionTooltip(tooltip, clickEvent);
+        // Agregar al DOM
+        document.body.appendChild(tooltip);
+        // Mostrar con animación
+        setTimeout(() => {
+            tooltip.classList.add('show');
+        }, 10);
+        // Configurar eventos de cierre
+        this.setupTooltipCloseEvents(tooltip);
+    }
+
+    createAppointmentTooltip(data) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'appointment-tooltip';
+        tooltip.setAttribute('data-testid', 'detail-tooltip-container');
+        const statusBadge = this.getStatusText(data.status);
+        const statusClass = this.getStatusBadgeClass(data.status);
+        tooltip.innerHTML = `
+            <div class="tooltip-header">
+                <div class="status-container">
+                    <span class="status-badge ${statusClass}">${statusBadge}</span>
+                </div>
+                <div class="tooltip-actions">
+                    <button type="button" class="tooltip-btn delete-btn" data-action="delete" title="Eliminar turno">
+                        <i class="fas fa-trash" style="color: #E42043;"></i>
+                    </button>
+                    <button type="button" class="tooltip-btn edit-btn" data-action="edit" title="Editar turno">
+                        <i class="fas fa-edit" style="color: #7440BB;"></i>
+                        Editar
+                    </button>
+                    <button type="button" class="tooltip-btn close-btn" data-action="close" title="Cerrar">
+                        <i class="fas fa-times" style="color: #1F2A30;"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="tooltip-content">
+                <div class="patient-info">
+                    <h3 class="patient-name">${data.patientName}</h3>
+                    <div class="service-info">
+                        <span class="service-name">${data.serviceName}</span>
+                    </div>
+                </div>
+                <div class="appointment-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Profesional:</span>
+                        <span class="detail-value">${data.professionalName}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Fecha:</span>
+                        <span class="detail-value">${data.date}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Hora:</span>
+                        <span class="detail-value">${data.time}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Duración:</span>
+                        <span class="detail-value">${data.duration}</span>
+                    </div>
+                    ${data.notes ? `
+                    <div class="detail-row notes-row">
+                        <span class="detail-label">Notas:</span>
+                        <span class="detail-value">${data.notes}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        // Guardar datos del turno en el tooltip para las acciones
+        tooltip._appointmentData = data.appointmentData;
+        return tooltip;
+    }
+
+    positionTooltip(tooltip, clickEvent) {
+        if (!clickEvent) {
+            tooltip.style.left = '50%';
+            tooltip.style.top = '50%';
+            tooltip.style.transform = 'translate(-50%, -50%)';
+            return;
+        }
+        
+        const tooltipRect = { width: 320, height: 400 };
+        
+        // Usar directamente las coordenadas del click
+        let left = clickEvent.clientX;
+        let top = clickEvent.clientY;
+        
+        // Ajustar horizontalmente si se sale de la pantalla
+        if (left + tooltipRect.width > window.innerWidth) {
+            left = clickEvent.clientX - tooltipRect.width;
+        }
+        if (left < 0) {
+            left = 10;
+        }
+        
+        // Ajustar verticalmente si se sale de la pantalla
+        if (top + tooltipRect.height > window.innerHeight) {
+            top = window.innerHeight - tooltipRect.height - 10; // 10px de margen
+        }
+        if (top < 0) {
+            top = 10;
+        }
+        
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+        tooltip.style.transform = 'none';
+    }
+
+
+    setupTooltipCloseEvents(tooltip) {
+        // Cerrar al hacer clic en el botón de cerrar
+        const closeBtn = tooltip.querySelector('[data-action="close"]');
+        closeBtn.addEventListener('click', () => {
+            this.removeTooltip(tooltip);
+        });
+        // Configurar botones de acción
+        const editBtn = tooltip.querySelector('[data-action="edit"]');
+        const deleteBtn = tooltip.querySelector('[data-action="delete"]');
+        editBtn.addEventListener('click', () => {
+            this.removeTooltip(tooltip);
+            this.openAppointmentModal(tooltip._appointmentData);
+        });
+        deleteBtn.addEventListener('click', () => {
+            this.removeTooltip(tooltip);
+            this.showConfirmationModal(
+                '¿Eliminar este turno?',
+                'Esta acción no se puede deshacer.',
+                'fas fa-trash',
+                'btn-danger',
+                () => this.updateAppointmentStatus(tooltip._appointmentData.id, 'cancelled')
+            );
+        });
+        // Cerrar al hacer clic fuera del tooltip
+        setTimeout(() => {
+            document.addEventListener('click', (e) => {
+                if (!tooltip.contains(e.target)) {
+                    this.removeTooltip(tooltip);
+                }
+            }, { once: true });
+        }, 100);
+        // Cerrar con ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.removeTooltip(tooltip);
+            }
+        }, { once: true });
+    }
+
+    removeTooltip(tooltip) {
+        if (tooltip && tooltip.parentNode) {
+            tooltip.classList.remove('show');
+            setTimeout(() => {
+                if (tooltip.parentNode) {
+                    tooltip.parentNode.removeChild(tooltip);
+                }
+            }, 200);
+        }
+    }
+
+    removeExistingTooltip() {
+        const existingTooltip = document.querySelector('.appointment-tooltip');
+        if (existingTooltip) {
+            this.removeTooltip(existingTooltip);
+        }
     }
 
     setupAppointmentActions(appointmentData) {
@@ -963,15 +1229,30 @@ class AgendaManager {
         }
         
         const modalLabel = document.getElementById('appointmentModalLabel');
+        const statusContainer = document.getElementById('appointment-status-container');
+        const statusSelect = document.getElementById('appointment-status');
+        
         if (modalLabel) {
             if (data.isNew) {
                 modalLabel.textContent = 'Nuevo Turno';
+                // Ocultar selector de estado para turnos nuevos
+                if (statusContainer) {
+                    statusContainer.classList.add('d-none');
+                }
                 const appointmentDate = document.getElementById('appointment-date');
                 if (appointmentDate) {
                     appointmentDate.value = data.date;
                 }
             } else {
                 modalLabel.textContent = 'Editar Turno';
+                // Mostrar selector de estado para turnos existentes
+                if (statusContainer) {
+                    statusContainer.classList.remove('d-none');
+                }
+                // Establecer el estado actual
+                if (statusSelect && data.status) {
+                    statusSelect.value = data.status;
+                }
                 this.populateModalFields(data);
             }
         }
@@ -1115,7 +1396,7 @@ class AgendaManager {
         const date = document.getElementById('appointment-date').value;
         
         if (!professionalId || !serviceId || !date) return;
-        
+        console.log('----');
         try {
             const response = await fetch(`/agenda/available-slots?professional=${professionalId}&service=${serviceId}&date=${date}`);
             const slots = await response.json();
@@ -1243,6 +1524,11 @@ class AgendaManager {
         for (let [key, value] of formData.entries()) {
             data[key] = value;
         }
+        // Agregar el estado si está presente
+        const statusSelect = document.getElementById('appointment-status');
+        if (statusSelect && !statusSelect.closest('.d-none')) {
+            data.status = statusSelect.value;
+        }
 
         const response = await fetch(`/agenda/appointment/${appointmentId}`, {
             method: 'PUT',
@@ -1327,16 +1613,27 @@ class AgendaManager {
 
     // Método para obtener profesionales seleccionados (actualizado para múltiples)
     getSelectedProfessionals() {
-        const checkboxes = document.querySelectorAll('input[name="professionals[]"]:checked');
-        const selectedIds = Array.from(checkboxes).map(cb => cb.value).filter(val => val !== 'all');
+        const allCheckbox = document.querySelector('input[name="professionals[]"][value="all"]');
+        const professionalCheckboxes = document.querySelectorAll('input[name="professionals[]"]:not([value="all"])');
+        const selectedProfessionalCheckboxes = document.querySelectorAll('input[name="professionals[]"]:not([value="all"]):checked');
         
-        // Si está seleccionado "todos" o no hay ninguno seleccionado, retornar array vacío
-        const allSelected = document.querySelector('input[name="professionals[]"][value="all"]:checked');
-        if (allSelected || selectedIds.length === 0) {
+        // Si no hay selecciones pero solo existe un profesional, retornar ese único profesional
+        if (professionalCheckboxes.length === 1) {
+            return [professionalCheckboxes[0].value];
+        }
+
+        // Si "Todos" está seleccionado, retornar array vacío
+        if (allCheckbox?.checked) {
             return [];
         }
         
-        return selectedIds;
+        // Si hay selecciones específicas, retornar esos IDs
+        if (selectedProfessionalCheckboxes.length > 0) {
+            return Array.from(selectedProfessionalCheckboxes).map(checkbox => checkbox.value);
+        }
+        
+        // En cualquier otro caso, retornar array vacío
+        return [];
     }
 
     // Método para determinar si mostrar columnas de profesionales
@@ -1362,6 +1659,7 @@ class AgendaManager {
     
     // Cambia la vista según la lógica automática
     changeView() {
+        console.log('*******');
         const viewType = this.determineAutoView();
         
         if (viewType === 'week') {
@@ -1382,44 +1680,6 @@ class AgendaManager {
         this.updateCurrentDateDisplay();
     }
     
-    // Modificar bindCustomControls para remover los event listeners de los botones de vista
-    bindCustomControls() {
-        // Navegación
-        document.getElementById('prevBtn').addEventListener('click', () => {
-            if (this.calendar) {
-                this.calendar.prev();
-                this.updateCurrentDateDisplay();
-            }
-        });
-        
-        document.getElementById('nextBtn').addEventListener('click', () => {
-            if (this.calendar) {
-                this.calendar.next();
-                this.updateCurrentDateDisplay();
-            }
-        });
-        
-        document.getElementById('todayBtn').addEventListener('click', () => {
-            if (this.calendar) {
-                this.calendar.today();
-                this.updateCurrentDateDisplay();
-            }
-        });
-        
-        // Intervalos de tiempo
-        document.querySelectorAll('[data-interval]').forEach(item => {
-            item.addEventListener('click', (e) => {
-                e.preventDefault();
-                const interval = parseInt(e.target.getAttribute('data-interval'));
-                this.changeTimeInterval(interval);
-            });
-        });
-        
-        document.getElementById('serviceFilter').addEventListener('change', () => {
-            this.loadAppointments();
-        });
-    }
-    
     // Determina automáticamente qué vista usar
     determineAutoView() {
         const selectedProfessionals = this.getSelectedProfessionals();
@@ -1427,32 +1687,11 @@ class AgendaManager {
         if (selectedProfessionals.length === 1) {
             // Un profesional seleccionado → Vista semana
             this.currentView = 'timeGridWeek';
-            this.updateViewIndicator('week');
             return 'week';
         } else {
             // Múltiples profesionales o todos → Vista de columnas (día)
             this.currentView = 'columns';
-            this.updateViewIndicator('day');
             return 'day';
-        }
-    }
-
-    // Actualizar indicador de vista (reemplaza updateViewButtons)
-    updateViewIndicator(viewType) {
-        const indicator = document.getElementById('currentViewIndicator');
-        if (indicator) {
-            const selectedProfessionals = this.getSelectedProfessionals();
-            if (viewType === 'week') {
-                indicator.textContent = 'Vista Semana (1 Profesional)';
-                indicator.className = 'badge bg-success';
-            } else {
-                if (selectedProfessionals.length === 0) {
-                    indicator.textContent = 'Vista Día (Todos los Profesionales)';
-                } else {
-                    indicator.textContent = `Vista Día (${selectedProfessionals.length} Profesionales)`;
-                }
-                indicator.className = 'badge bg-info';
-            }
         }
     }
 
@@ -1506,7 +1745,7 @@ class AgendaManager {
             const label = document.querySelector(`label[for="${selectedCheckboxes[0].id}"]`);
             filterText.textContent = label.textContent;
         } else {
-            filterText.textContent = `${selectedCheckboxes.length} profesionales seleccionados`;
+            filterText.textContent = `${selectedCheckboxes.length} seleccionados`;
         }
     }
     

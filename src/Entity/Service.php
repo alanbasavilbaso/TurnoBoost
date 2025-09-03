@@ -15,9 +15,9 @@ class Service
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: Clinic::class, inversedBy: 'services')]
-    #[ORM\JoinColumn(name: 'clinic_id', referencedColumnName: 'id', nullable: false)]
-    private Clinic $clinic;
+    #[ORM\ManyToOne(targetEntity: Location::class, inversedBy: 'professionals')]
+    #[ORM\JoinColumn(name: 'location_id', referencedColumnName: 'id', nullable: false)]
+    private Location $location;
 
     #[ORM\Column(type: 'string', length: 255)]
     private string $name;
@@ -79,14 +79,14 @@ class Service
         return $this->id;
     }
 
-    public function getClinic(): Clinic
+    public function getLocation(): Location
     {
-        return $this->clinic;
+        return $this->location;
     }
 
-    public function setClinic(Clinic $clinic): self
+    public function setLocation(Location $location): self
     {
-        $this->clinic = $clinic;
+        $this->location = $location;
         return $this;
     }
 

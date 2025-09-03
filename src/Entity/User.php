@@ -29,13 +29,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'string', enumType: RoleEnum::class)]
     private RoleEnum $role;
 
-    #[ORM\ManyToOne(targetEntity: Clinic::class, inversedBy: 'users')]
-    #[ORM\JoinColumn(name: 'clinic_id', referencedColumnName: 'id', nullable: true)]
-    private ?Clinic $clinic = null;
+    #[ORM\ManyToOne(targetEntity: Location::class, inversedBy: 'users')]
+    #[ORM\JoinColumn(name: 'location_id', referencedColumnName: 'id', nullable: true)]
+    private ?Location $location = null;
 
     // NUEVA RELACIÓN: Clínicas que este usuario ha creado
-    #[ORM\OneToMany(mappedBy: 'createdBy', targetEntity: Clinic::class)]
-    private Collection $ownedClinics;
+    #[ORM\OneToMany(mappedBy: 'createdBy', targetEntity: Location::class)]
+    private Collection $ownedLocations;
 
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $createdAt;
@@ -47,7 +47,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
-        $this->ownedClinics = new ArrayCollection();
+        $this->ownedLocations = new ArrayCollection();
     }
 
     // Getters y Setters
@@ -100,14 +100,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function getClinic(): ?Clinic
+    public function getLocation(): ?Location
     {
-        return $this->clinic;
+        return $this->location;
     }
 
-    public function setClinic(?Clinic $clinic): self
+    public function setLocation(?Location $location): self
     {
-        $this->clinic = $clinic;
+        $this->location = $location;
         return $this;
     }
 
@@ -154,41 +154,23 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         return $this->passwordHash;
     }
-
-    // NUEVOS MÉTODOS PARA ownedClinics
-    /**
-     * @return Collection<int, Clinic>
-     */
-    public function getOwnedClinics(): Collection
+    
+    public function getOwnedLocations(): Collection
     {
-        return $this->ownedClinics;
+        return $this->ownedLocations;
     }
-
-    public function addOwnedClinic(Clinic $clinic): self
+    
+    public function addOwnedLocation(Location $location): self
     {
-        if (!$this->ownedClinics->contains($clinic)) {
-            $this->ownedClinics->add($clinic);
-            $clinic->setCreatedBy($this);
+        if (!$this->ownedLocations->contains($location)) {
+            $this->ownedLocations->add($location);
+            $location->setCreatedBy($this);
         }
-
         return $this;
     }
-
-    public function removeOwnedClinic(Clinic $clinic): self
+    
+    public function canEdit(Location $location): bool
     {
-        if ($this->ownedClinics->removeElement($clinic)) {
-            // set the owning side to null (unless already changed)
-            if ($clinic->getCreatedBy() === $this) {
-                $clinic->setCreatedBy(null);
-            }
-        }
-
-        return $this;
-    }
-
-    // Método helper para verificar si este usuario puede editar una clínica
-    public function canEdit(Clinic $clinic): bool
-    {
-        return $clinic->getCreatedBy()->getId() === $this->getId();
+        return $location->getCreatedBy()->getId() === $this->getId();
     }
 }

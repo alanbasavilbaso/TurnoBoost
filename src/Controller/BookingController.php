@@ -2,7 +2,7 @@
 
 namespace App\Controller;
 
-use App\Entity\Clinic;
+use App\Entity\Location;
 use App\Entity\Service;
 use App\Entity\Professional;
 use App\Entity\ProfessionalService;
@@ -34,26 +34,26 @@ class BookingController extends AbstractController
     #[Route('/reservas/{domain}', name: 'booking_index', requirements: ['domain' => '[a-z0-9-]+'])]
     public function index(string $domain): Response
     {
-        $clinic = $this->getClinicByDomain($domain);
+        $location = $this->getLocationByDomain($domain);
         
         return $this->render('booking/index.html.twig', [
-            'clinic' => $clinic,
+            'location' => $location,
             'domain' => $domain
         ]);
     }
 
     /**
-     * API: Obtener servicios activos de la clínica
+     * API: Obtener servicios activos de el local
      */
     #[Route('/reservas/{domain}/api/services', name: 'booking_api_services', methods: ['GET'])]
     public function getServices(string $domain): JsonResponse
     {
-        $clinic = $this->getClinicByDomain($domain);
+        $location = $this->getLocationByDomain($domain);
         
         $services = $this->entityManager->getRepository(Service::class)
             ->createQueryBuilder('s')
-            ->where('s.clinic = :clinic')
-            ->setParameter('clinic', $clinic)
+            ->where('s.location = :location')
+            ->setParameter('location', $location)
             ->getQuery()
             ->getResult();
 
@@ -78,10 +78,10 @@ class BookingController extends AbstractController
     #[Route('/reservas/{domain}/api/professionals/{serviceId}', name: 'booking_api_professionals', methods: ['GET'])]
     public function getProfessionalsByService(string $domain, int $serviceId): JsonResponse
     {
-        $clinic = $this->getClinicByDomain($domain);
+        $location = $this->getLocationByDomain($domain);
         
         $service = $this->entityManager->getRepository(Service::class)->find($serviceId);
-        if (!$service || $service->getClinic() !== $clinic) {
+        if (!$service || $service->getLocation() !== $location) {
             throw new NotFoundHttpException('Servicio no encontrado');
         }
 
@@ -89,9 +89,9 @@ class BookingController extends AbstractController
             ->createQueryBuilder('ps')
             ->join('ps.professional', 'p')
             ->where('ps.service = :service')
-            ->andWhere('p.clinic = :clinic')
+            ->andWhere('p.location = :location')
             ->setParameter('service', $service)
-            ->setParameter('clinic', $clinic)
+            ->setParameter('location', $location)
             ->getQuery()
             ->getResult();
 
@@ -121,7 +121,7 @@ class BookingController extends AbstractController
     #[Route('/reservas/{domain}/api/timeslots', name: 'booking_api_timeslots', methods: ['GET'])]
     public function getTimeSlots(string $domain, Request $request): JsonResponse
     {
-        $clinic = $this->getClinicByDomain($domain);
+        $location = $this->getLocationByDomain($domain);
         $professionalId = $request->query->get('professional');
         $serviceId = $request->query->get('service');
         $date = $request->query->get('date');
@@ -137,17 +137,24 @@ class BookingController extends AbstractController
         }
 
         $professional = $this->entityManager->getRepository(Professional::class)->find($professionalId);
-        if (!$professional || $professional->getClinic() !== $clinic) {
+        if (!$professional || $professional->getLocation() !== $location) {
             return new JsonResponse(['error' => 'Profesional no encontrado'], 404);
         }
 
         $service = $this->entityManager->getRepository(Service::class)->find($serviceId);
-        if (!$service || $service->getClinic() !== $clinic) {
+        if (!$service || $service->getLocation() !== $location) {
             return new JsonResponse(['error' => 'Servicio no encontrado'], 404);
         }
 
         // Generar slots disponibles usando el servicio TimeSlot
-        $slots = $this->timeSlotService->generateAvailableSlots($professional, $service, $dateObj);
+        // En getTimeSlots:
+        $dateObj = $location->createLocalDateTime($date);
+        $slots = $this->timeSlotService->generateAvailableSlots(
+            $professional, 
+            $service, 
+            $dateObj,
+            $location // Pasar location
+        );
         
         // Organizar slots por mañana y tarde
         $timeSlots = $this->organizeSlotsByPeriod($slots);
@@ -195,18 +202,18 @@ class BookingController extends AbstractController
     }
 
     /**
-     * Método auxiliar para obtener clínica por dominio
+     * Método auxiliar para obtener local por dominio
      */
-    private function getClinicByDomain(string $domain): Clinic
+    private function getLocationByDomain(string $domain): Location
     {
-        $clinic = $this->entityManager->getRepository(Clinic::class)
+        $location = $this->entityManager->getRepository(Location::class)
             ->findOneBy(['domain' => $domain]);
         
-        if (!$clinic) {
-            throw new NotFoundHttpException(sprintf('No se encontró una clínica con el dominio "%s"', $domain));
+        if (!$location) {
+            throw new NotFoundHttpException(sprintf('No se encontró un local con el dominio "%s"', $domain));
         }
         
-        return $clinic;
+        return $location;
     }
 
     /**
@@ -234,7 +241,7 @@ class BookingController extends AbstractController
     #[Route('/reservas/{domain}/api/appointments', name: 'booking_api_create_appointment', methods: ['POST'])]
     public function createAppointment(string $domain, Request $request, AppointmentService $appointmentService): JsonResponse
     {
-        $clinic = $this->getClinicByDomain($domain);
+        $location = $this->getLocationByDomain($domain);
         $data = json_decode($request->getContent(), true);
         
         if (!$data) {
@@ -242,7 +249,7 @@ class BookingController extends AbstractController
         }
         
         try {
-            $appointment = $appointmentService->createAppointment($data, $clinic);
+            $appointment = $appointmentService->createAppointment($data, $location);
             
             return new JsonResponse([
                 'success' => true,

@@ -1,90 +1,91 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Profesionales - {{ clinic.name }}{% endblock %}
+{% block title %}Profesionales - {{ location.name }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link href="{{ asset('styles/professional-table.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('styles/professional-form.css') }}">
+    <link rel="stylesheet" href="{{ asset('styles/wizard.css') }}">
+    
+{% endblock %}
 
 {% block body %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1 class="h3 mb-0">Profesionales</h1>
-                <a href="{{ path('app_professional_new') }}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Nuevo Profesional
-                </a>
-            </div>
-
-            {% for message in app.flashes('success') %}
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="professionals-container">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <!-- Header Mejorado -->
+                <div class="professionals-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="h2 mb-2" style="color: #2c3e50; font-weight: 700;">👨‍⚕️ Profesionales</h1>
+                            <p class="text-muted mb-0" style="font-size: 1.1rem;">Gestiona tu <strong>equipo de profesionales</strong></p>
+                        </div>
+                        <!-- Botón Nuevo Profesional usando modal específico -->
+                        <button type="button" class="btn btn-success" 
+                                data-bs-toggle="modal"
+                                data-bs-target="#professionalModal"
+                                data-action="new">
+                            <i class="fas fa-plus me-2"></i>Nuevo Profesional
+                        </button>
+                    </div>
                 </div>
-            {% endfor %}
 
-            {% for message in app.flashes('error') %}
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
+                <!-- Flash Messages -->
+                {% for message in app.flashes('success') %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert" style="border-radius: 15px; border: none; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);">
+                        <i class="fas fa-check-circle me-2"></i>{{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
 
-            <!-- Barra de búsqueda y filtros -->
-            <div class="card mb-1">
-                <div class="card-body">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-md-8">
-                            <div class="input-group">
-                                <span class="input-group-text">
-                                    <i class="fas fa-search"></i>
-                                </span>
-                                <input type="text" 
-                                       class="form-control" 
-                                       id="searchInput"
-                                       placeholder="Buscar por nombre, especialidad o email...">
+                {% for message in app.flashes('error') %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert" style="border-radius: 15px; border: none; box-shadow: 0 4px 15px rgba(220, 53, 69, 0.2);">
+                        <i class="fas fa-exclamation-circle me-2"></i>{{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+
+                {% if professionals is empty %}
+                    <!-- Estado Vacío Mejorado -->
+                    <div class="empty-state-modern">
+                        <div class="mb-4">
+                            <i class="fas fa-user-md" style="font-size: 4rem; color: #28a745; margin-bottom: 1rem;"></i>
+                        </div>
+                        <h3 class="text-muted mb-3">🎯 No hay profesionales registrados</h3>
+                        <p class="text-muted mb-4" style="font-size: 1.1rem;">Agrega tu primer profesional para comenzar a gestionar servicios y citas</p>
+                    </div>
+                {% else %}
+                    <!-- Tabla de Profesionales Mejorada -->
+                    <div class="table-card">
+                        <div class="table-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h4 class="mb-0">
+                                    <i class="fas fa-users me-2"></i>
+                                    ({{ professionals|length }})
+                                </h4>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="position-relative">
+                                        <i class="fas fa-search position-absolute" style="left: 1rem; top: 50%; transform: translateY(-50%); color: #6c757d; z-index: 10;"></i>
+                                        <input type="text" 
+                                               class="form-control search-input-header ps-5" 
+                                               id="searchInput"
+                                               placeholder="Buscar profesionales...">
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        {# <div class="col-md-3">
-                            <select class="form-select" id="statusFilter">
-                                <option value="">Todos los estados</option>
-                                <option value="active">Activos</option>
-                                <option value="inactive">Inactivos</option>
-                            </select>
-                        </div> #}
-                        <div class="col-md-3">
-                            <select class="form-select" id="sortBy">
-                                <option value="name">Ordenar por nombre</option>
-                                <option value="specialty">Por especialidad</option>
-                                <option value="services">Por servicios</option>
-                                <option value="created">Por fecha</option>
-                            </select>
-                        </div>
-                        <div class="col-md-1">
-                            <button type="button" class="btn btn-outline-secondary w-100" id="clearSearch">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="mt-2">
-                        <small class="text-muted" id="searchResults" style="display: none;">
-                            <i class="fas fa-info-circle"></i> 
-                            <span id="resultsCount">0</span> resultado(s) encontrado(s)
-                        </small>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-body">
-                    {% if professionals|length > 0 %}
                         <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="table-light">
+                            <table class="table table-modern">
+                                <thead>
                                     <tr>
-                                        <th>Profesional</th>
-                                        <th>Especialidad</th>
-                                        <th class="d-none d-lg-block">Contacto</th>
-                                        <th>Estado</th>
-                                        <th>Servicios</th>
-                                        <th width="200">Acciones</th>
+                                        <th style="width: 30%;">Profesional</th>
+                                        {# <th style="width: 20%;">Especialidad</th> #}
+                                        <th class="hide-md" style="width: 25%;">Contacto</th>
+                                        <th style="width: 10%;">Estado</th>
+                                        <th class="hide-lg">Servicios</th>
+                                        <th style="width: 5%;">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody id="professionalsTableBody">
@@ -97,58 +98,89 @@
                                             data-services="{{ professional.professionalServices|length }}"
                                             data-created="{{ professional.createdAt ? professional.createdAt|date('Y-m-d') : '' }}">
                                             <td>
-                                                <div class="d-flex align-items-center">
-                                                    <div class="avatar-circle me-3">
-                                                        <i class="fas fa-user-md"></i>
+                                                <div class="professional-info">
+                                                    <div class="professional-avatar">
+                                                        <i class="fas fa-user" style="font-size: 1.5rem;"></i>
                                                     </div>
-                                                    <div>
-                                                        <strong>{{ professional.name }}</strong>
+                                                    <div class="professional-details">
+                                                        <span>{{ professional.name }}</span>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td>
+                                            {# <td>
                                                 {% if professional.specialty %}
-                                                    <span class="badge bg-primary">{{ professional.specialty }}</span>
+                                                    <span class="specialty-badge">
+                                                        <i class="fas fa-stethoscope"></i>
+                                                        {{ professional.specialty }}
+                                                    </span>
                                                 {% else %}
                                                     <span class="text-muted">Sin especialidad</span>
                                                 {% endif %}
-                                            </td>
-                                            <td class="d-none d-lg-table">
-                                                {% if professional.email %}
-                                                    <div><i class="fas fa-envelope text-muted me-1"></i> {{ professional.email }}</div>
-                                                {% endif %}
-                                                {% if professional.phone %}
-                                                    <div><i class="fas fa-phone text-muted me-1"></i> {{ professional.phone }}</div>
-                                                {% endif %}
-                                                {% if not professional.email and not professional.phone %}
-                                                    <span class="text-muted">Sin contacto</span>
-                                                {% endif %}
+                                            </td> #}
+                                            <td class="hide-md">
+                                                <div class="contact-info">
+                                                    {% if professional.email %}
+                                                        <div class="contact-item">
+                                                            <i class="fas fa-envelope"></i>
+                                                            {{ professional.email }}
+                                                        </div>
+                                                    {% endif %}
+                                                    {% if professional.phone %}
+                                                        <div class="contact-item">
+                                                            <i class="fas fa-phone"></i>
+                                                            {{ professional.phone }}
+                                                        </div>
+                                                    {% endif %}
+                                                    {% if not professional.email and not professional.phone %}
+                                                        <span class="text-muted">Sin contacto</span>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td>
                                                 {% if professional.active %}
-                                                    <span class="badge bg-success">Activo</span>
+                                                    <span class="badge bg-success status-badge">✅ Activo</span>
                                                 {% else %}
-                                                    <span class="badge bg-secondary">Inactivo</span>
+                                                    <span class="badge bg-secondary status-badge">⏸️ Inactivo</span>
                                                 {% endif %}
                                             </td>
-                                            <td>
-                                                <span class="badge bg-info">{{ professional.professionalServices|length }}</span>
+                                            <td class="hide-lg">
+                                                <span class="services-count">
+                                                    <i class="fas fa-briefcase-medical"></i>
+                                                    {{ professional.professionalServices|length }}
+                                                </span>
                                             </td>
                                             <td>
-                                                <div class="btn-group d-flex" role="group">
-                                                    <a href="{{ path('app_professional_show', {'id': professional.id}) }}" class="btn btn-sm btn-outline-primary">
-                                                        <i class="fas fa-eye"></i>
-                                                    </a>
-                                                    <a href="{{ path('app_professional_edit', {'id': professional.id}) }}" class="btn btn-sm btn-outline-secondary">
-                                                        <i class="fas fa-edit"></i>
-                                                    </a>
-                                                    <button class="btn btn-sm btn-outline-danger" type="button" 
+                                                <div class="action-buttons">
+                                                    <!-- Botón Ver usando modal genérico -->
+                                                    <button type="button" 
+                                                            class="btn btn-sm action-btn view-btn" 
                                                             data-bs-toggle="modal" 
-                                                            data-bs-target="#deleteModal" 
+                                                            data-bs-target="#entityDetailsModal"
+                                                            data-professional-id="{{ professional.id }}"
+                                                            data-action="view"
+                                                            title="Ver detalles">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <!-- Botón Editar usando modal específico -->
+                                                    <button type="button" 
+                                                            class="btn btn-sm action-btn edit-btn" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#professionalModal"
+                                                            data-professional-id="{{ professional.id }}"
+                                                            data-action="edit"
+                                                            title="Editar">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <!-- Botón Eliminar usando modal genérico -->
+                                                    <button type="button" 
+                                                            class="btn btn-sm action-btn delete-btn" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#entityDeleteModal" 
                                                             data-professional-id="{{ professional.id }}" 
                                                             data-professional-name="{{ professional.name }}" 
                                                             data-delete-url="{{ path('app_professional_delete', {'id': professional.id}) }}" 
-                                                            data-csrf-token="{{ csrf_token('delete' ~ professional.id) }}">
+                                                            data-csrf-token="{{ csrf_token('delete' ~ professional.id) }}"
+                                                            title="Eliminar">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </div>
@@ -158,65 +190,59 @@
                                 </tbody>
                             </table>
                         </div>
-                    {% else %}
-                        <div class="text-center py-5">
-                            <i class="fas fa-user-md fa-3x text-muted mb-3"></i>
-                            <h5 class="text-muted">No hay profesionales registrados</h5>
-                            <p class="text-muted">Comience agregando su primer profesional.</p>
-                            <a href="{{ path('app_professional_new') }}" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> Agregar Profesional
-                            </a>
-                        </div>
-                    {% endif %}
-                </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal de confirmación para eliminar -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+
+<!-- Modal Específico para Profesionales -->
+<div class="modal fade" id="professionalModal" tabindex="-1" aria-labelledby="professionalModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
-            <div class="modal-header border-0">
-                <h5 class="modal-title" id="deleteModalLabel">
-                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                    Confirmar Eliminación
+            <div class="modal-header">
+                <h5 class="modal-title" id="professionalModalLabel">
+                    <i class="fas fa-user-md me-2"></i>
+                    <span id="modalTitle">Nuevo Profesional</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body text-center py-4">
-                <div class="mb-3">
-                    <i class="fas fa-user-times fa-3x text-danger mb-3"></i>
+            <div class="modal-body p-0">
+                <div id="professionalFormContainer">
+                    <!-- El formulario se cargará aquí dinámicamente -->
+                    <div class="text-center p-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-3 text-muted">Cargando formulario...</p>
+                    </div>
                 </div>
-                <h6 class="mb-3">¿Está seguro de eliminar el profesional?</h6>
-                <p class="text-muted mb-0">
-                    <strong id="professionalName"></strong>
-                </p>
-                <small class="text-muted">Esta acción no se puede deshacer.</small>
-            </div>
-            <div class="modal-footer border-0 justify-content-center">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-1"></i> Cancelar
-                </button>
-                <form id="deleteForm" method="post" style="display: inline;">
-                    <input type="hidden" name="_token" id="csrfToken">
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-trash me-1"></i> Eliminar
-                    </button>
-                </form>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block stylesheets %}
-    {{ parent() }}
-    <link href="{{ asset('styles/professional-table.css') }}" rel="stylesheet">
 {% endblock %}
 
 {% block javascripts %}
     {{ parent() }}
     <script src="{{ asset('scripts/professional-table.js') }}"></script>
+    <script src="{{ asset('scripts/professional-modal.js') }}"></script>
+    <script src="{{ asset('scripts/professional-form.js') }}"></script>
+    <script src="{{ asset('scripts/wizard.js') }}"></script>
+    
+    <script>
+    // Inicializar el modal específico de profesionales
+    document.addEventListener('DOMContentLoaded', function() {
+        window.professionalModal = new ProfessionalModal({
+            modalId: 'professionalModal',
+            formContainerId: 'professionalFormContainer',
+            baseUrl: '{{ path('app_professional_index') }}',
+            createUrl: '{{ path('app_professional_new_form') }}',  // Ruta que devuelve solo el formulario
+            editUrl: '{{ path('app_professional_form', {'id': '__ID__'}) }}'  // Ruta que devuelve solo el formulario
+        });
+    });
+    </script>
 {% endblock %}
+

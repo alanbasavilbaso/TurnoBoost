@@ -3,7 +3,7 @@
 namespace App\Service;
 
 use App\Entity\Appointment;
-use App\Entity\Clinic;
+use App\Entity\Location;
 use App\Entity\Professional;
 use App\Entity\Service;
 use App\Entity\ProfessionalService;
@@ -34,14 +34,14 @@ class AppointmentService
     /**
      * Crea una nueva cita con todas las validaciones necesarias
      */
-    public function createAppointment(array $data, Clinic $clinic): Appointment
+    public function createAppointment(array $data, Location $location): Appointment
     {
         // Validar y obtener datos básicos
         $appointmentData = $this->validateAndParseData($data);
         
         // Obtener entidades relacionadas
-        $professional = $this->getProfessional($appointmentData['professionalId'], $clinic);
-        $service = $this->getService($appointmentData['serviceId'], $clinic);
+        $professional = $this->getProfessional($appointmentData['professionalId'], $location);
+        $service = $this->getService($appointmentData['serviceId'], $location);
         
         // Calcular duración y hora de finalización
         $duration = $this->calculateDuration($professional, $service);
@@ -52,15 +52,15 @@ class AppointmentService
             $appointmentData['scheduledAt'],
             $endTime,
             $professional,
-            $clinic
+            $location
         );
         
         // Crear o buscar paciente
-        $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $clinic);
+        $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $location);
         
         // Crear la cita
         $appointment = new Appointment();
-        $appointment->setClinic($clinic)
+        $appointment->setLocation($location)
                    ->setProfessional($professional)
                    ->setService($service)
                    ->setPatient($patient)
@@ -130,11 +130,11 @@ class AppointmentService
     /**
      * Obtiene y valida el profesional
      */
-    private function getProfessional(int $professionalId, Clinic $clinic): Professional
+    private function getProfessional(int $professionalId, Location $location): Professional
     {
         $professional = $this->professionalRepository->find($professionalId);
         
-        if (!$professional || $professional->getClinic() !== $clinic) {
+        if (!$professional || $professional->getLocation() !== $location) {
             throw new \InvalidArgumentException('Profesional no encontrado');
         }
         
@@ -144,11 +144,11 @@ class AppointmentService
     /**
      * Obtiene y valida el servicio
      */
-    private function getService(int $serviceId, Clinic $clinic): Service
+    private function getService(int $serviceId, Location $location): Service
     {
         $service = $this->serviceRepository->find($serviceId);
         
-        if (!$service || $service->getClinic() !== $clinic) {
+        if (!$service || $service->getLocation() !== $location) {
             throw new \InvalidArgumentException('Servicio no encontrado');
         }
         
@@ -173,20 +173,20 @@ class AppointmentService
         \DateTime $scheduledAt,
         \DateTime $endTime,
         Professional $professional,
-        Clinic $clinic
+        Location $location
     ): void {
         // Validar que no sea una fecha pasada
-        if ($scheduledAt < new \DateTime()) {
-            throw new \InvalidArgumentException(
-                'No se pueden crear citas en fechas pasadas.'
-            );
-        }
+        // if ($scheduledAt < new \DateTime()) {
+        //     throw new \InvalidArgumentException(
+        //         'No se pueden crear citas en fechas pasadas.'
+        //     );
+        // }
         
         // Validar disponibilidad del profesional
         $this->validateProfessionalAvailability($scheduledAt, $endTime, $professional);
         
         // Validar conflictos de horarios
-        $this->validateTimeConflicts($scheduledAt, $endTime, $professional, $clinic);
+        $this->validateTimeConflicts($scheduledAt, $endTime, $professional, $location);
     }
 
     /**
@@ -226,20 +226,20 @@ class AppointmentService
         \DateTime $scheduledAt,
         \DateTime $endTime,
         Professional $professional,
-        Clinic $clinic
+        Location $location
     ): void {
         $conflictCount = $this->entityManager->createQueryBuilder()
             ->select('COUNT(a.id)')
             ->from(Appointment::class, 'a')
             ->where('a.professional = :professional')
-            ->andWhere('a.clinic = :clinic')
+            ->andWhere('a.location = :location')
             ->andWhere('a.status NOT IN (:cancelledStatus)')
             ->andWhere(
                 '(a.scheduledAt < :endTime AND ' .
                 'DATE_ADD(a.scheduledAt, a.durationMinutes, \'MINUTE\') > :startTime)'
             )
             ->setParameter('professional', $professional)
-            ->setParameter('clinic', $clinic)
+            ->setParameter('location', $location)
             ->setParameter('cancelledStatus', [StatusEnum::CANCELLED])
             ->setParameter('startTime', $scheduledAt)
             ->setParameter('endTime', $endTime)

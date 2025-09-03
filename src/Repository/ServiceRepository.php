@@ -3,7 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Service;
-use App\Entity\Clinic;
+use App\Entity\Location;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -23,14 +23,14 @@ class ServiceRepository extends ServiceEntityRepository
     }
 
     /**
-     * Buscar servicios por nombre y clínica
+     * Buscar servicios por nombre y local
      */
-    public function findByNameAndClinic(string $search, Clinic $clinic): array
+    public function findByNameAndLocation(string $search, Location $location): array
     {
         return $this->createQueryBuilder('s')
-            ->andWhere('s.clinic = :clinic')
+            ->andWhere('s.location = :location')
             ->andWhere('LOWER(s.name) LIKE LOWER(:search) OR LOWER(s.description) LIKE LOWER(:search)')
-            ->setParameter('clinic', $clinic)
+            ->setParameter('location', $location)
             ->setParameter('search', '%' . $search . '%')
             ->orderBy('s.name', 'ASC')
             ->getQuery()

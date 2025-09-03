@@ -436,9 +436,31 @@ class WizardManager {
     }
 }
 
+// Crear instancia global
+let wizardManagerInstance = null;
+
 // Initialize wizard when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('-------');
     if (document.querySelector('.wizard-container')) {
-        new WizardManager();
+        wizardManagerInstance = new WizardManager();
     }
 });
+
+// Exponer globalmente para uso en modales
+window.WizardManager = {
+    init: function() {
+        if (document.querySelector('.wizard-container')) {
+            if (wizardManagerInstance) {
+                // Reinicializar si ya existe
+                wizardManagerInstance.init();
+            } else {
+                // Crear nueva instancia
+                wizardManagerInstance = new WizardManager();
+            }
+        }
+    },
+    getInstance: function() {
+        return wizardManagerInstance;
+    }
+};

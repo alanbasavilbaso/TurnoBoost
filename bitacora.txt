@@ -26,6 +26,15 @@ https://tuturno.io/test35
 
 
 
+# Secuencia completa de reset de BD
+php bin/console doctrine:database:drop --force
+php bin/console doctrine:database:create
+rm -rf migrations/*
+php bin/console make:migration
+php bin/console doctrine:migrations:migrate
+
+
+
 ##  Generar la migración
 Una vez que hayas creado las entidades, genera la migración:
 
@@ -50,7 +59,7 @@ CREATE TYPE notif_type_enum AS ENUM ('whatsapp', 'sms', 'email');
 CREATE TYPE notif_status_enum AS ENUM ('pending', 'sent', 'failed');
 
 -- CLINICS
-CREATE TABLE clinics (
+CREATE TABLE locations (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     address VARCHAR(255),
@@ -67,7 +76,7 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role role_enum NOT NULL,
-    clinic_id INT REFERENCES clinics(id),
+    location_id INT REFERENCES locations(id),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -75,7 +84,7 @@ CREATE TABLE users (
 -- PROFESSIONALS
 CREATE TABLE professionals (
     id SERIAL PRIMARY KEY,
-    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    location_id INT REFERENCES locations(id) NOT NULL,
     name VARCHAR(255) NOT NULL,
     specialty VARCHAR(255),
     email VARCHAR(255),
@@ -88,7 +97,7 @@ CREATE TABLE professionals (
 -- PATIENTS
 CREATE TABLE patients (
     id SERIAL PRIMARY KEY,
-    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    location_id INT REFERENCES locations(id) NOT NULL,
     name VARCHAR(255) NOT NULL,
     phone VARCHAR(50),
     email VARCHAR(255),
@@ -100,7 +109,7 @@ CREATE TABLE patients (
 -- SERVICES (catálogo de servicios)
 CREATE TABLE services (
     id SERIAL PRIMARY KEY,
-    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    location_id INT REFERENCES locations(id) NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     default_duration_minutes INT NOT NULL,
@@ -122,7 +131,7 @@ CREATE TABLE professional_services (
 -- APPOINTMENTS
 CREATE TABLE appointments (
     id SERIAL PRIMARY KEY,
-    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    location_id INT REFERENCES locations(id) NOT NULL,
     professional_id INT REFERENCES professionals(id) NOT NULL,
     patient_id INT REFERENCES patients(id),
     service_id INT REFERENCES services(id),
@@ -174,7 +183,7 @@ CREATE TABLE feedback (
 -- MARKETING POSTS
 CREATE TABLE marketing_posts (
     id SERIAL PRIMARY KEY,
-    clinic_id INT REFERENCES clinics(id) NOT NULL,
+    location_id INT REFERENCES locations(id) NOT NULL,
     professional_id INT REFERENCES professionals(id),
     content TEXT NOT NULL,
     image_url VARCHAR(255),
@@ -184,12 +193,12 @@ CREATE TABLE marketing_posts (
 
 -- Índices útiles
 CREATE INDEX idx_appointments_professional_date ON appointments(professional_id, scheduled_at);
-CREATE INDEX idx_patients_clinic ON patients(clinic_id);
+CREATE INDEX idx_patients_location ON patients(location_id);
 CREATE INDEX idx_notifications_appointment ON notifications(appointment_id);
-CREATE INDEX idx_services_clinic ON services(clinic_id);
+CREATE INDEX idx_services_location ON services(location_id);
 CREATE INDEX idx_prof_availability_professional ON professional_availability(professional_id);
 CREATE INDEX idx_schedule_blocks_professional ON schedule_blocks(professional_id);
-CREATE INDEX idx_marketing_posts_clinic ON marketing_posts(clinic_id);
+CREATE INDEX idx_marketing_posts_location ON marketing_posts(location_id);
 
 
 

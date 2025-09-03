@@ -2,8 +2,8 @@
 
 namespace App\Controller;
 
-use App\Entity\Clinic;
-use App\Form\ClinicType;
+use App\Entity\Location;
+use App\Form\LocationType;
 use App\Form\LoginType;
 use App\Entity\StatusEnum;
 use Doctrine\ORM\EntityManagerInterface;
@@ -56,12 +56,12 @@ class SecurityController extends AbstractController
         
         $user = $this->getUser();
         
-        // Obtener la clínica del usuario
-        $clinic = $entityManager->getRepository(Clinic::class)
+        // Obtener el local del usuario
+        $location = $entityManager->getRepository(Location::class)
             ->findOneBy(['createdBy' => $user]);
         
-        if (!$clinic) {
-            // Si no tiene clínica, mostrar datos vacíos
+        if (!$location) {
+            // Si no tiene locales, mostrar datos vacíos
             return $this->render('security/index.html.twig', [
                 'user' => $user,
                 'stats' => [
@@ -74,7 +74,7 @@ class SecurityController extends AbstractController
         }
         
         // Obtener todas las estadísticas en una sola query optimizada
-        $stats = $this->getDashboardStats($entityManager, $clinic);
+        $stats = $this->getDashboardStats($entityManager, $location);
         
         return $this->render('security/index.html.twig', [
             'user' => $user,
@@ -82,7 +82,7 @@ class SecurityController extends AbstractController
         ]);
     }
 
-    private function getDashboardStats(EntityManagerInterface $entityManager, Clinic $clinic): array
+    private function getDashboardStats(EntityManagerInterface $entityManager, Location $location): array
     {
         $today = new \DateTime('today');
         $tomorrow = new \DateTime('tomorrow');
@@ -93,13 +93,13 @@ class SecurityController extends AbstractController
         $appointmentsToday = $entityManager->createQuery('
             SELECT COUNT(a.id) as count
             FROM App\Entity\Appointment a
-            WHERE a.clinic = :clinic
+            WHERE a.location = :location
             AND a.scheduledAt >= :today
             AND a.scheduledAt < :tomorrow
             AND a.status != :cancelled
         ')
         ->setParameters([
-            'clinic' => $clinic,
+            'location' => $location,
             'today' => $today,
             'tomorrow' => $tomorrow,
             'cancelled' => StatusEnum::CANCELLED
@@ -110,21 +110,21 @@ class SecurityController extends AbstractController
         $totalPatients = $entityManager->createQuery('
             SELECT COUNT(DISTINCT p.id) as count
             FROM App\Entity\Patient p
-            WHERE p.clinic = :clinic
+            WHERE p.location = :location
         ')
-        ->setParameter('clinic', $clinic)
+        ->setParameter('location', $location)
         ->getSingleScalarResult();
         
         // Query 3: Citas pendientes (scheduled + confirmed)
         $pendingAppointments = $entityManager->createQuery('
             SELECT COUNT(a.id) as count
             FROM App\Entity\Appointment a
-            WHERE a.clinic = :clinic
+            WHERE a.location = :location
             AND a.scheduledAt >= :now
             AND a.status IN (:pending_statuses)
         ')
         ->setParameters([
-            'clinic' => $clinic,
+            'location' => $location,
             'now' => new \DateTime(),
             'pending_statuses' => [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED]
         ])
@@ -134,13 +134,13 @@ class SecurityController extends AbstractController
         $appointmentsThisMonth = $entityManager->createQuery('
             SELECT COUNT(a.id) as count
             FROM App\Entity\Appointment a
-            WHERE a.clinic = :clinic
+            WHERE a.location = :location
             AND a.scheduledAt >= :first_day
             AND a.scheduledAt < :first_day_next
             AND a.status != :cancelled
         ')
         ->setParameters([
-            'clinic' => $clinic,
+            'location' => $location,
             'first_day' => $firstDayOfMonth,
             'first_day_next' => $firstDayOfNextMonth,
             'cancelled' => StatusEnum::CANCELLED
@@ -153,52 +153,5 @@ class SecurityController extends AbstractController
             'pending_appointments' => (int) $pendingAppointments,
             'appointments_this_month' => (int) $appointmentsThisMonth
         ];
-    }
-
-    #[Route('/mi-empresa', name: 'app_my_company')]
-    public function myCompany(Request $request, EntityManagerInterface $entityManager): Response
-    {
-        $this->denyAccessUnlessGranted('IS_AUTHENTICATED_FULLY');
-        
-        $user = $this->getUser();
-        
-        // Buscar si el usuario ya tiene una clínica
-        $clinic = $entityManager->getRepository(Clinic::class)
-            ->findOneBy(['createdBy' => $user]);
-        
-        // Si no tiene clínica, crear una nueva
-        if (!$clinic) {
-            $clinic = new Clinic();
-            $clinic->setCreatedBy($user);
-            $clinic->setEmail($user->getEmail()); // Tomar email del usuario
-        }
-        
-        $form = $this->createForm(ClinicType::class, $clinic);
-        
-        $form->handleRequest($request);
-        
-        if ($form->isSubmitted()) {
-            if ($form->isValid()) {
-                $entityManager->persist($clinic);
-                $entityManager->flush();
-                
-                $this->addFlash('success', 
-                    $clinic->getId() ? 'Empresa actualizada correctamente.' : 'Empresa creada correctamente.'
-                );
-                
-                return $this->redirectToRoute('app_index');
-            } else {
-                // Manejar errores de validación como mensajes flash
-                foreach ($form->getErrors(true) as $error) {
-                    $this->addFlash('error', $error->getMessage());
-                }
-            }
-        }
-        
-        return $this->render('security/my_company.html.twig', [
-            'form' => $form->createView(),
-            'clinic' => $clinic,
-            'is_edit' => $clinic->getId() !== null
-        ]);
     }
 }

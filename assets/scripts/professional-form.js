@@ -53,7 +53,6 @@ const Utils = {
                 servicesConfiguration[serviceId][dayKey] = currentAvailability[dayKey];
             });
         });
-        
         // Actualizar la visualización y sincronizar con el formulario
         if (typeof ServiceManager !== 'undefined') {
             ServiceManager.updateDisplay();
@@ -249,7 +248,7 @@ const AvailabilityManager = {
                 if (isEnabled) TimeValidation.validateTimeRanges(dayNumber);
                 
                 // NUEVA FUNCIONALIDAD: Sincronizar servicios automáticamente
-                if (!isInitialSetup && typeof Utils.syncAllServicesWithAvailability === 'function') {
+                if (typeof Utils.syncAllServicesWithAvailability === 'function') {
                     // Usar setTimeout para asegurar que el cambio se procese primero
                     Promise.resolve().then(() => {
                         Utils.syncAllServicesWithAvailability();
@@ -313,52 +312,194 @@ const AvailabilityManager = {
 
 // ===== MANEJO DE SERVICIOS =====
 const ServiceManager = {
-    initSelect2() {
-        if (typeof $.fn.select2 === 'undefined' || !$('#services-select').length) {
-            console.error('Select2 no disponible o elemento no encontrado');
+    initNativeSelect() {
+        const servicesSelect = document.getElementById('services-select');
+        if (!servicesSelect) {
+            console.warn('Elemento #services-select no encontrado. El modal puede no estar cargado aún.');
+            return;
+        }
+
+        // Crear contenedor personalizado para el select
+        const selectContainer = document.createElement('div');
+        selectContainer.className = 'custom-select-container';
+        selectContainer.style.cssText = `
+            position: relative;
+            width: 100%;
+        `;
+
+        // Crear input de búsqueda
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'form-control';
+        searchInput.placeholder = 'Buscar y agregar servicios...';
+        searchInput.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        `;
+
+        // Crear dropdown de opciones
+        const dropdown = document.createElement('div');
+        dropdown.className = 'custom-select-dropdown';
+        dropdown.style.cssText = `
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ced4da;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        `;
+
+        // Obtener todas las opciones del select original
+        const options = Array.from(servicesSelect.options).filter(option => option.value);
+        
+        // Función para mostrar opciones filtradas
+        const showFilteredOptions = (searchTerm = '') => {
+            dropdown.innerHTML = '';
+            
+            const filteredOptions = options.filter(option => 
+                option.text.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            if (filteredOptions.length === 0) {
+                const noResults = document.createElement('div');
+                noResults.className = 'custom-select-option';
+                noResults.style.cssText = `
+                    padding: 8px 12px;
+                    color: #6c757d;
+                    font-style: italic;
+                `;
+                noResults.textContent = 'No se encontraron servicios';
+                dropdown.appendChild(noResults);
+            } else {
+                filteredOptions.forEach(option => {
+                    const optionDiv = document.createElement('div');
+                    optionDiv.className = 'custom-select-option';
+                    optionDiv.style.cssText = `
+                        padding: 8px 12px;
+                        cursor: pointer;
+                        border-bottom: 1px solid #f8f9fa;
+                        transition: background-color 0.2s;
+                    `;
+                    
+                    // Verificar si el servicio ya está agregado
+                    const serviceId = option.value;
+                    const isAdded = servicesConfiguration[serviceId];
+                    
+                    if (isAdded) {
+                        optionDiv.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted">${option.text}</span>
+                                <small class="badge bg-success">Ya agregado</small>
+                            </div>
+                        `;
+                        optionDiv.style.backgroundColor = '#f8f9fa';
+                    } else {
+                        optionDiv.textContent = option.text;
+                        
+                        // Hover effect
+                        optionDiv.addEventListener('mouseenter', () => {
+                            optionDiv.style.backgroundColor = '#e9ecef';
+                        });
+                        optionDiv.addEventListener('mouseleave', () => {
+                            optionDiv.style.backgroundColor = '';
+                        });
+                        
+                        // Click handler
+                        optionDiv.addEventListener('click', () => {
+                            const serviceId = option.value;
+                            const serviceName = option.dataset.name || option.text;
+                            const serviceDuration = option.dataset.duration;
+                            const servicePrice = option.dataset.price;
+                            
+                            ServiceManager.addService(serviceId, serviceName, serviceDuration, servicePrice);
+                            
+                            // Limpiar búsqueda y ocultar dropdown
+                            searchInput.value = '';
+                            dropdown.style.display = 'none';
+                            
+                            // Actualizar opciones para mostrar "Ya agregado"
+                            showFilteredOptions();
+                        });
+                    }
+                    
+                    dropdown.appendChild(optionDiv);
+                });
+            }
+            
+            dropdown.style.display = 'block';
+        };
+
+        // Event listeners
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value;
+            showFilteredOptions(searchTerm);
+        });
+
+        searchInput.addEventListener('focus', () => {
+            showFilteredOptions(searchInput.value);
+        });
+
+        // Cerrar dropdown al hacer click fuera
+        document.addEventListener('click', (e) => {
+            if (!selectContainer.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        // Ensamblar el componente
+        selectContainer.appendChild(searchInput);
+        selectContainer.appendChild(dropdown);
+        
+        // Reemplazar el select original
+        servicesSelect.style.display = 'none';
+        servicesSelect.parentNode.insertBefore(selectContainer, servicesSelect.nextSibling);
+        
+        console.log('Select nativo inicializado correctamente');
+    },
+    
+    addService(serviceId, serviceName, serviceDuration, servicePrice) {
+        // Verificar si el servicio ya está agregado
+        if (servicesConfiguration[serviceId]) {
+            console.warn(`El servicio ${serviceName} ya está agregado`);
             return;
         }
         
-        // Destruir instancia previa
-        if ($('#services-select').hasClass('select2-hidden-accessible')) {
-            try {
-                $('#services-select').select2('destroy');
-            } catch (e) {
-                console.warn('Error al destruir Select2:', e);
-            }
-        }
+        // Agregar el servicio a la configuración
+        servicesConfiguration[serviceId] = {
+            id: serviceId,
+            name: serviceName,
+            customDurationMinutes: serviceDuration || null,
+            customPrice: servicePrice || null,
+            ...Utils.getDefaultAvailabilityDays()
+        };
         
-        $('#services-select').select2({
-            theme: 'default',
-            placeholder: 'Buscar y agregar servicios...',
-            allowClear: false,
-            width: '100%',
-            language: {
-                noResults: () => "No se encontraron servicios",
-                searching: () => "Buscando servicios...",
-                placeholder: () => "Buscar y agregar servicios..."
-            },
-            templateResult: function(option) {
-                if (!option.id) return option.text;
-                
-                if (servicesConfiguration[option.id]) {
-                    return $(`
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-muted">${option.text}</span>
-                            <small class="badge bg-success">Ya agregado</small>
-                        </div>
-                    `);
-                }
-                
-                return option.text;
-            }
-        });
+        // Actualizar la visualización
+        this.updateDisplay();
+        this.syncWithOriginalFormHidden();
         
-        $('#services-select').on('change', () => this.syncWithOriginalForm());
+        console.log(`Servicio agregado: ${serviceName}`);
     },
 
     loadExistingConfigs() {
-        if (typeof existingServiceConfigs === 'undefined' || !existingServiceConfigs) return;
+        // Leer desde input hidden en lugar de variable global
+        const hiddenInput = document.getElementById('existing-service-configs');
+        if (!hiddenInput || !hiddenInput.value) return;
+        
+        let existingServiceConfigs;
+        try {
+            existingServiceConfigs = JSON.parse(hiddenInput.value);
+        } catch (e) {
+            console.error('Error parsing existing service configs:', e);
+            return;
+        }
         
         const dayMapping = {
             0: 'availableMonday', 1: 'availableTuesday', 2: 'availableWednesday',
@@ -637,21 +778,27 @@ document.addEventListener('DOMContentLoaded', function() {
     AvailabilityManager.setupRangeButtons();
 });
 
+// Al final del archivo, modifica la sección de inicialización:
 $(document).ready(function() {
-    ServiceManager.initSelect2();
-    ServiceManager.loadExistingConfigs();
-    
     // Event listeners para modal de servicios
     $('#copy-availability-btn').on('click', () => ServiceManager.copyAvailabilityDays());
     $('#save-service-days').on('click', () => ServiceManager.saveServiceDays());
 });
 
+// Escuchar cuando se abra el modal de profesionales
+// $(document).on('shown.bs.modal', '.modal', function() {
+//     // Verificar si este modal contiene el formulario de profesionales
+//     if ($(this).find('#services-select').length) {
+//         ServiceManager.reinitialize();
+//     }
+// });
+
 // Reinicializar en SPAs
-document.addEventListener('turbo:load', function() {
-    if (typeof $ !== 'undefined' && $('#services-select').length) {
-        $(document).ready();
-    }
-});
+// document.addEventListener('turbo:load', function() {
+//     if (typeof $ !== 'undefined' && $('#services-select').length) {
+//         ServiceManager.reinitialize();
+//     }
+// });
 
 // Exponer funciones globales
 window.ServiceManager = ServiceManager;
@@ -659,3 +806,26 @@ window.removeService = (serviceId) => ServiceManager.removeService(serviceId);
 window.configureServiceDays = (serviceId) => ServiceManager.configureServiceDays(serviceId);
 window.copyAvailabilityDays = () => ServiceManager.copyAvailabilityDays();
 window.saveServiceDays = () => ServiceManager.saveServiceDays();
+
+// Función de inicialización para el modal de profesionales
+function initializeProfessionalForm() {
+    console.log('Initializing professional form in modal...');
+    
+    // Inicializar WizardManager
+    if (typeof WizardManager !== 'undefined') {
+        window.wizardManager = new WizardManager();
+    }
+    
+    // Inicializar ServiceManager cuando el formulario se carga en el modal
+    if (document.getElementById('services-select')) {
+        ServiceManager.initNativeSelect();
+        ServiceManager.loadExistingConfigs();
+    }
+    
+    // Reinicializar AvailabilityManager
+    AvailabilityManager.setupDayToggle();
+    AvailabilityManager.setupRangeButtons();
+}
+
+// Exponer la función globalmente
+window.initializeProfessionalForm = initializeProfessionalForm;

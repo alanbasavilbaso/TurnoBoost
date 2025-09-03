@@ -1,0 +1,95 @@
+/* Contenedor principal */
+.locations-container {
+    /* background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); */
+    min-height: 100vh;
+    padding: 2rem 0;
+}
+
+/* Header mejorado */
+.locations-header {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Información del local */
+.location-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.location-details h6 {
+    margin: 0;
+    font-weight: 700;
+    color: #2c3e50;
+    font-size: 1.1rem;
+}
+
+.location-id {
+    margin: 0;
+    color: #6c757d;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Información de contacto */
+.contact-info {
+    font-size: 0.9rem;
+}
+
+.contact-info div {
+    margin-bottom: 0.3rem;
+}
+
+.contact-info i {
+    width: 16px;
+    text-align: center;
+}
+
+/* Badge de dominio */
+.domain-badge {
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+    border-radius: 15px;
+    font-weight: 600;
+}
+
+/* Dirección */
+.address-display {
+    font-size: 0.9rem;
+    color: #495057;
+}
+
+.address-display i {
+    color: #6c757d;
+}
+
+
+/* Animaciones */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Efectos de hover para las filas */
+.location-row {
+    cursor: pointer;
+}
+
+.location-row:hover .location-avatar {
+    transform: scale(1.05);
+}
+
+.location-row:hover .action-btn {
+    transform: scale(1.05);
+}

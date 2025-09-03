@@ -50,31 +50,48 @@ class AgendaController extends AbstractController
     public function index(): Response
     {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
-            throw $this->createNotFoundException('No se encontró la clínica.');
+        if (!$location) {
+            throw $this->createNotFoundException('No se encontró el local.');
         }
 
-        // Obtener profesionales y servicios de la clínica
-        $professionals = $this->professionalRepository->findBy(['clinic' => $clinic, 'active' => true]);
-        $services = $this->serviceRepository->findBy(['clinic' => $clinic, 'active' => true]);
+        // Obtener profesionales y servicios de el local
+        $professionals = $this->professionalRepository->findBy(['location' => $location, 'active' => true]);
+        $services = $this->serviceRepository->findBy(['location' => $location, 'active' => true]);
 
         return $this->render('agenda/index.html.twig', [
             'professionals' => $professionals,
             'services' => $services,
-            'clinic' => $clinic
+            'location' => $location
         ]);
     }
 
     #[Route('/appointments', name: 'app_agenda_appointments', methods: ['GET'])]
+    // En el método getAppointments, agregar filtro de fecha
     public function getAppointments(Request $request): JsonResponse
     {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        $startDate = new \DateTime($request->query->get('start', 'now'));
-        $endDate = new \DateTime($request->query->get('end', '+1 week'));
+        // Verificar si se proporciona una fecha específica
+        $specificDate = $request->query->get('date');
+        
+        if ($specificDate) {
+            // Si hay fecha específica, usar solo esa fecha
+            $startDate = new \DateTime($specificDate);
+            $startDate->setTime(0, 0, 0);
+            
+            $endDate = new \DateTime($specificDate);
+            $endDate->setTime(23, 59, 59);
+        } else {
+            // Si no hay fecha específica, usar el rango por defecto
+            $startDate = new \DateTime($request->query->get('start', 'now'));
+            $startDate->setTime(0, 0, 0);
+    
+            $endDate = new \DateTime($request->query->get('end', '+1 week'));
+            $endDate->setTime(23, 59, 59);
+        }
         
         // Manejar array de profesionales
         $professionalIds = $request->query->all('professionals');
@@ -86,19 +103,17 @@ class AgendaController extends AbstractController
             ->leftJoin('a.professional', 'p')
             ->leftJoin('a.service', 's')
             ->leftJoin('a.patient', 'pat')
-            ->where('a.clinic = :clinic')
+            ->where('a.location = :location')
             ->andWhere('a.scheduledAt BETWEEN :start AND :end')
-            ->andWhere('a.status IN (:allowedStatuses)')
-            ->setParameter('allowedStatuses', [
-                StatusEnum::SCHEDULED,
-                StatusEnum::CONFIRMED,
-                StatusEnum::COMPLETED,
+            ->andWhere('a.status NOT IN (:cancelStatus)')
+            ->setParameter('cancelStatus', [
+                StatusEnum::CANCELLED,
             ])
-            ->setParameter('clinic', $clinic)
+            ->setParameter('location', $location)
             ->setParameter('start', $startDate)
             ->setParameter('end', $endDate)
             ->orderBy('a.scheduledAt', 'ASC');
-    
+        
         // Filtrar por profesionales si se especifican
         if (!empty($professionalIds)) {
             $queryBuilder->andWhere('p.id IN (:professionalIds)')
@@ -109,9 +124,11 @@ class AgendaController extends AbstractController
             $queryBuilder->andWhere('s.id = :serviceId')
                         ->setParameter('serviceId', $serviceId);
         }
-
+    
+        // Remover el filtro duplicado de fecha específica ya que ahora se maneja arriba
+        
         $appointments = $queryBuilder->getQuery()->getResult();
-
+    
         $events = [];
         foreach ($appointments as $appointment) {
             // En el método getAppointments, enriquecer la información
@@ -120,14 +137,13 @@ class AgendaController extends AbstractController
 
             $events[] = [
                 'id' => $appointment->getId(),
-                'title' => sprintf('%s - %s (%s)', 
-                    $appointment->getProfessional()->getName(),
+                'title' => sprintf('%s (%s)', 
                     $appointment->getPatient()->getName(),
                     $appointment->getService()?->getName() ?? 'Sin servicio'
                 ),
                 'start' => $appointment->getScheduledAt()->format('Y-m-d\\TH:i:s'),
                 'end' => $endTime->format('Y-m-d\\TH:i:s'),
-                'backgroundColor' => $this->getProfessionalColor($appointment->getProfessional()->getId()),
+                'backgroundColor' => $this->getStatusBorderColor($appointment->getStatus()),
                 'borderColor' => $this->getStatusBorderColor($appointment->getStatus()),
                 'extendedProps' => [
                     'professionalId' => $appointment->getProfessional()->getId(),
@@ -179,10 +195,10 @@ class AgendaController extends AbstractController
     #[Route('/business-hours', name: 'app_agenda_business_hours', methods: ['GET'])]
     public function getBusinessHours(Request $request): JsonResponse {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
-            return new JsonResponse(['error' => 'No se encontró la clínica'], 404);
+        if (!$location) {
+            return new JsonResponse(['error' => 'No se encontró el local'], 404);
         }
 
         // Obtener parámetros de filtro
@@ -194,9 +210,9 @@ class AgendaController extends AbstractController
             ->select('pa.weekday', 'MIN(pa.startTime) as minStartTime', 'MAX(pa.endTime) as maxEndTime')
             ->from('App\Entity\ProfessionalAvailability', 'pa')
             ->join('pa.professional', 'p')
-            ->where('p.clinic = :clinic')
+            ->where('p.location = :location')
             ->andWhere('p.active = true')
-            ->setParameter('clinic', $clinic);
+            ->setParameter('location', $location);
     
         // Filtrar por profesional si se especifica
         if ($professionalId) {
@@ -222,9 +238,9 @@ class AgendaController extends AbstractController
             ->select('MIN(pa.startTime) as globalMinStart', 'MAX(pa.endTime) as globalMaxEnd')
             ->from('App\Entity\ProfessionalAvailability', 'pa')
             ->join('pa.professional', 'p')
-            ->where('p.clinic = :clinic')
+            ->where('p.location = :location')
             ->andWhere('p.active = true')
-            ->setParameter('clinic', $clinic);
+            ->setParameter('location', $location);
     
         // Aplicar los mismos filtros a la consulta global
         if ($professionalId) {
@@ -350,10 +366,10 @@ class AgendaController extends AbstractController
         }
         
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
         try {
-            $appointment = $appointmentService->createAppointment($data, $clinic);
+            $appointment = $appointmentService->createAppointment($data, $location);
             
             return new JsonResponse([
                 'success' => true,
@@ -378,10 +394,10 @@ class AgendaController extends AbstractController
     public function getAppointment(int $id): JsonResponse
     {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
-            return new JsonResponse(['error' => 'No se encontró la clínica'], 404);
+        if (!$location) {
+            return new JsonResponse(['error' => 'No se encontró el local'], 404);
         }
 
         $appointment = $this->entityManager->getRepository(Appointment::class)->find($id);
@@ -390,8 +406,8 @@ class AgendaController extends AbstractController
             return new JsonResponse(['error' => 'Turno no encontrado'], 404);
         }
 
-        // Verificar que la cita pertenece a la clínica del usuario
-        if ($appointment->getClinic() !== $clinic) {
+        // Verificar que la cita pertenece a el local del usuario
+        if ($appointment->getLocation() !== $location) {
             return new JsonResponse(['error' => 'Acceso denegado'], 403);
         }
 
@@ -443,7 +459,7 @@ class AgendaController extends AbstractController
         }
     
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
     
         try {
             // CAPTURAR VALORES ANTERIORES ANTES DE MODIFICAR
@@ -522,7 +538,7 @@ class AgendaController extends AbstractController
             
             // Actualizar o crear paciente
             if (!empty($patientData)) {
-                $patient = $this->patientService->findOrCreatePatient($patientData, $clinic);
+                $patient = $this->patientService->findOrCreatePatient($patientData, $location);
                 $appointment->setPatient($patient);
             }
             
@@ -532,6 +548,16 @@ class AgendaController extends AbstractController
             // Actualizar notas si se proporcionan
             if (isset($data['notes'])) {
                 $appointment->setNotes($data['notes']);
+            }
+            
+            // AGREGAR ESTE CÓDIGO PARA MANEJAR EL STATUS
+            if (isset($data['status'])) {
+                try {
+                    $statusEnum = \App\Entity\StatusEnum::from($data['status']);
+                    $appointment->setStatus($statusEnum);
+                } catch (\ValueError $e) {
+                    throw new \InvalidArgumentException('Estado inválido: ' . $data['status']);
+                }
             }
             
             // Actualizar timestamp
@@ -677,27 +703,6 @@ class AgendaController extends AbstractController
     }
     
     /**
-     * Obtiene un color único para cada profesional basado en su ID
-     */
-    private function getProfessionalColor(int $professionalId): string
-    {
-        $colors = [
-            '#3498db', // Azul
-            '#e74c3c', // Rojo
-            '#2ecc71', // Verde
-            '#f39c12', // Naranja
-            '#9b59b6', // Púrpura
-            '#1abc9c', // Turquesa
-            '#34495e', // Gris oscuro
-            '#e67e22', // Naranja oscuro
-            '#95a5a6', // Gris
-            '#16a085', // Verde azulado
-        ];
-        
-        return $colors[$professionalId % count($colors)];
-    }
-    
-    /**
      * Obtiene el color del borde basado en el estado del turno
      */
     private function getStatusBorderColor(\App\Entity\StatusEnum $status): string
@@ -718,15 +723,15 @@ class AgendaController extends AbstractController
     public function getProfessionalServices(int $id): JsonResponse
     {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
-            return new JsonResponse(['error' => 'No se encontró la clínica'], 404);
+        if (!$location) {
+            return new JsonResponse(['error' => 'No se encontró el local'], 404);
         }
 
         $professional = $this->professionalRepository->find($id);
         
-        if (!$professional || $professional->getClinic() !== $clinic) {
+        if (!$professional || $professional->getLocation() !== $location) {
             return new JsonResponse(['error' => 'Profesional no encontrado'], 404);
         }
 
@@ -753,10 +758,10 @@ class AgendaController extends AbstractController
     public function searchPatients(Request $request): JsonResponse
     {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
-            return new JsonResponse(['error' => 'No se encontró la clínica'], 404);
+        if (!$location) {
+            return new JsonResponse(['error' => 'No se encontró el local'], 404);
         }
     
         $query = $request->query->get('q', '');
@@ -767,13 +772,13 @@ class AgendaController extends AbstractController
     
         $patients = $this->entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
-            ->where('p.clinic = :clinic')
+            ->where('p.location = :location')
             ->andWhere('(
                 p.name LIKE :query OR 
                 p.email LIKE :query OR 
                 p.phone LIKE :query
             )')
-            ->setParameter('clinic', $clinic)
+            ->setParameter('location', $location)
             ->setParameter('query', '%' . $query . '%')
             ->orderBy('p.name', 'ASC')
             ->setMaxResults(10)
@@ -798,14 +803,14 @@ class AgendaController extends AbstractController
     public function getProfessionals(): JsonResponse
     {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
+        if (!$location) {
             return new JsonResponse(['error' => 'Clínica no encontrada'], 404);
         }
 
         $professionals = $this->professionalRepository->findBy([
-            'clinic' => $clinic, 
+            'location' => $location, 
             'active' => true
         ]);
 
@@ -826,15 +831,15 @@ class AgendaController extends AbstractController
     #[Route('/appointments/{id}/status', name: 'app_agenda_update_appointment_status', methods: ['PATCH'])]
     public function updateAppointmentStatus(int $id, Request $request, AuditService $auditService): JsonResponse {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
-            return new JsonResponse(['error' => 'No se encontró la clínica'], 404);
+        if (!$location) {
+            return new JsonResponse(['error' => 'No se encontró el local'], 404);
         }
 
         $appointment = $this->entityManager->getRepository(Appointment::class)->find($id);
         
-        if (!$appointment || $appointment->getClinic() !== $clinic) {
+        if (!$appointment || $appointment->getLocation() !== $location) {
             return new JsonResponse(['error' => 'Turno no encontrado'], 404);
         }
 
@@ -850,6 +855,16 @@ class AgendaController extends AbstractController
             $statusEnum = \App\Entity\StatusEnum::from($newStatus);
         } catch (\ValueError $e) {
             return new JsonResponse(['error' => 'Estado inválido'], 400);
+        }
+
+        // En el método de actualización de turnos
+        if (isset($data['status'])) {
+            try {
+                $statusEnum = \App\Entity\StatusEnum::from($data['status']);
+                $appointment->setStatus($statusEnum);
+            } catch (\ValueError $e) {
+                return new JsonResponse(['error' => 'Estado inválido'], 400);
+            }
         }
 
         // Capturar valor anterior
@@ -884,9 +899,9 @@ class AgendaController extends AbstractController
     public function getProfessionalsByIds(string $ids): JsonResponse
     {
         $user = $this->getUser();
-        $clinic = $user->getOwnedClinics()->first();
+        $location = $user->getOwnedLocations()->first();
         
-        if (!$clinic) {
+        if (!$location) {
             return new JsonResponse(['error' => 'Clínica no encontrada'], 404);
         }
 
@@ -898,10 +913,10 @@ class AgendaController extends AbstractController
         }
 
         $professionals = $this->professionalRepository->createQueryBuilder('p')
-            ->where('p.clinic = :clinic')
+            ->where('p.location = :location')
             ->andWhere('p.active = true')
             ->andWhere('p.id IN (:ids)')
-            ->setParameter('clinic', $clinic)
+            ->setParameter('location', $location)
             ->setParameter('ids', $professionalIds)
             ->getQuery()
             ->getResult();

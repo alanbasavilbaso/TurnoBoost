@@ -1,6 +1,5 @@
 // Funcionalidad para la tabla de profesionales
 document.addEventListener('DOMContentLoaded', function() {
-    console.log("tablee loaded");
     const searchInput = document.getElementById('searchInput');
     const sortBy = document.getElementById('sortBy');
     const clearButton = document.getElementById('clearSearch');
@@ -48,48 +47,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 row.classList.add('hidden');
             }
         });
-        
-        // Actualizar contador de resultados
-        updateResultsCount(visibleCount, searchTerm);
-    }
-    
-    // Función de ordenamiento
-    function sortTable() {
-        const sortValue = sortBy.value;
-        const tbody = tableBody;
-        
-        const sortedRows = allRows.sort((a, b) => {
-            let aValue, bValue;
-            
-            switch(sortValue) {
-                case 'name':
-                    aValue = a.dataset.name || '';
-                    bValue = b.dataset.name || '';
-                    break;
-                case 'specialty':
-                    aValue = a.dataset.specialty || '';
-                    bValue = b.dataset.specialty || '';
-                    break;
-                case 'services':
-                    aValue = parseInt(a.dataset.services) || 0;
-                    bValue = parseInt(b.dataset.services) || 0;
-                    return bValue - aValue; // Orden descendente para números
-                case 'created':
-                    aValue = a.dataset.created || '';
-                    bValue = b.dataset.created || '';
-                    break;
-                default:
-                    return 0;
-            }
-            
-            return aValue.localeCompare(bValue);
-        });
-        
-        // Reordenar en el DOM
-        sortedRows.forEach(row => tbody.appendChild(row));
-        
-        // Aplicar búsqueda después del ordenamiento
-        performSearch();
     }
     
     // Resaltar términos de búsqueda
@@ -142,17 +99,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return textNodes;
     }
-    
-    // Actualizar contador de resultados
-    function updateResultsCount(count, hasFilter) {
-        if (hasFilter) {
-            resultsCount.textContent = count;
-            searchResults.style.display = 'block';
-        } else {
-            searchResults.style.display = 'none';
-        }
-    }
-    
+        
     // Limpiar búsqueda y filtros
     function clearAll() {
         searchInput.value = '';
@@ -169,7 +116,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         searchResults.style.display = 'none';
-        sortTable();
     }
 
     function clearHighlight() {
@@ -186,14 +132,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Event listeners
     if (searchInput) {
         searchInput.addEventListener('input', performSearch);
-    }
-    
-    // if (statusFilter) {
-    //     statusFilter.addEventListener('change', performSearch);
-    // }
-    
-    if (sortBy) {
-        sortBy.addEventListener('change', sortTable);
     }
     
     if (clearButton) {
@@ -215,7 +153,5 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('csrfToken').value = csrfToken;
         });
     }
-    
-    // Inicializar ordenamiento por defecto
-    sortTable();
+
 });

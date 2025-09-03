@@ -3,15 +3,15 @@ let selectedService = null;
 let selectedProfessional = null;
 let selectedDate = null;
 let selectedTimeSlot = null;
-let clinicDomain = null;
+let locationDomain = null;
 let isUserAuthenticated = false;
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', function() {
-    // Obtener el dominio de la clínica desde el elemento HTML
-    const clinicElement = document.querySelector('[data-clinic-domain]');
-    if (clinicElement) {
-        clinicDomain = clinicElement.dataset.clinicDomain;
+    // Obtener el dominio de el local desde el elemento HTML
+    const locationElement = document.querySelector('[data-location-domain]');
+    if (locationElement) {
+        locationDomain = locationElement.dataset.locationDomain;
     }
     
     // Verificar estado de autenticación
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Cargar servicios
 async function loadServices() {
     try {
-        const response = await fetch(`/reservas/${clinicDomain}/api/services`);
+        const response = await fetch(`/reservas/${locationDomain}/api/services`);
         const services = await response.json();
         displayServices(services);
         return services;
@@ -121,7 +121,7 @@ function selectService(service) {
 // Cargar profesionales
 async function loadProfessionals(serviceId) {
     try {
-        const response = await fetch(`/reservas/${clinicDomain}/api/professionals/${serviceId}`);
+        const response = await fetch(`/reservas/${locationDomain}/api/professionals/${serviceId}`);
         const professionals = await response.json();
         displayProfessionals(professionals);
         return professionals;
@@ -193,7 +193,7 @@ async function loadTimeSlots() {
     }
     
     try {
-        const response = await fetch(`/reservas/${clinicDomain}/api/timeslots?service=${selectedService.id}&professional=${selectedProfessional.id}&date=${selectedDate}`);
+        const response = await fetch(`/reservas/${locationDomain}/api/timeslots?service=${selectedService.id}&professional=${selectedProfessional.id}&date=${selectedDate}`);
         const jsonResponse = await response.json();
         displayTimeSlots(jsonResponse);
     } catch (error) {

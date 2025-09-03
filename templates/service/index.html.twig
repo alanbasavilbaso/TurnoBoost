@@ -1,131 +1,155 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Servicios - {{ clinic.name }}{% endblock %}
+{% block title %}Servicios - {{ location.name }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link href="{{ asset('styles/service.css') }}" rel="stylesheet">
+{% endblock %}
 
 {% block body %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1 class="h3 mb-0">Servicios</h1>
-                <a href="{{ path('app_service_new') }}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Nuevo Servicio
-                </a>
-            </div>
-
-            {% for message in app.flashes('success') %}
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
-
-            {% for message in app.flashes('error') %}
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
-
-            <!-- Reemplazar el formulario de filtro actual (líneas 30-77) con esto: -->
-            <div class="card">
-                <div class="card-body">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-md-10">
-                            <div class="input-group">
-                                <span class="input-group-text">
-                                    <i class="fas fa-search"></i>
-                                </span>
-                                <input type="text" 
-                                       class="form-control" 
-                                       id="searchInput"
-                                       placeholder="Buscar por nombre o descripción...">
-                            </div>
+<div class="services-container">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <!-- Header Mejorado -->
+                <div class="services-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="h2 mb-2" style="color: #2c3e50; font-weight: 700;">✨ Servicios</h1>
+                            <p class="text-muted mb-0" style="font-size: 1.1rem;">Gestiona los servicios</p>
                         </div>
-                        <div class="col-md-2">
-                            <button type="button" class="btn btn-outline-secondary w-100" id="clearSearch">
-                                <i class="fas fa-times"></i> Limpiar
-                            </button>
-                        </div>
-                    </div>
-                    <div class="mt-2">
-                        <small class="text-muted" id="searchResults" style="display: none;">
-                            <i class="fas fa-info-circle"></i> 
-                            <span id="resultsCount">0</span> resultado(s) encontrado(s)
-                        </small>
+                        <!-- Botón Nuevo Servicio -->
+                        <button type="button" class="btn btn-success" data-entity="servicio" data-action="new">
+                            <i class="fas fa-plus me-2"></i>Nuevo Servicio
+                        </button>
                     </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <div class="card-body">
-                    {% if services|length > 0 %}
-                        {% if search %}
-                            <div class="mb-3">
-                                <small class="text-muted">
-                                    <i class="fas fa-info-circle"></i> 
-                                    Se encontraron {{ services|length }} resultado(s) para "{{ search }}"
-                                </small>
+                <!-- Flash Messages -->
+                {% for message in app.flashes('success') %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert" style="border-radius: 15px; border: none; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);">
+                        <i class="fas fa-check-circle me-2"></i>{{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+
+                {% for message in app.flashes('error') %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert" style="border-radius: 15px; border: none; box-shadow: 0 4px 15px rgba(220, 53, 69, 0.2);">
+                        <i class="fas fa-exclamation-circle me-2"></i>{{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+
+                {% if services is empty %}
+                    <!-- Estado Vacío Mejorado -->
+                    <div class="empty-state-modern">
+                        <div class="mb-4">
+                            <i class="fas fa-concierge-bell" style="font-size: 4rem; color: #28a745; margin-bottom: 1rem;"></i>
+                        </div>
+                        <h3 class="text-muted mb-3">🎯 No hay servicios registrados</h3>
+                        <p class="text-muted mb-4" style="font-size: 1.1rem;">Crea tu primer servicio para comenzar a ofrecer citas a tus clientes</p>
+                    </div>
+                {% else %}
+                    <!-- Tabla de Servicios Mejorada -->
+                    <div class="table-card">
+                        <div class="table-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h4 class="mb-0">
+                                    <i class="fas fa-concierge-bell me-2"></i>
+                                    ({{ services|length }})
+                                </h4>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="position-relative">
+                                        <i class="fas fa-search position-absolute" style="left: 1rem; top: 50%; transform: translateY(-50%); color: #6c757d; z-index: 10;"></i>
+                                        <input type="text" 
+                                               class="form-control search-input-header ps-5" 
+                                               id="searchInput"
+                                               placeholder="Buscar servicios...">
+                                    </div>
+                                </div>
                             </div>
-                        {% endif %}
-                        
+                        </div>
                         <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="table-light">
+                            <table class="table table-modern">
+                                <thead>
                                     <tr>
-                                        <th>Nombre</th>
-                                        <th>Duración</th>
-                                        <th>Precio</th>
-                                        <th>Estado</th>
-                                        <th class="d-none d-lg-block">Profesionales</th>
-                                        <th width="200">Acciones</th>
+                                        <th style="width: 35%;">Servicio</th>
+                                        <th class="hide-md" style="width: 15%;">Duración</th>
+                                        <th class="hide-md" style="width: 15%;">Precio</th>
+                                        <th style="width: 12%;">Estado</th>
+                                        <th class="hide-lg" style="width: 13%;">Profesionales</th>
+                                        <th style="width: 10%;">Acciones</th>
                                     </tr>
                                 </thead>
-                                <!-- Modificar el tbody para agregar atributos data (línea 95): -->
                                 <tbody id="servicesTableBody">
                                     {% for service in services %}
                                         <tr class="service-row" 
                                             data-name="{{ service.name|lower }}" 
                                             data-description="{{ service.description|default('')|lower }}">
                                             <td>
-                                                <strong>{{ service.name }}</strong>
-                                                {% if service.description %}
-                                                    <br><small class="text-muted">{{ service.description|slice(0, 100) }}{% if service.description|length > 100 %}...{% endif %}</small>
-                                                {% endif %}
+                                                <div class="service-info">
+                                                    <div class="service-avatar hide-md">
+                                                        <i class="fas fa-concierge-bell " style="font-size: 1.5rem;"></i>
+                                                    </div>
+                                                    <div class="service-details">
+                                                        <span>{{ service.name }}</span>
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td>{{ service.defaultDurationMinutes }} min</td>
-                                            <td>
+                                            <td class="hide-md">
+                                                <span class="duration-badge">
+                                                    <i class="fas fa-clock"></i>
+                                                    {{ service.defaultDurationMinutes }}m
+                                                </span>
+                                            </td>
+                                            <td class="hide-md">
                                                 {% if service.price %}
-                                                    ${{ service.priceAsFloat|number_format(2, ',', '.') }}
+                                                    <div class="price-display">${{ service.priceAsFloat|number_format(2, ',', '.') }}</div>
                                                 {% else %}
                                                     <span class="text-muted">Sin precio</span>
                                                 {% endif %}
                                             </td>
                                             <td>
                                                 {% if service.active %}
-                                                    <span class="badge bg-success">Activo</span>
+                                                    <span class="badge bg-success status-badge">Activo</span>
                                                 {% else %}
-                                                    <span class="badge bg-secondary">Inactivo</span>
+                                                    <span class="badge bg-secondary status-badge">Inactivo</span>
                                                 {% endif %}
                                             </td>
-                                            <td class="d-none d-lg-table">
-                                                <span class="badge bg-info">{{ service.professionalServices|length }}</span>
+                                            <td class="hide-lg">
+                                                <span class="professionals-count">
+                                                    <i class="fas fa-users"></i>
+                                                    {{ service.professionalServices|length }}
+                                                </span>
                                             </td>
                                             <td>
-                                                <div class="btn-group d-flex" role="group">
-                                                    <a href="{{ path('app_service_show', {'id': service.id}) }}" class="btn btn-sm btn-outline-primary">
+                                                <div class="action-buttons">
+                                                    <!-- En la tabla, cambiar los botones de acción -->
+                                                    <button type="button" class="btn btn-sm action-btn view-btn" 
+                                                            data-service-id="{{ service.id }}"
+                                                            data-service-name="{{ service.name }}"
+                                                            data-service-description="{{ service.description }}"
+                                                            data-service-duration="{{ service.defaultDurationMinutes }}"
+                                                            data-service-price="{{ service.priceAsFloat }}"
+                                                            data-service-active="{{ service.active ? 'true' : 'false' }}"
+                                                            data-service-professionals="{{ service.professionalServices|length }}"
+                                                            title="Ver detalles">
                                                         <i class="fas fa-eye"></i>
-                                                    </a>
-                                                    <a href="{{ path('app_service_edit', {'id': service.id}) }}" class="btn btn-sm btn-outline-secondary">
+                                                    </button>
+                                                    
+                                                    <button type="button" class="btn btn-sm action-btn edit-btn"
+                                                            data-service-id="{{ service.id }}"
+                                                            title="Editar">
                                                         <i class="fas fa-edit"></i>
-                                                    </a>
-                                                    <button class="btn btn-sm btn-outline-danger" type="button" 
-                                                            data-bs-toggle="modal" 
-                                                            data-bs-target="#deleteModal" 
-                                                            data-service-id="{{ service.id }}" 
-                                                            data-service-name="{{ service.name }}" 
-                                                            data-delete-url="{{ path('app_service_delete', {'id': service.id}) }}" 
-                                                            data-csrf-token="{{ csrf_token('delete' ~ service.id) }}">
+                                                    </button>
+                                                    
+                                                    <button type="button" class="btn btn-sm action-btn delete-btn"
+                                                            data-service-id="{{ service.id }}"
+                                                            data-service-name="{{ service.name }}"
+                                                            data-delete-url="{{ path('app_service_delete', {'id': service.id}) }}"
+                                                            data-csrf-token="{{ csrf_token('delete' ~ service.id) }}"
+                                                            title="Eliminar">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </div>
@@ -135,70 +159,18 @@
                                 </tbody>
                             </table>
                         </div>
-                    {% else %}
-                        <div class="text-center py-5">
-                            {% if search %}
-                                <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                                <h5 class="text-muted">No se encontraron servicios</h5>
-                                <p class="text-muted">No hay servicios que coincidan con "{{ search }}".</p>
-                                <a href="{{ path('app_service_index') }}" class="btn btn-outline-primary">
-                                    <i class="fas fa-arrow-left"></i> Ver todos los servicios
-                                </a>
-                            {% else %}
-                                <i class="fas fa-concierge-bell fa-3x text-muted mb-3"></i>
-                                <h5 class="text-muted">No hay servicios registrados</h5>
-                                <p class="text-muted">Comience creando su primer servicio.</p>
-                                <a href="{{ path('app_service_new') }}" class="btn btn-primary">
-                                    <i class="fas fa-plus"></i> Crear Servicio
-                                </a>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal de confirmación para eliminar -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-0">
-                <h5 class="modal-title" id="deleteModalLabel">
-                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                    Confirmar Eliminación
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center py-4">
-                <div class="mb-3">
-                    <i class="fas fa-trash-alt fa-3x text-danger mb-3"></i>
-                </div>
-                <h6 class="mb-3">¿Está seguro de eliminar el servicio?</h6>
-                <p class="text-muted mb-0">
-                    <strong id="serviceName"></strong>
-                </p>
-                <small class="text-muted">Esta acción no se puede deshacer.</small>
-            </div>
-            <div class="modal-footer border-0 justify-content-center">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-1"></i> Cancelar
-                </button>
-                <form id="deleteForm" method="post" style="display: inline;">
-                    <input type="hidden" name="_token" id="csrfToken">
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-trash me-1"></i> Eliminar
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
+
 
 {% block javascripts %}
     {{ parent() }}
-    <script src="{{ asset('scripts/service-modal.js') }}"></script>
     <script src="{{ asset('scripts/service-index.js') }}"></script>
+    <script src="{{ asset('scripts/service-modal.js') }}"></script>
 {% endblock %}

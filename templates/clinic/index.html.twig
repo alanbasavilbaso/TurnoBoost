@@ -1,15 +1,15 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Mis Clínicas - TurnoBoost{% endblock %}
+{% block title %}Locales - TurnoBoost{% endblock %}
 
 {% block body %}
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1 class="h3">Mis Clínicas</h1>
-                <a href="{{ path('clinic_new') }}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Nueva Clínica
+                <h1 class="h3">Mis Locales</h1>
+                <a href="{{ path('location_new') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Nuevo Local
                 </a>
             </div>
 
@@ -27,43 +27,43 @@
                 </div>
             {% endfor %}
 
-            {% if clinics is empty %}
+            {% if locations is empty %}
                 <div class="text-center py-5">
                     <div class="mb-4">
                         <i class="fas fa-hospital fa-4x text-muted"></i>
                     </div>
-                    <h4 class="text-muted">No tienes clínicas registradas</h4>
-                    <p class="text-muted mb-4">Crea tu primera clínica para comenzar a gestionar turnos</p>
-                    <a href="{{ path('clinic_new') }}" class="btn btn-primary btn-lg">
-                        <i class="fas fa-plus"></i> Crear Primera Clínica
+                    <h4 class="text-muted">No tienes locales registrados</h4>
+                    <p class="text-muted mb-4">Crea tu primer local para comenzar a gestionar turnos</p>
+                    <a href="{{ path('location_new') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus"></i> Crear Primer Local
                     </a>
                 </div>
             {% else %}
                 <div class="row">
-                    {% for clinic in clinics %}
+                    {% for location in locations %}
                         <div class="col-md-6 col-lg-4 mb-4">
                             <div class="card h-100 shadow-sm">
                                 <div class="card-body">
-                                    <h5 class="card-title">{{ clinic.name }}</h5>
+                                    <h5 class="card-title">{{ location.name }}</h5>
                                     <p class="card-text text-muted">
-                                        <i class="fas fa-map-marker-alt"></i> {{ clinic.address|slice(0, 50) }}{% if clinic.address|length > 50 %}...{% endif %}
+                                        <i class="fas fa-map-marker-alt"></i> {{ location.address|slice(0, 50) }}{% if location.address|length > 50 %}...{% endif %}
                                     </p>
                                     <p class="card-text">
                                         <small class="text-muted">
-                                            <i class="fas fa-phone"></i> {{ clinic.phone }}<br>
-                                            <i class="fas fa-envelope"></i> {{ clinic.email }}
+                                            <i class="fas fa-phone"></i> {{ location.phone }}<br>
+                                            <i class="fas fa-envelope"></i> {{ location.email }}
                                         </small>
                                     </p>
                                 </div>
                                 <div class="card-footer bg-transparent">
                                     <div class="btn-group w-100" role="group">
-                                        <a href="{{ path('clinic_show', {'id': clinic.id}) }}" class="btn btn-outline-primary btn-sm">
+                                        <a href="{{ path('location_show', {'id': location.id}) }}" class="btn btn-outline-primary btn-sm">
                                             <i class="fas fa-eye"></i> Ver
                                         </a>
-                                        <a href="{{ path('clinic_edit', {'id': clinic.id}) }}" class="btn btn-outline-secondary btn-sm">
+                                        <a href="{{ path('location_edit', {'id': location.id}) }}" class="btn btn-outline-secondary btn-sm">
                                             <i class="fas fa-edit"></i> Editar
                                         </a>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ clinic.id }}">
+                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ location.id }}">
                                             <i class="fas fa-trash"></i> Eliminar
                                         </button>
                                     </div>
@@ -72,7 +72,7 @@
                         </div>
 
                         <!-- Modal de confirmación de eliminación -->
-                        <div class="modal fade" id="deleteModal{{ clinic.id }}" tabindex="-1">
+                        <div class="modal fade" id="deleteModal{{ location.id }}" tabindex="-1">    
                             <div class="modal-dialog">
                                 <div class="modal-content">
                                     <div class="modal-header">
@@ -80,13 +80,13 @@
                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                     </div>
                                     <div class="modal-body">
-                                        <p>¿Estás seguro de que deseas eliminar la clínica <strong>{{ clinic.name }}</strong>?</p>
+                                        <p>¿Estás seguro de que deseas eliminar el local <strong>{{ location.name }}</strong>?</p>
                                         <p class="text-danger"><small>Esta acción no se puede deshacer.</small></p>
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                        <form method="post" action="{{ path('clinic_delete', {'id': clinic.id}) }}" style="display: inline;">
-                                            <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ clinic.id) }}">
+                                        <form method="post" action="{{ path('location_delete', {'id': location.id}) }}" style="display: inline;">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ location.id) }}">
                                             <button type="submit" class="btn btn-danger">Eliminar</button>
                                         </form>
                                     </div>

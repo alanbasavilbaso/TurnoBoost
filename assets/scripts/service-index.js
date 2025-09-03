@@ -1,13 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
-    const clearButton = document.getElementById('clearSearch');
-    const searchResults = document.getElementById('searchResults');
-    const resultsCount = document.getElementById('resultsCount');
     const serviceRows = document.querySelectorAll('.service-row');
     const tableBody = document.getElementById('servicesTableBody');
     const noResultsMessage = document.getElementById('noResultsMessage');
-    
-    let totalServices = serviceRows.length;
     
     // Crear mensaje de "no hay resultados" si no existe
     if (!noResultsMessage) {
@@ -44,12 +39,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Mostrar/ocultar mensaje de resultados
         if (term === '') {
-            searchResults.style.display = 'none';
             document.getElementById('noResultsMessage').style.display = 'none';
         } else {
-            searchResults.style.display = 'block';
-            resultsCount.textContent = visibleCount;
-            
             // Mostrar mensaje de "no hay resultados" si es necesario
             if (visibleCount === 0) {
                 document.getElementById('noResultsMessage').style.display = '';
@@ -66,13 +57,6 @@ document.addEventListener('DOMContentLoaded', function() {
         debounceTimer = setTimeout(() => {
             filterServices(this.value);
         }, 150); // 150ms de delay
-    });
-    
-    // Botón limpiar
-    clearButton.addEventListener('click', function() {
-        searchInput.value = '';
-        filterServices('');
-        searchInput.focus();
     });
     
     // Enfocar el campo de búsqueda al cargar

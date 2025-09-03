@@ -57,10 +57,9 @@ class TimeSlot
         $existingAppointments = $this->getExistingAppointments($professional, $date);
         
         // Obtener bloques de horario activos
-        $scheduleBlocks = $this->getActiveScheduleBlocks($professional, $date);
-        
+        // $scheduleBlocks = $this->getActiveScheduleBlocks($professional, $date);
+       
         $slots = [];
-        
         foreach ($availabilities as $availability) {
             $availabilitySlots = $this->generateSlotsForAvailability(
                 $availability,
@@ -68,7 +67,7 @@ class TimeSlot
                 $date,
                 $interval,
                 $existingAppointments,
-                $scheduleBlocks
+                $scheduleBlocks = []
             );
             
             $slots = array_merge($slots, $availabilitySlots);
@@ -167,20 +166,20 @@ class TimeSlot
             (int)$availability->getEndTime()->format('i')
         );
         
-        // Si es hoy, no permitir slots en el pasado
-        $now = new \DateTime();
-        if ($date->format('Y-m-d') === $now->format('Y-m-d')) {
-            $startTime = max($startTime, $now);
-            // Redondear al siguiente intervalo
-            $minutes = (int)$startTime->format('i');
-            $roundedMinutes = ceil($minutes / $interval) * $interval;
-            if ($roundedMinutes >= 60) {
-                $startTime->modify('+1 hour');
-                $startTime->setTime((int)$startTime->format('H'), 0);
-            } else {
-                $startTime->setTime((int)$startTime->format('H'), $roundedMinutes);
-            }
-        }
+        // // Si es hoy, no permitir slots en el pasado
+        // $now = new \DateTime();
+        // if ($date->format('Y-m-d') === $now->format('Y-m-d')) {
+        //     $startTime = max($startTime, $now);
+        //     // Redondear al siguiente intervalo
+        //     $minutes = (int)$startTime->format('i');
+        //     $roundedMinutes = ceil($minutes / $interval) * $interval;
+        //     if ($roundedMinutes >= 60) {
+        //         $startTime->modify('+1 hour');
+        //         $startTime->setTime((int)$startTime->format('H'), 0);
+        //     } else {
+        //         $startTime->setTime((int)$startTime->format('H'), $roundedMinutes);
+        //     }
+        // }
         
         // Ordenar citas existentes por hora de inicio
         usort($existingAppointments, function($a, $b) {

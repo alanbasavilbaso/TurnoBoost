@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}{{ clinic.name }} - TurnoBoost{% endblock %}
+{% block title %}{{ location.name }} - TurnoBoost{% endblock %}
 
 {% block body %}
 <div class="container mt-4">
@@ -8,13 +8,13 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1 class="h3">
-                    <i class="fas fa-hospital"></i> {{ clinic.name }}
+                    <i class="fas fa-hospital"></i> {{ location.name }}
                 </h1>
                 <div>
-                    <a href="{{ path('clinic_edit', {'id': clinic.id}) }}" class="btn btn-primary">
+                    <a href="{{ path('location_edit', {'id': location.id}) }}" class="btn btn-primary">
                         <i class="fas fa-edit"></i> Editar
                     </a>
-                    <a href="{{ path('clinic_index') }}" class="btn btn-secondary">
+                    <a href="{{ path('location_index') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Volver
                     </a>
                 </div>
@@ -29,34 +29,34 @@
                         <div class="card-body">
                             <dl class="row">
                                 <dt class="col-sm-3">Nombre:</dt>
-                                <dd class="col-sm-9">{{ clinic.name }}</dd>
+                                <dd class="col-sm-9">{{ location.name }}</dd>
 
                                 <dt class="col-sm-3">Dirección:</dt>
-                                <dd class="col-sm-9">{{ clinic.address }}</dd>
+                                <dd class="col-sm-9">{{ location.address }}</dd>
 
                                 <dt class="col-sm-3">Teléfono:</dt>
                                 <dd class="col-sm-9">
-                                    <a href="tel:{{ clinic.phone }}" class="text-decoration-none">
-                                        <i class="fas fa-phone"></i> {{ clinic.phone }}
+                                    <a href="tel:{{ location.phone }}" class="text-decoration-none">
+                                        <i class="fas fa-phone"></i> {{ location.phone }}
                                     </a>
                                 </dd>
 
                                 <dt class="col-sm-3">Email:</dt>
                                 <dd class="col-sm-9">
-                                    <a href="mailto:{{ clinic.email }}" class="text-decoration-none">
-                                        <i class="fas fa-envelope"></i> {{ clinic.email }}
+                                    <a href="mailto:{{ location.email }}" class="text-decoration-none">
+                                        <i class="fas fa-envelope"></i> {{ location.email }}
                                     </a>
                                 </dd>
 
                                 <dt class="col-sm-3">Creada por:</dt>
-                                <dd class="col-sm-9">{{ clinic.createdBy.name }}</dd>
+                                <dd class="col-sm-9">{{ location.createdBy.name }}</dd>
 
                                 <dt class="col-sm-3">Fecha de creación:</dt>
-                                <dd class="col-sm-9">{{ clinic.createdAt|date('d/m/Y H:i') }}</dd>
+                                <dd class="col-sm-9">{{ location.createdAt|date('d/m/Y H:i') }}</dd>
 
-                                {% if clinic.updatedAt %}
+                                {% if location.updatedAt %}
                                     <dt class="col-sm-3">Última actualización:</dt>
-                                    <dd class="col-sm-9">{{ clinic.updatedAt|date('d/m/Y H:i') }}</dd>
+                                    <dd class="col-sm-9">{{ location.updatedAt|date('d/m/Y H:i') }}</dd>
                                 {% endif %}
                             </dl>
                         </div>
@@ -71,19 +71,19 @@
                         <div class="card-body">
                             <div class="text-center">
                                 <div class="mb-3">
-                                    <h4 class="text-primary">{{ clinic.users|length }}</h4>
+                                    <h4 class="text-primary">{{ location.users|length }}</h4>
                                     <small class="text-muted">Usuarios</small>
                                 </div>
                                 <div class="mb-3">
-                                    <h4 class="text-success">{{ clinic.professionals|length }}</h4>
+                                    <h4 class="text-success">{{ location.professionals|length }}</h4>
                                     <small class="text-muted">Profesionales</small>
                                 </div>
                                 <div class="mb-3">
-                                    <h4 class="text-info">{{ clinic.patients|length }}</h4>
+                                    <h4 class="text-info">{{ location.patients|length }}</h4>
                                     <small class="text-muted">Pacientes</small>
                                 </div>
                                 <div class="mb-3">
-                                    <h4 class="text-warning">{{ clinic.services|length }}</h4>
+                                    <h4 class="text-warning">{{ location.services|length }}</h4>
                                     <small class="text-muted">Servicios</small>
                                 </div>
                             </div>

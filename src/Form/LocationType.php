@@ -2,7 +2,7 @@
 
 namespace App\Form;
 
-use App\Entity\Clinic;
+use App\Entity\Location;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\Extension\Core\Type\TelType;
@@ -15,25 +15,25 @@ use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Constraints\Regex;
 
-class ClinicType extends AbstractType
+class LocationType extends AbstractType
 {
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
             ->add('name', TextType::class, [
-                'label' => 'Nombre de la Clínica',
+                'label' => 'Nombre de la Ubicación',
                 'attr' => [
                     'class' => 'form-control',
-                    'placeholder' => 'Ingrese el nombre de la clínica'
+                    'placeholder' => 'Ingrese el nombre de la ubicación'
                 ]
                 // Eliminé las constraints
             ])
             ->add('domain', TextType::class, [
                 'label' => 'Dominio de Reservas',
-                'help' => 'URL única para que tus clientes reserven turnos online. Solo letras minúsculas, números y guiones. Ejemplo: mi-clinica',
+                'help' => 'URL única para que tus clientes reserven turnos online. Solo letras minúsculas, números y guiones. Ejemplo: mi-ubicacion',
                 'attr' => [
                     'class' => 'form-control',
-                    'placeholder' => 'mi-clinica-belleza',
+                    'placeholder' => 'mi-ubicacion-belleza',
                     'pattern' => '[a-z0-9-]+',
                     'title' => 'Solo letras minúsculas, números y guiones'
                 ],
@@ -48,7 +48,6 @@ class ClinicType extends AbstractType
                     'placeholder' => 'Ingrese la dirección completa',
                     'rows' => 3
                 ]
-                // Eliminé las constraints
             ])
             ->add('phone', TelType::class, [
                 'label' => 'Teléfono',
@@ -62,7 +61,7 @@ class ClinicType extends AbstractType
                 'label' => 'Email',
                 'attr' => [
                     'class' => 'form-control',
-                    'placeholder' => 'clinica@ejemplo.com'
+                    'placeholder' => 'MiLocal@ejemplo.com'
                 ]
                 // Eliminé las constraints
             ]);
@@ -72,9 +71,8 @@ class ClinicType extends AbstractType
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
-            'data_class' => Clinic::class,
-            'validation_groups' => false, // Deshabilita la validación automática
+            'data_class' => Location::class,
+            'is_edit' => false
         ]);
-        // Eliminé la opción submit_label ya que no se usa
     }
 }

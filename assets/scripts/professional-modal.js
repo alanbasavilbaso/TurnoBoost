@@ -1,93 +1,100 @@
-// Función para encontrar el botón de eliminar correcto
-function findDeleteButton(element) {
-    // Si el elemento clickeado es el botón mismo
-    if (element.hasAttribute('data-professional-id')) {
-        return element;
+class ProfessionalModal {
+    constructor(options) {
+        this.modalId = options.modalId;
+        this.formContainerId = options.formContainerId;
+        this.baseUrl = options.baseUrl;
+        this.createUrl = options.createUrl;
+        this.editUrl = options.editUrl;
+        
+        this.modal = document.getElementById(this.modalId);
+        this.formContainer = document.getElementById(this.formContainerId);
+        this.modalTitle = document.getElementById('modalTitle');
+        
+        this.initializeEventListeners();
     }
     
-    // Si el elemento clickeado es un hijo (como el ícono <i>), buscar el botón padre
-    let parent = element.parentElement;
-    while (parent && !parent.hasAttribute('data-professional-id')) {
-        parent = parent.parentElement;
-    }
-    
-    return parent;
-}
-
-// Función para resetear el modal
-function resetModal() {
-    const modal = document.getElementById('deleteModal');
-    const form = modal.querySelector('form');
-    const professionalName = modal.querySelector('#professionalName');
-    const csrfInput = modal.querySelector('input[name="_token"]');
-    
-    if (form) {
-        form.action = '';
-    }
-    if (professionalName) {
-        professionalName.textContent = '';
-    }
-    if (csrfInput) {
-        csrfInput.value = '';
-    }
-}
-
-// Función para configurar el modal con datos del botón
-function configureModalFromButton(button) {
-    if (!button) {
-        return false;
-    }
-    
-    const professionalId = button.getAttribute('data-professional-id');
-    const professionalName = button.getAttribute('data-professional-name');
-    const deleteUrl = button.getAttribute('data-delete-url');
-    const csrfToken = button.getAttribute('data-csrf-token');
-    
-    const modal = document.getElementById('deleteModal');
-    const form = modal.querySelector('form');
-    const professionalNameElement = modal.querySelector('#professionalName');
-    const csrfInput = modal.querySelector('input[name="_token"]');
-    
-    if (form && deleteUrl) {
-        form.action = deleteUrl;
-    }
-    
-    if (professionalNameElement && professionalName) {
-        professionalNameElement.textContent = professionalName;
-    }
-    
-    if (csrfInput && csrfToken) {
-        csrfInput.value = csrfToken;
-    }
-    
-    return true;
-}
-
-// Configurar event listeners cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('deleteModal');
-    
-    if (modal) {
-        // Reset cuando el modal se cierra completamente
-        modal.addEventListener('hidden.bs.modal', function() {
-            resetModal();
+    initializeEventListeners() {
+        // Escuchar clicks en botones que abren el modal
+        document.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-bs-target="#' + this.modalId + '"]');
+            if (target) {
+                const action = target.dataset.action;
+                const professionalId = target.dataset.professionalId;
+                
+                if (action === 'new') {
+                    this.openCreateModal();
+                } else if (action === 'edit' && professionalId) {
+                    this.openEditModal(professionalId);
+                }
+            }
+        });
+        
+        // Limpiar modal al cerrarse
+        this.modal.addEventListener('hidden.bs.modal', () => {
+            this.clearModal();
         });
     }
     
-    // Event delegation para los botones de eliminar
-    document.addEventListener('click', function(event) {
-        // Buscar el botón de eliminar correcto
-        const deleteButton = findDeleteButton(event.target);
-        
-        if (deleteButton && deleteButton.hasAttribute('data-bs-toggle') && deleteButton.getAttribute('data-bs-target') === '#deleteModal') {
-            // Configurar el modal antes de que se abra
-            const configured = configureModalFromButton(deleteButton);
-            
-            if (!configured) {
-                event.preventDefault();
-                event.stopPropagation();
-                return false;
-            }
+    openCreateModal() {
+        this.modalTitle.textContent = 'Nuevo Profesional';
+        this.loadForm(this.createUrl);
+    }
+    
+    openEditModal(professionalId) {
+        this.modalTitle.textContent = 'Editar Profesional';
+        const editUrl = this.editUrl.replace('__ID__', professionalId);
+        this.loadForm(editUrl);
+    }
+    
+    showLoading(show) {
+        const loadingEl = document.getElementById('loading-spinner');
+        if (loadingEl) {
+            loadingEl.style.display = show ? 'block' : 'none';
         }
-    });
-});
+    }
+    
+    loadForm(url) {
+        this.showLoading();
+        
+        fetch(url)
+            .then(response => response.text())
+            .then(html => {
+                this.formContainer.innerHTML = html;
+                this.initializeFormComponents();
+            })
+            .catch(error => {
+                console.error('Error loading form:', error);
+                this.showError('Error al cargar el formulario');
+            });
+    }
+    
+    initializeFormComponents() {
+        setTimeout(() => {
+            // Inicializar WizardManager solo si existe el contenedor
+            if (document.querySelector('.wizard-container') && typeof WizardManager !== 'undefined' && WizardManager.init) {
+                WizardManager.init();
+            }
+            
+            // Inicializar formulario de profesional una sola vez
+            if (typeof initializeProfessionalForm === 'function') {
+                initializeProfessionalForm();
+            }
+            
+            // Verificar servicios disponibles (solo log, no inicializar)
+            const $servicesSelect = $('#services-select');
+            if ($servicesSelect.length) {
+                const optionsCount = $servicesSelect.find('option').length;
+                console.log(`Select de servicios encontrado con ${optionsCount} opciones`);
+            }
+        }, 200);
+    }
+    
+    clearModal() {
+        this.modal.find('.modal-body').empty();
+        
+        // Resetear flags de inicialización cuando se cierra el modal
+        if (typeof resetFormInitialization === 'function') {
+            resetFormInitialization();
+        }
+    }
+}

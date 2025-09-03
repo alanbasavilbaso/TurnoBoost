@@ -24,7 +24,7 @@ class ProfessionalType extends AbstractType
 {
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
-        $clinic = $options['clinic'] ?? null;
+        $location = $options['location'] ?? null;
         $isEdit = $options['is_edit'] ?? false;
         
         $builder
@@ -176,14 +176,14 @@ class ProfessionalType extends AbstractType
         }
         
         // En el método buildForm, después del campo 'services':
-        if ($clinic) {
+        if ($location) {
             $builder->add('services', EntityType::class, [
                 'class' => Service::class,
-                'query_builder' => function ($repository) use ($clinic) {
+                'query_builder' => function ($repository) use ($location) {
                     return $repository->createQueryBuilder('s')
-                        ->andWhere('s.clinic = :clinic')
+                        ->andWhere('s.location = :location')
                         ->andWhere('s.active = :active')
-                        ->setParameter('clinic', $clinic)
+                        ->setParameter('location', $location)
                         ->setParameter('active', true)
                         ->orderBy('s.name', 'ASC');
                 },
@@ -224,12 +224,12 @@ class ProfessionalType extends AbstractType
     {
         $resolver->setDefaults([
             'data_class' => Professional::class,
-            'clinic' => null,
+            'location' => null,
             'is_edit' => false,
             'allow_extra_fields' => true, // Permitir campos extra
         ]);
         
-        $resolver->setAllowedTypes('clinic', ['null', 'App\Entity\Clinic']);
+        $resolver->setAllowedTypes('location', ['null', 'App\Entity\Location']);
         $resolver->setAllowedTypes('is_edit', 'bool');
     }
 }
