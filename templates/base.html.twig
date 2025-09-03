@@ -120,8 +120,8 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-users"></i> Pacientes
+                        <a class="nav-link" {{ app.request.get('_route') starts with 'app_person' ? 'active' : '' }}" href="{{ path('app_person_index') }}">
+                            <i class="fas fa-users"></i> Clientes
                         </a>
                     </li>
                 </ul>
