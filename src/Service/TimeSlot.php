@@ -25,9 +25,8 @@ class TimeSlot
         Professional $professional, 
         Service $service, 
         \DateTime $date,
-        int $slotInterval = null
+        ?int $excludeAppointmentId = null
     ): array {
-        $interval = $slotInterval ?? $this->defaultSlotInterval;
         $dayOfWeek = (int)$date->format('N') - 1; // 0=Lunes, 6=Domingo
         
         // Obtener el ProfessionalService para usar la duración efectiva
@@ -53,8 +52,8 @@ class TimeSlot
             return [];
         }
         
-        // Obtener citas existentes para optimizar consultas
-        $existingAppointments = $this->getExistingAppointments($professional, $date);
+        // Obtener citas existentes para optimizar consultas (excluyendo el turno actual si se está editando)
+        $existingAppointments = $this->getExistingAppointments($professional, $date, $excludeAppointmentId);
         
         // Obtener bloques de horario activos
         // $scheduleBlocks = $this->getActiveScheduleBlocks($professional, $date);
@@ -65,7 +64,7 @@ class TimeSlot
                 $availability,
                 $professionalService, // Pasar ProfessionalService en lugar de Service
                 $date,
-                $interval,
+                $professionalService->getEffectiveDuration(), // Usar la duración del ProfessionalService
                 $existingAppointments,
                 $scheduleBlocks = []
             );
@@ -105,7 +104,7 @@ class TimeSlot
     /**
      * Obtiene las citas existentes del profesional para una fecha específica
      */
-    private function getExistingAppointments(Professional $professional, \DateTime $date): array
+    private function getExistingAppointments(Professional $professional, \DateTime $date, ?int $excludeAppointmentId = null): array
     {
         $startOfDay = clone $date;
         $startOfDay->setTime(0, 0, 0);
@@ -113,15 +112,21 @@ class TimeSlot
         $endOfDay = clone $date;
         $endOfDay->setTime(23, 59, 59);
         
-        return $this->entityManager->getRepository(Appointment::class)
+        $queryBuilder = $this->entityManager->getRepository(Appointment::class)
             ->createQueryBuilder('a')
             ->where('a.professional = :professional')
             ->andWhere('a.scheduledAt BETWEEN :start AND :end')
             ->setParameter('professional', $professional)
             ->setParameter('start', $startOfDay)
-            ->setParameter('end', $endOfDay)
-            ->getQuery()
-            ->getResult();
+            ->setParameter('end', $endOfDay);
+            
+        // Excluir el turno actual si se está editando
+        if ($excludeAppointmentId) {
+            $queryBuilder->andWhere('a.id != :excludeId')
+                        ->setParameter('excludeId', $excludeAppointmentId);
+        }
+            
+        return $queryBuilder->getQuery()->getResult();
     }
     
     /**
@@ -166,21 +171,6 @@ class TimeSlot
             (int)$availability->getEndTime()->format('i')
         );
         
-        // // Si es hoy, no permitir slots en el pasado
-        // $now = new \DateTime();
-        // if ($date->format('Y-m-d') === $now->format('Y-m-d')) {
-        //     $startTime = max($startTime, $now);
-        //     // Redondear al siguiente intervalo
-        //     $minutes = (int)$startTime->format('i');
-        //     $roundedMinutes = ceil($minutes / $interval) * $interval;
-        //     if ($roundedMinutes >= 60) {
-        //         $startTime->modify('+1 hour');
-        //         $startTime->setTime((int)$startTime->format('H'), 0);
-        //     } else {
-        //         $startTime->setTime((int)$startTime->format('H'), $roundedMinutes);
-        //     }
-        // }
-        
         // Ordenar citas existentes por hora de inicio
         usort($existingAppointments, function($a, $b) {
             return $a->getScheduledAt() <=> $b->getScheduledAt();
@@ -197,8 +187,7 @@ class TimeSlot
                 $isAvailable = $this->isSlotAvailable(
                     $current,
                     $slotEnd,
-                    $existingAppointments,
-                    $scheduleBlocks
+                    $existingAppointments
                 );
                 
                 // Solo agregar slots disponibles
@@ -296,8 +285,7 @@ class TimeSlot
     private function isSlotAvailable(
         \DateTime $slotStart,
         \DateTime $slotEnd,
-        array $existingAppointments,
-        array $scheduleBlocks
+        array $existingAppointments
     ): bool {
         // Verificar conflictos con citas existentes
         foreach ($existingAppointments as $appointment) {
@@ -305,20 +293,63 @@ class TimeSlot
             $appointmentEnd = clone $appointmentStart;
             $appointmentEnd->modify('+' . $appointment->getDurationMinutes() . ' minutes');
             
-            // Verificar solapamiento
+            // Verificar si hay solapamiento
             if ($slotStart < $appointmentEnd && $slotEnd > $appointmentStart) {
                 return false;
             }
         }
         
-        // Verificar conflictos con bloques de horario
-        foreach ($scheduleBlocks as $block) {
-            if ($slotStart < $block->getEndDatetime() && $slotEnd > $block->getStartDatetime()) {
-                return false;
-            }
+        return true;
+    }
+
+    /**
+     * Verifica si un slot específico está disponible para una fecha y hora
+     */
+    public function isSlotAvailableForDateTime(
+        Professional $professional,
+        Service $service,
+        \DateTime $dateTime,
+        ?int $excludeAppointmentId = null
+    ): bool {
+        $dayOfWeek = (int)$dateTime->format('N') - 1;
+        
+        // Obtener el ProfessionalService
+        $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
+            ->findOneBy([
+                'professional' => $professional,
+                'service' => $service
+            ]);
+        
+        if (!$professionalService) {
+            return false;
         }
         
-        return true;
+        // Verificar si el servicio está disponible para este profesional en este día
+        if (!$professionalService->isAvailableOnDay($dayOfWeek)) {
+            return false;
+        }
+        
+        // Verificar si el profesional está disponible en este horario
+        $time = $dateTime->format('H:i:s');
+        if (!$professional->isAvailableAt($dayOfWeek, $dateTime)) {
+            return false;
+        }
+        
+        // Obtener citas existentes para esta fecha
+        $date = clone $dateTime;
+        $date->setTime(0, 0, 0);
+        $existingAppointments = $this->getExistingAppointments($professional, $date, $excludeAppointmentId);
+        
+        // Calcular el tiempo de fin del slot
+        $slotEndTime = clone $dateTime;
+        $slotEndTime->modify('+' . $professionalService->getEffectiveDuration() . ' minutes');
+        
+        // Verificar disponibilidad del slot
+        return $this->isSlotAvailable(
+            $dateTime,
+            $slotEndTime,
+            $existingAppointments
+        );
     }
     
     /**

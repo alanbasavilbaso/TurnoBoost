@@ -34,7 +34,7 @@ class AppointmentService
     /**
      * Crea una nueva cita con todas las validaciones necesarias
      */
-    public function createAppointment(array $data, Location $location): Appointment
+    public function createAppointment(array $data, Location $location, bool $force = false): Appointment
     {
         // Validar y obtener datos básicos
         $appointmentData = $this->validateAndParseData($data);
@@ -47,13 +47,15 @@ class AppointmentService
         $duration = $this->calculateDuration($professional, $service);
         $endTime = (clone $appointmentData['scheduledAt'])->add(new \DateInterval('PT' . $duration . 'M'));
         
-        // Ejecutar todas las validaciones
-        $this->validateAppointment(
-            $appointmentData['scheduledAt'],
-            $endTime,
-            $professional,
-            $location
-        );
+        // Ejecutar todas las validaciones (solo si no se fuerza)
+        if (!$force) {
+            $this->validateAppointment(
+                $appointmentData['scheduledAt'],
+                $endTime,
+                $professional,
+                $location
+            );
+        }
         
         // Crear o buscar paciente
         $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $location);
@@ -92,6 +94,9 @@ class AppointmentService
             } else {
                 $scheduledAt = new \DateTime($data['date'] . ' ' . $data['time']);
             }
+        } elseif (isset($data['date']) && isset($data['appointment_time_from'])) {
+            // Manejar el formato del frontend: date + appointment_time_from
+            $scheduledAt = new \DateTime($data['date'] . ' ' . $data['appointment_time_from']);
         } else {
             throw new \InvalidArgumentException('Fecha y hora son requeridas');
         }

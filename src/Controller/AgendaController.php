@@ -6,6 +6,7 @@ use App\Entity\Appointment;
 use App\Entity\Patient;
 use App\Entity\Professional;
 use App\Entity\ProfessionalService;
+use App\Entity\Location;
 use App\Entity\Service;
 use App\Entity\StatusEnum;
 use App\Repository\ProfessionalRepository;
@@ -143,8 +144,7 @@ class AgendaController extends AbstractController
                 ),
                 'start' => $appointment->getScheduledAt()->format('Y-m-d\\TH:i:s'),
                 'end' => $endTime->format('Y-m-d\\TH:i:s'),
-                'backgroundColor' => $this->getStatusBorderColor($appointment->getStatus()),
-                'borderColor' => $this->getStatusBorderColor($appointment->getStatus()),
+                'backgroundColor' => $this->getStatusColor($appointment->getStatus()),
                 'extendedProps' => [
                     'professionalId' => $appointment->getProfessional()->getId(),
                     'professionalName' => $appointment->getProfessional()->getName(),
@@ -162,36 +162,7 @@ class AgendaController extends AbstractController
 
         return new JsonResponse($events);
     }
-
-    #[Route('/available-slots', name: 'app_agenda_available_slots', methods: ['GET'])]
-    public function getAvailableSlots(Request $request): JsonResponse
-    {
-        $professionalId = $request->query->get('professional') ?? $request->query->get('professional_id');
-        $serviceId = $request->query->get('service') ?? $request->query->get('service_id');
-        $date = new \DateTime($request->query->get('date', 'today'));
-        $interval = (int)$request->query->get('interval', 30);
-
-        if (!$professionalId || !$serviceId) {
-            return new JsonResponse(['error' => 'Professional y Service son requeridos'], 400);
-        }
-
-        $professional = $this->professionalRepository->find($professionalId);
-        $service = $this->serviceRepository->find($serviceId);
-        
-        if (!$professional || !$service) {
-            return new JsonResponse(['error' => 'Professional o Service no encontrado'], 404);
-        }
-
-        $slots = $this->timeSlotService->generateAvailableSlots(
-            $professional, 
-            $service, 
-            $date, 
-            $interval
-        );
-        
-        return new JsonResponse($slots);
-    }
-
+    
     #[Route('/business-hours', name: 'app_agenda_business_hours', methods: ['GET'])]
     public function getBusinessHours(Request $request): JsonResponse {
         $user = $this->getUser();
@@ -368,8 +339,11 @@ class AgendaController extends AbstractController
         $user = $this->getUser();
         $location = $user->getOwnedLocations()->first();
         
+        // Obtener el parámetro force del request
+        $force = $data['force'] ?? false;
+        
         try {
-            $appointment = $appointmentService->createAppointment($data, $location);
+            $appointment = $appointmentService->createAppointment($data, $location, $force);
             
             return new JsonResponse([
                 'success' => true,
@@ -377,15 +351,22 @@ class AgendaController extends AbstractController
             ]);
             
         } catch (\InvalidArgumentException $e) {
+            // Detectar errores de disponibilidad para el modal
+            $isAvailabilityError = str_contains($e->getMessage(), 'disponibilidad') || 
+                                 str_contains($e->getMessage(), 'superpone') ||
+                                 str_contains($e->getMessage(), 'ocupado');
+            
             return new JsonResponse([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_type' => $isAvailabilityError ? 'availability' : 'validation'
             ], 400);
         } catch (\Throwable $e) {
             error_log('Error creating appointment: ' . $e->getMessage());
             return new JsonResponse([
                 'success' => false,
-                'error' => 'Ha ocurrido un error interno. Por favor, inténtelo nuevamente.'
+                'error' => 'Ha ocurrido un error interno. Por favor, inténtelo nuevamente.',
+                'error_type' => 'server'
             ], 500);
         }
     }
@@ -443,7 +424,7 @@ class AgendaController extends AbstractController
     }
 
     #[Route('/appointment/{id}', name: 'app_agenda_update_appointment', methods: ['PUT'])]
-    public function updateAppointment(Request $request, int $id, AuditService $auditService): JsonResponse
+    public function updateAppointment(Request $request, int $id, AuditService $auditService, AppointmentService $appointmentService): JsonResponse
     {
         $appointment = $this->entityManager->getRepository(Appointment::class)->find($id);
         
@@ -461,6 +442,9 @@ class AgendaController extends AbstractController
         $user = $this->getUser();
         $location = $user->getOwnedLocations()->first();
     
+        // Obtener el parámetro force del request
+        $force = $data['force'] ?? false;
+
         try {
             // CAPTURAR VALORES ANTERIORES ANTES DE MODIFICAR
             $oldValues = [
@@ -489,6 +473,9 @@ class AgendaController extends AbstractController
                     // Si time es solo la hora
                     $scheduledAt = new \DateTime($data['date'] . ' ' . $data['time']);
                 }
+            } elseif (isset($data['date']) && isset($data['appointment_time_from'])) {
+                // Manejar el formato del frontend: date + appointment_time_from
+                $scheduledAt = new \DateTime($data['date'] . ' ' . $data['appointment_time_from']);
             } else {
                 throw new \InvalidArgumentException('Fecha y hora son requeridas');
             }
@@ -516,6 +503,22 @@ class AgendaController extends AbstractController
                 
                 $duration = $professionalService ? $professionalService->getEffectiveDuration() : $service->getDurationMinutes();
                 $appointment->setDurationMinutes($duration);
+            }
+            
+            // VALIDAR DISPONIBILIDAD SOLO SI NO SE FUERZA
+            if (!$force) {
+                // Calcular hora de finalización
+                $endTime = (clone $scheduledAt)->add(new \DateInterval('PT' . $appointment->getDurationMinutes() . 'M'));
+                
+                // Usar el AppointmentService para validar disponibilidad
+                // Necesitamos excluir la cita actual de la validación de conflictos
+                $this->validateAppointmentUpdate(
+                    $scheduledAt,
+                    $endTime,
+                    $appointment->getProfessional(),
+                    $location,
+                    $appointment->getId()
+                );
             }
             
             // Preparar datos del paciente
@@ -548,16 +551,6 @@ class AgendaController extends AbstractController
             // Actualizar notas si se proporcionan
             if (isset($data['notes'])) {
                 $appointment->setNotes($data['notes']);
-            }
-            
-            // AGREGAR ESTE CÓDIGO PARA MANEJAR EL STATUS
-            if (isset($data['status'])) {
-                try {
-                    $statusEnum = \App\Entity\StatusEnum::from($data['status']);
-                    $appointment->setStatus($statusEnum);
-                } catch (\ValueError $e) {
-                    throw new \InvalidArgumentException('Estado inválido: ' . $data['status']);
-                }
             }
             
             // Actualizar timestamp
@@ -615,72 +608,25 @@ class AgendaController extends AbstractController
                 ]
             ]);
             
-        } catch (\Exception $e) {
+        } catch (\InvalidArgumentException $e) {
+            // Detectar errores de disponibilidad para el modal
+            $isAvailabilityError = str_contains($e->getMessage(), 'disponibilidad') || 
+                                 str_contains($e->getMessage(), 'superpone') ||
+                                 str_contains($e->getMessage(), 'ocupado');
+            
             return new JsonResponse([
-                'success' => false, 
-                'message' => 'Error al actualizar el turno: ' . $e->getMessage()
+                'success' => false,
+                'error' => $e->getMessage(),
+                'error_type' => $isAvailabilityError ? 'availability' : 'validation'
             ], 400);
+        } catch (\Throwable $e) {
+            error_log('Error updating appointment: ' . $e->getMessage());
+            return new JsonResponse([
+                'success' => false,
+                'error' => 'Ha ocurrido un error interno. Por favor, inténtelo nuevamente.',
+                'error_type' => 'server'
+            ], 500);
         }
-    }
-
-    private function generateAvailableSlots(Professional $professional, Service $service, \DateTime $date): array
-    {
-        $slots = [];
-        $dayOfWeek = (int)$date->format('N') - 1; // 0=Lunes, 6=Domingo
-        
-        // Obtener disponibilidad del profesional para este día
-        $availabilities = $professional->getAvailabilities()->filter(
-            fn($availability) => $availability->getWeekday() === $dayOfWeek
-        );
-        
-        foreach ($availabilities as $availability) {
-            $startTime = clone $date;
-            $startTime->setTime(
-                (int)$availability->getStartTime()->format('H'),
-                (int)$availability->getStartTime()->format('i')
-            );
-            
-            $endTime = clone $date;
-            $endTime->setTime(
-                (int)$availability->getEndTime()->format('H'),
-                (int)$availability->getEndTime()->format('i')
-            );
-            
-            // Generar slots cada 30 minutos
-            $current = clone $startTime;
-            while ($current < $endTime) {
-                $slotEnd = clone $current;
-                $slotEnd->modify('+' . $service->getDurationMinutes() . ' minutes');
-                
-                if ($slotEnd <= $endTime && !$this->isSlotOccupied($professional, $current, $slotEnd)) {
-                    $slots[] = [
-                        'time' => $current->format('H:i'),
-                        'datetime' => $current->format('c'),
-                        'available' => true
-                    ];
-                }
-                
-                $current->modify('+30 minutes');
-            }
-        }
-        
-        return $slots;
-    }
-    
-    private function isSlotOccupied(Professional $professional, \DateTime $start, \DateTime $end): bool
-    {
-        $appointments = $this->entityManager->getRepository(Appointment::class)
-            ->createQueryBuilder('a')
-            ->where('a.professional = :professional')
-            ->andWhere('a.scheduledAt < :end')
-            ->andWhere('DATE_ADD(a.scheduledAt, a.durationMinutes, \'MINUTE\') > :start')
-            ->setParameter('professional', $professional)
-            ->setParameter('start', $start)
-            ->setParameter('end', $end)
-            ->getQuery()
-            ->getResult();
-            
-        return count($appointments) > 0;
     }
     
     private function getAppointmentTitle(Appointment $appointment): string
@@ -694,25 +640,11 @@ class AgendaController extends AbstractController
     private function getStatusColor(\App\Entity\StatusEnum $status): string
     {
         return match($status) {
-            \App\Entity\StatusEnum::SCHEDULED => '#007bff',
-            \App\Entity\StatusEnum::CONFIRMED => '#28a745',
+            \App\Entity\StatusEnum::SCHEDULED => '#0dcaf0',
+            \App\Entity\StatusEnum::CONFIRMED => '#0d6efd',
             \App\Entity\StatusEnum::CANCELLED => '#dc3545',
-            \App\Entity\StatusEnum::COMPLETED => '#6c757d',
-            default => '#007bff'
-        };
-    }
-    
-    /**
-     * Obtiene el color del borde basado en el estado del turno
-     */
-    private function getStatusBorderColor(\App\Entity\StatusEnum $status): string
-    {
-        return match($status) {
-            \App\Entity\StatusEnum::SCHEDULED => '#0056b3',    // Azul más oscuro
-            \App\Entity\StatusEnum::CONFIRMED => '#1e7e34',    // Verde más oscuro
-            \App\Entity\StatusEnum::CANCELLED => '#bd2130',    // Rojo más oscuro
-            \App\Entity\StatusEnum::COMPLETED => '#545b62',    // Gris más oscuro
-            default => '#0056b3'
+            \App\Entity\StatusEnum::COMPLETED => '#198754',
+            default => '#ffc107'
         };
     }
 
@@ -932,5 +864,159 @@ class AgendaController extends AbstractController
         }
 
         return new JsonResponse($professionalData);
+    }
+    
+    #[Route('/validate-slot', name: 'agenda_validate_slot', methods: ['GET'])]
+    public function validateSlot(Request $request): JsonResponse
+    {
+        $professionalId = $request->query->get('professional');
+        $serviceId = $request->query->get('service');
+        $date = $request->query->get('date');
+        $time = $request->query->get('time');
+        $appointmentId = $request->query->get('appointmentId');
+        
+        if (!$professionalId || !$serviceId || !$date || !$time) {
+            return new JsonResponse([
+                'available' => false,
+                'message' => 'Parámetros faltantes'
+            ], 400);
+        }
+        
+        try {
+            $user = $this->getUser();
+            $location = $user->getOwnedLocations()->first();
+            
+            if (!$location) {
+                return new JsonResponse([
+                    'available' => false,
+                    'message' => 'No se encontró el local'
+                ], 404);
+            }
+            
+            $professional = $this->professionalRepository->find($professionalId);
+            $service = $this->serviceRepository->find($serviceId);
+            
+            if (!$professional || !$service) {
+                return new JsonResponse([
+                    'available' => false,
+                    'message' => 'Profesional o servicio no encontrado'
+                ], 404);
+            }
+            
+            // Verificar que el profesional pertenece al local
+            if ($professional->getLocation() !== $location) {
+                return new JsonResponse([
+                    'available' => false,
+                    'message' => 'Profesional no válido'
+                ], 403);
+            }
+            
+            $dateTime = new \DateTime($date . ' ' . $time);
+            
+            // Usar el método optimizado para validar el slot específico
+            $available = $this->timeSlotService->isSlotAvailableForDateTime(
+                $professional,
+                $service,
+                $dateTime,
+                $appointmentId ? (int)$appointmentId : null
+            );
+            
+            return new JsonResponse([
+                'available' => $available,
+                'message' => $available ? 
+                    'Horario disponible' : 
+                    'El profesional no trabaja en este horario o ya está ocupado'
+            ]);
+            
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'available' => false,
+                'message' => 'Error al verificar disponibilidad: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Valida que no haya conflictos con otras citas al actualizar un turno
+     */
+    private function validateAppointmentUpdate(
+        \DateTime $scheduledAt,
+        \DateTime $endTime,
+        Professional $professional,
+        Location $location,
+        int $appointmentId
+    ): void {
+        // Validar disponibilidad del profesional
+        $this->validateProfessionalAvailabilityForUpdate($scheduledAt, $endTime, $professional);
+        
+        // Validar conflictos de horarios excluyendo el turno actual
+        $this->validateTimeConflictsForUpdate($scheduledAt, $endTime, $professional, $location, $appointmentId);
+    }
+
+    /**
+     * Valida que el horario esté dentro de la disponibilidad del profesional
+     */
+    private function validateProfessionalAvailabilityForUpdate(
+        \DateTime $scheduledAt,
+        \DateTime $endTime,
+        Professional $professional
+    ): void {
+        $dayOfWeek = (int)$scheduledAt->format('N') - 1; // 0=Lunes, 6=Domingo
+        $availabilities = $professional->getAvailabilitiesForWeekday($dayOfWeek);
+        
+        $isWithinAvailability = false;
+        $startTimeSlot = $scheduledAt->format('H:i:s');
+        $endTimeSlot = $endTime->format('H:i:s');
+        
+        foreach ($availabilities as $availability) {
+            if ($startTimeSlot >= $availability->getStartTime()->format('H:i:s') && 
+                $endTimeSlot <= $availability->getEndTime()->format('H:i:s')) {
+                $isWithinAvailability = true;
+                break;
+            }
+        }
+        
+        if (!$isWithinAvailability) {
+            throw new \InvalidArgumentException(
+                'El horario seleccionado está fuera de la disponibilidad del profesional.'
+            );
+        }
+    }
+
+    /**
+     * Valida que no haya conflictos con otras citas excluyendo el turno actual
+     */
+    private function validateTimeConflictsForUpdate(
+        \DateTime $scheduledAt,
+        \DateTime $endTime,
+        Professional $professional,
+        Location $location,
+        int $appointmentId
+    ): void {
+        $conflictCount = $this->entityManager->createQueryBuilder()
+            ->select('COUNT(a.id)')
+            ->from(Appointment::class, 'a')
+            ->where('a.professional = :professional')
+            ->andWhere('a.location = :location')
+            ->andWhere('a.id != :appointmentId') // Excluir el turno actual
+            ->andWhere('a.status NOT IN (:cancelledStatus)')
+            ->andWhere(
+                '(a.scheduledAt < :endTime AND ' .
+                'DATE_ADD(a.scheduledAt, a.durationMinutes, \'MINUTE\') > :startTime)'
+            )
+            ->setParameter('professional', $professional)
+            ->setParameter('location', $location)
+            ->setParameter('appointmentId', $appointmentId)
+            ->setParameter('cancelledStatus', [StatusEnum::CANCELLED])
+            ->setParameter('startTime', $scheduledAt)
+            ->setParameter('endTime', $endTime)
+            ->getQuery()
+            ->getSingleScalarResult();
+        
+        if ($conflictCount > 0) {
+            throw new \InvalidArgumentException(
+                'El horario seleccionado se superpone con una cita existente. Por favor, seleccione otro horario.'
+            );
+        }
     }
 }

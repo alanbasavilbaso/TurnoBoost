@@ -515,11 +515,6 @@ class AgendaManager {
                     if (apt.backgroundColor) {
                         aptBlock.style.backgroundColor = apt.backgroundColor;
                     }
-                    if (apt.borderColor) {
-                        aptBlock.style.borderColor = apt.borderColor;
-                        aptBlock.style.borderWidth = '2px';
-                        aptBlock.style.borderStyle = 'solid';
-                    }
 
                     // Mostrar información completa del turno
                     aptBlock.innerHTML = `
@@ -730,15 +725,17 @@ class AgendaManager {
         if (modalProfessional) {
             modalProfessional.addEventListener('change', (e) => {
                 this.loadProfessionalServices(e.target.value);
-                this.loadAvailableSlots();
+                this.validateTimeSlotAvailability();
             });
         }
         
         // Cambio de servicio en modal
         const modalService = document.getElementById('modal-service');
         if (modalService) {
-            modalService.addEventListener('change', () => {
-                this.loadAvailableSlots();
+            modalService.addEventListener('change', (e) => {
+                this.validateTimeSlotAvailability();
+                // Mostrar selects de hora de fin si hay un servicio seleccionado
+                this.toggleTimeUntilContainer(e.target.value);
             });
         }
         
@@ -746,10 +743,162 @@ class AgendaManager {
         const appointmentDate = document.getElementById('appointment-date');
         if (appointmentDate) {
             appointmentDate.addEventListener('change', () => {
-                this.loadAvailableSlots();
+                this.validateTimeSlotAvailability();
+            });
+        }
+
+        // Validación de horas y disponibilidad
+        const hourFromSelect = document.getElementById('appointment-hour-from');
+        const minuteFromSelect = document.getElementById('appointment-minute-from');
+        const hourTo = document.getElementById('appointment-hour-to');
+        const minuteTo = document.getElementById('appointment-minute-to');
+        
+        if (hourFromSelect) {
+            hourFromSelect.addEventListener('change', () => {
+                this.calculateEndTimeFromService(); // Recalcular hora de fin
+                this.validateTimeRange();
+                this.validateTimeSlotAvailability();
+            });
+        }
+        if (minuteFromSelect) {
+            minuteFromSelect.addEventListener('change', () => {
+                this.calculateEndTimeFromService(); // Recalcular hora de fin
+                this.validateTimeRange();
+                this.validateTimeSlotAvailability();
+            });
+        }
+        if (hourTo) {
+            hourTo.addEventListener('change', () => {
+                this.validateTimeRange();
+            });
+        }
+        if (minuteTo) {
+            minuteTo.addEventListener('change', () => {
+                this.validateTimeRange();
             });
         }
     }
+
+    // Nueva función para calcular hora de fin basada en la duración del servicio
+    calculateEndTimeFromService() {
+        const serviceSelect = document.getElementById('modal-service');
+        const hourFrom = document.getElementById('appointment-hour-from');
+        const minuteFrom = document.getElementById('appointment-minute-from');
+        const hourTo = document.getElementById('appointment-hour-to');
+        const minuteTo = document.getElementById('appointment-minute-to');
+        
+        if (!serviceSelect || !serviceSelect.value || !hourFrom || !minuteFrom || !hourTo || !minuteTo) {
+            return;
+        }
+        
+        // Extraer la duración del texto del servicio seleccionado
+        const selectedOption = serviceSelect.options[serviceSelect.selectedIndex];
+        const serviceText = selectedOption.textContent;
+        const durationMatch = serviceText.match(/\((\d+)min/);
+        
+        if (!durationMatch) {
+            console.warn('No se pudo extraer la duración del servicio');
+            return;
+        }
+        
+        const serviceDurationMinutes = parseInt(durationMatch[1]);
+        const fromHour = parseInt(hourFrom.value) || 0;
+        const fromMinute = parseInt(minuteFrom.value) || 0;
+        
+        // Calcular hora de fin
+        const totalFromMinutes = fromHour * 60 + fromMinute;
+        const totalToMinutes = totalFromMinutes + serviceDurationMinutes;
+        
+        const toHour = Math.floor(totalToMinutes / 60);
+        const toMinute = totalToMinutes % 60;
+        
+        // Validar que no exceda las 24 horas
+        if (toHour >= 24) {
+            hourTo.value = '23';
+            minuteTo.value = '59';
+        } else {
+            hourTo.value = toHour.toString().padStart(2, '0');
+            minuteTo.value = toMinute.toString().padStart(2, '0');
+        }
+    }
+
+    // Nueva función para mostrar/ocultar contenedor de hora de fin
+    toggleTimeUntilContainer(serviceId) {
+        const timeUntilContainer = document.getElementById('time-until-container');
+        if (timeUntilContainer) {
+            if (serviceId && serviceId !== '') {
+                timeUntilContainer.classList.remove('hide');
+                // Calcular hora de fin basada en la duración del servicio
+                this.calculateEndTimeFromService();
+            } else {
+                timeUntilContainer.classList.add('hide');
+            }
+        }
+    }
+
+    // Nueva función para establecer hora de fin por defecto
+    setDefaultEndTime() {
+        const hourTo = document.getElementById('appointment-hour-to');
+        const minuteTo = document.getElementById('appointment-minute-to');
+        const hourFrom = document.getElementById('appointment-hour-from');
+        const minuteFrom = document.getElementById('appointment-minute-from');
+        
+        if (hourTo && minuteTo && hourFrom && minuteFrom) {
+            // Si no hay valores seleccionados, usar hora de inicio + 1 hora
+            if (!hourTo.value || !minuteTo.value) {
+                const fromHour = parseInt(hourFrom.value) || 9;
+                const fromMinute = parseInt(minuteFrom.value) || 0;
+                
+                let toHour = fromHour + 1;
+                let toMinute = fromMinute;
+                
+                // Ajustar si pasa de 23 horas
+                if (toHour > 23) {
+                    toHour = 23;
+                    toMinute = 59;
+                }
+                
+                hourTo.value = toHour.toString().padStart(2, '0');
+                minuteTo.value = toMinute.toString().padStart(2, '0');
+            }
+        }
+    }
+
+    // Nueva función para validar rango de tiempo
+    validateTimeRange() {
+        const hourFrom = document.getElementById('appointment-hour-from');
+        const minuteFrom = document.getElementById('appointment-minute-from');
+        const hourTo = document.getElementById('appointment-hour-to');
+        const minuteTo = document.getElementById('appointment-minute-to');
+        
+        if (hourFrom && minuteFrom && hourTo && minuteTo) {
+            const fromTime = parseInt(hourFrom.value) * 60 + parseInt(minuteFrom.value);
+            const toTime = parseInt(hourTo.value) * 60 + parseInt(minuteTo.value);
+            
+            const timeUntilContainer = document.getElementById('time-until-container');
+            let errorElement = document.getElementById('time-validation-error');
+            
+            if (toTime <= fromTime) {
+                // Mostrar error
+                if (!errorElement) {
+                    errorElement = document.createElement('div');
+                    errorElement.id = 'time-validation-error';
+                    errorElement.className = 'text-danger small mt-1';
+                    errorElement.textContent = 'La hora de fin debe ser posterior a la hora de inicio';
+                    timeUntilContainer.appendChild(errorElement);
+                }
+                return false;
+            } else {
+                // Remover error si existe
+                if (errorElement) {
+                    errorElement.remove();
+                }
+                return true;
+            }
+        }
+        return true;
+    }
+
 
     async loadAppointments() {
         try {
@@ -832,32 +981,40 @@ class AgendaManager {
         // Manejar selección de fecha para crear nueva cita
         const startTime = info.start;
         const endTime = info.end;
+        const startTimeUtc = this.toUTC(startTime);
         
+        // alan
+        const professionals = this.getSelectedProfessionals();
         // Formatear la fecha para el modal
         const appointmentDate = startTime.toISOString().split('T')[0];
-        const appointmentTime = startTime.toTimeString().slice(0, 5);
+        const appointmentTime = startTimeUtc.toTimeString().slice(0, 5);
         
         // Abrir el modal de turnos con los datos de fecha y hora
         this.openAppointmentModal({
             isNew: true,
             date: appointmentDate,
             time: appointmentTime,
-            start: startTime,
-            end: endTime
+            start: startTimeUtc,
+            end: endTime,
+            professionalId: professionals.length === 1? professionals[0] : null 
         });
         
         // Limpiar la selección del calendario
         this.calendar.unselect();
     }
 
+    toUTC(date) {
+        return new Date(date.getTime() + (date.getTimezoneOffset() * 60000));
+    }
+
     handleEventClick(info) {
         console.log('Event clicked:', info.event);
-        
+
         const eventData = {
             id: info.event.id,
             title: info.event.title,
-            start: info.event.start,
-            end: info.event.end,
+            start: this.toUTC(info.event.start),
+            end: this.toUTC(info.event.end),
             professionalId: info.event.extendedProps?.professionalId,
             serviceId: info.event.extendedProps?.serviceId,
             status: info.event.extendedProps?.status,
@@ -877,6 +1034,7 @@ class AgendaManager {
         console.log('showAppointmentDetails', eventData);
         // Remover tooltip existente si hay uno
         this.removeExistingTooltip();
+        this.clearTimeValidationMessage();
         // Formatear fecha en formato DD/MM/YYYY
         const startDate = new Date(eventData.start);
         const formattedDate = startDate.toLocaleDateString('es-ES', {
@@ -923,6 +1081,7 @@ class AgendaManager {
         tooltip.setAttribute('data-testid', 'detail-tooltip-container');
         const statusBadge = this.getStatusText(data.status);
         const statusClass = this.getStatusBadgeClass(data.status);
+        
         tooltip.innerHTML = `
             <div class="tooltip-header">
                 <div class="status-container">
@@ -972,8 +1131,46 @@ class AgendaManager {
                     </div>
                     ` : ''}
                 </div>
+                
+                <!-- Selectores de Estado con Colores -->
+                <div class="status-selectors">
+                    <div class="status-label">Cambiar estado:</div>
+                    <div class="status-options">
+                        <button class="status-option bg-info text-white ${data.status === 'scheduled' ? 'active' : ''}" 
+                                data-status="scheduled" 
+                                title="Reservado">
+                            <i class="fas fa-calendar-plus"></i>
+                            <span>Reservado</span>
+                        </button>
+                        <button class="status-option bg-primary text-white ${data.status === 'confirmed' ? 'active' : ''}" 
+                                data-status="confirmed" 
+                                title="Confirmado">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Confirmado</span>
+                        </button>
+                        <button class="status-option bg-success text-white ${data.status === 'completed' ? 'active' : ''}" 
+                                data-status="completed" 
+                                title="Completado"">
+                            <i class="fas fa-check-double"></i>
+                            <span>Completado</span>
+                        </button>
+                        <button class="status-option bg-danger text-white ${data.status === 'cancelled' ? 'active' : ''}" 
+                                data-status="cancelled" 
+                                title="Cancelado">
+                            <i class="fas fa-times-circle"></i>
+                            <span>Cancelado</span>
+                        </button>
+                        <button class="status-option bg-warning text-white ${data.status === 'no_show' ? 'active' : ''}" 
+                                data-status="no_show" 
+                                title="No se presentó">
+                            <i class="fas fa-user-times"></i>
+                            <span>No se presentó</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         `;
+        
         // Guardar datos del turno en el tooltip para las acciones
         tooltip._appointmentData = data.appointmentData;
         return tooltip;
@@ -1035,8 +1232,33 @@ class AgendaManager {
                 'Esta acción no se puede deshacer.',
                 'fas fa-trash',
                 'btn-danger',
-                () => this.updateAppointmentStatus(tooltip._appointmentData.id, 'cancelled')
+                () => {
+                    this.updateAppointmentStatus(tooltip._appointmentData.id, 'cancelled');
+                    this.loadAppointments();
+                }
             );
+        });
+        // Configurar selectores de estado
+        const statusOptions = tooltip.querySelectorAll('.status-option');
+        statusOptions.forEach(option => {
+            option.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const newStatus = option.getAttribute('data-status');
+                const appointmentId = tooltip._appointmentData.id;
+                // Actualizar visualmente el estado activo
+                statusOptions.forEach(opt => opt.classList.remove('active'));
+                option.classList.add('active');
+                // Actualizar el estado en el servidor
+                try {
+                    await this.updateAppointmentStatus(appointmentId, newStatus);
+                    this.showAlert('Estado actualizado correctamente', 'success');
+                    this.removeTooltip(tooltip);
+                    this.loadAppointments();
+                } catch (error) {
+                    console.error('Error updating status:', error);
+                    this.showAlert('Error al actualizar el estado', 'error');
+                }
+            });
         });
         // Cerrar al hacer clic fuera del tooltip
         setTimeout(() => {
@@ -1164,22 +1386,24 @@ class AgendaManager {
 
     getStatusText(status) {
         const statusMap = {
-            'scheduled': 'Programado',
+            'scheduled': 'Reservado',
             'confirmed': 'Confirmado',
             'completed': 'Completado',
-            'cancelled': 'Cancelado'
+            'cancelled': 'Cancelado',
+            'no_show': 'No se presentó'
         };
-        return statusMap[status] || 'Desconocido';
+        return statusMap[status] || 'No se presentó';
     }
 
     getStatusBadgeClass(status) {
         const classMap = {
-            'scheduled': 'bg-primary',
-            'confirmed': 'bg-success',
-            'completed': 'bg-secondary',
-            'cancelled': 'bg-danger'
+            'scheduled': 'bg-info',
+            'confirmed': 'bg-primary',
+            'completed': 'bg-success',
+            'cancelled': 'bg-danger',
+            'no_show': 'bg-warning'
         };
-        return classMap[status] || 'bg-secondary';
+        return classMap[status] || 'bg-primary';
     }
 
     async updateAppointmentStatus(appointmentId, newStatus) {
@@ -1198,7 +1422,7 @@ class AgendaManager {
                 this.showAlert('Estado del turno actualizado correctamente', 'success');
                 
                 // Cerrar modal y recargar eventos
-                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal'))?.hide();
                 await this.loadAppointments();
             } else {
                 throw new Error('Error al actualizar el estado');
@@ -1222,6 +1446,7 @@ class AgendaManager {
         
         // Limpiar completamente los campos del paciente
         this.clearPatientFields();
+        this.clearTimeValidationMessage();
         
         const appointmentId = document.getElementById('appointment-id');
         if (appointmentId) {
@@ -1242,6 +1467,25 @@ class AgendaManager {
                 const appointmentDate = document.getElementById('appointment-date');
                 if (appointmentDate) {
                     appointmentDate.value = data.date;
+                }
+                // Preseleccionar hora y minuto si se proporcionan
+                if (data.time) {
+                    const [hours, minutes] = data.time.split(':');
+                    const hourFrom = document.getElementById('appointment-hour-from');
+                    const minuteFrom = document.getElementById('appointment-minute-from');
+                    if (hourFrom && hours) {
+                        hourFrom.value = hours.padStart(2, '0');
+                    }
+                    if (minuteFrom && minutes) {
+                        minuteFrom.value = minutes.padStart(2, '0');
+                    }
+                }
+                if (data.professionalId) {
+                    const profesional = document.getElementById('modal-professional');
+                    if (profesional) {
+                        profesional.value = data.professionalId;
+                        this.loadProfessionalServices(data.professionalId);
+                    }
                 }
             } else {
                 modalLabel.textContent = 'Editar Turno';
@@ -1311,6 +1555,18 @@ class AgendaManager {
         if (patientBirthDateField) {
             patientBirthDateField.value = '';
         }
+        
+        // Ocultar contenedor de hora de fin
+        const timeUntilContainer = document.getElementById('time-until-container');
+        if (timeUntilContainer) {
+            timeUntilContainer.classList.add('hide');
+        }
+        
+        // Remover mensaje de error si existe
+        const errorElement = document.getElementById('time-validation-error');
+        if (errorElement) {
+            errorElement.remove();
+        }
     }
 
     async populateModalFields(data) {
@@ -1326,17 +1582,39 @@ class AgendaManager {
         
         document.getElementById('appointment-date').value = startDate.toISOString().split('T')[0];
         
-        // Extraer y establecer la hora
+        // Extraer y establecer la hora de inicio
         const timeStr = startDate.toTimeString().slice(0, 5); // HH:MM
-        const appointmentTime = document.getElementById('appointment-time');
-        if (appointmentTime) {
-            // Crear opción temporal con la hora del turno existente
-            appointmentTime.innerHTML = '';
-            const option = document.createElement('option');
-            option.value = timeStr;
-            option.textContent = timeStr;
-            option.selected = true;
-            appointmentTime.appendChild(option);
+        const [hour, minute] = timeStr.split(':');
+        
+        const hourFromSelect = document.getElementById('appointment-hour-from');
+        const minuteFromSelect = document.getElementById('appointment-minute-from');
+        
+        if (hourFromSelect && minuteFromSelect) {
+            // En lugar de reemplazar las opciones, solo seleccionar la correcta
+            hourFromSelect.value = hour.padStart(2, '0');
+            minuteFromSelect.value = minute.padStart(2, '0');
+        }
+        
+        // Establecer hora de fin si existe
+        if (data.end) {
+            const endDate = new Date(data.end);
+            const endTimeStr = endDate.toTimeString().slice(0, 5);
+            const [endHour, endMinute] = endTimeStr.split(':');
+            
+            const hourToSelect = document.getElementById('appointment-hour-to');
+            const minuteToSelect = document.getElementById('appointment-minute-to');
+            
+            if (hourToSelect && minuteToSelect) {
+                // Solo seleccionar la opción correcta, no reemplazar todas las opciones
+                hourToSelect.value = endHour.padStart(2, '0');
+                minuteToSelect.value = endMinute.padStart(2, '0');
+                
+                // Mostrar contenedor de hora de fin
+                const timeUntilContainer = document.getElementById('time-until-container');
+                if (timeUntilContainer) {
+                    timeUntilContainer.classList.remove('hide');
+                }
+            }
         }
         
         document.getElementById('appointment-notes').value = data.notes || '';
@@ -1344,6 +1622,10 @@ class AgendaManager {
         // Cargar servicios del profesional y esperar a que termine
         if (data.professionalId) {
             await this.loadProfessionalServices(data.professionalId, data.serviceId);
+            // Mostrar contenedor de hora de fin si hay servicio
+            if (data.serviceId) {
+                this.toggleTimeUntilContainer(data.serviceId);
+            }
         }
         
         // Buscar y seleccionar paciente
@@ -1351,10 +1633,10 @@ class AgendaManager {
             this.selectPatient(data.patientId, data.patientName, data.patientEmail, data.patientPhone);
         }
         
-        // Ahora cargar horarios disponibles
-        if (data.professionalId && data.serviceId && startDate) {
-            this.loadAvailableSlots();
-        }
+        // // Ahora cargar horarios disponibles
+        // if (data.professionalId && data.serviceId && startDate) {
+        //     this.loadAvailableSlots();
+        // }
     }
 
     async loadProfessionalServices(professionalId, selectedServiceId = null) {
@@ -1381,8 +1663,11 @@ class AgendaManager {
             });
             
             // Si hay un servicio seleccionado y una fecha, cargar horarios disponibles
-            if (selectedServiceId && document.getElementById('appointment-date').value) {
-                this.loadAvailableSlots();
+            if (selectedServiceId && 
+                document.getElementById('appointment-date').value && 
+                document.getElementById('appointment-hour-from').value && 
+                document.getElementById('appointment-minute-from').value) {
+                this.validateTimeSlotAvailability();
             }
             
         } catch (error) {
@@ -1390,32 +1675,63 @@ class AgendaManager {
         }
     }
 
-    async loadAvailableSlots() {
+    // Reemplazar la función loadAvailableSlots() actual con esta nueva implementación
+    async validateTimeSlotAvailability() {
         const professionalId = document.getElementById('modal-professional').value;
         const serviceId = document.getElementById('modal-service').value;
         const date = document.getElementById('appointment-date').value;
+        const hourFrom = document.getElementById('appointment-hour-from').value;
+        const minuteFrom = document.getElementById('appointment-minute-from').value;
+        const appointmentId = document.getElementById('appointment-id').value; // Obtener ID del turno si existe
         
-        if (!professionalId || !serviceId || !date) return;
-        console.log('----');
+        // Limpiar mensajes previos
+        this.clearTimeValidationMessage();
+        
+        // Solo validar si tenemos todos los datos necesarios
+        if (!professionalId || !serviceId || !date || !hourFrom || !minuteFrom) {
+            return;
+        }
+        
+        const selectedTime = `${hourFrom}:${minuteFrom}`;
+        
         try {
-            const response = await fetch(`/agenda/available-slots?professional=${professionalId}&service=${serviceId}&date=${date}`);
-            const slots = await response.json();
+            let url = `/agenda/validate-slot?professional=${professionalId}&service=${serviceId}&date=${date}&time=${selectedTime}`;
+            // Agregar appointmentId si existe (modo edición)
+            if (appointmentId) {
+                url += `&appointmentId=${appointmentId}`;
+            }
+            const response = await fetch(url);
+            const result = await response.json();
             
-            const timeSelect = document.getElementById('appointment-time');
-            timeSelect.innerHTML = '<option value="">Seleccionar horario...</option>';
-            
-            slots.forEach(slot => {
-                if (slot.available) { // Solo mostrar slots disponibles
-                    const option = document.createElement('option');
-                    option.value = slot.datetime; // Usar datetime para el value
-                    option.textContent = `${slot.time} - ${slot.end_time}`; // Usar time y end_time
-                    timeSelect.appendChild(option);
-                }
-            });
+            if (!result.available) {
+                this.showTimeValidationMessage(
+                    result.message,
+                    'warning'
+                );
+            }
             
         } catch (error) {
-            console.error('Error loading available slots:', error);
+            console.error('Error validating time slot:', error);
         }
+    }
+
+    clearTimeValidationMessage() {
+        const messageContainer = document.getElementById('time-validation-message');
+        if (!messageContainer) return;
+
+        messageContainer.classList.add('hide');
+    }
+    
+    showTimeValidationMessage(message, type = 'warning') {
+        // Buscar o crear contenedor para el mensaje
+        let messageContainer = document.getElementById('time-validation-message');
+        
+        messageContainer.className = `alert alert-${type} mt-2`;
+        messageContainer.innerHTML = `
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            ${message}
+        `;
+        messageContainer.classList.remove('hide');
     }
 
     async searchPatients(query) {
@@ -1482,71 +1798,306 @@ class AgendaManager {
         document.getElementById('patient-results').innerHTML = '';
     }
 
-    async saveAppointment() {
-        const formData = new FormData(document.getElementById('appointment-form'));
+    /**
+     * Valida el formulario de citas
+     */
+    validateAppointmentForm() {
+        const requiredFields = [
+            { id: 'appointment-date', name: 'Fecha' },
+            { id: 'appointment-hour-from', name: 'Hora desde' },
+            { id: 'appointment-minute-from', name: 'Minuto desde' },
+            { id: 'modal-professional', name: 'Profesional' },
+            { id: 'modal-service', name: 'Servicio' }
+        ];
+
+        // Validar campos requeridos
+        for (const field of requiredFields) {
+            const element = document.getElementById(field.id);
+            if (!element || !element.value.trim()) {
+                this.showAlert(`El campo ${field.name} es requerido`, 'error');
+                element?.focus();
+                return false;
+            }
+        }
+
+        // Validar que se haya seleccionado un paciente o se esté creando uno nuevo
+        const selectedPatientId = document.getElementById('selected-patient-id').value;
+        const newPatientForm = document.getElementById('new-patient-form');
+        const isNewPatientVisible = newPatientForm.style.display !== 'none';
+        
+        if (!selectedPatientId && !isNewPatientVisible) {
+            this.showAlert('Debe seleccionar un paciente o crear uno nuevo', 'error');
+            return false;
+        }
+
+        // Si se está creando un paciente nuevo, validar campos requeridos
+        if (isNewPatientVisible) {
+            const patientName = document.getElementById('patient-name').value.trim();
+            const patientPhone = document.getElementById('patient-phone').value.trim();
+            
+            if (!patientName) {
+                this.showAlert('El nombre del paciente es requerido', 'error');
+                document.getElementById('patient-name').focus();
+                return false;
+            }
+            
+            if (!patientPhone) {
+                this.showAlert('El teléfono del paciente es requerido', 'error');
+                document.getElementById('patient-phone').focus();
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Obtiene los datos del formulario de citas
+     */
+    getAppointmentFormData() {
+        const data = {
+            date: document.getElementById('appointment-date').value,
+            appointment_time_from: document.getElementById('appointment-hour-from').value + ':' + document.getElementById('appointment-minute-from').value,
+            professional_id: document.getElementById('modal-professional').value,
+            service_id: document.getElementById('modal-service').value,
+            notes: document.getElementById('appointment-notes').value || ''
+        };
+
+        // Agregar ID del turno si existe (para edición)
         const appointmentId = document.getElementById('appointment-id').value;
+        if (appointmentId) {
+            data.id = appointmentId;
+        }
+
+        // Agregar hora hasta si está visible
+        const timeUntilContainer = document.getElementById('time-until-container');
+        if (timeUntilContainer && !timeUntilContainer.classList.contains('hide')) {
+            const hourTo = document.getElementById('appointment-hour-to').value;
+            const minuteTo = document.getElementById('appointment-minute-to').value;
+            if (hourTo && minuteTo) {
+                data.appointment_time_to = hourTo + ':' + minuteTo;
+            }
+        }
+
+        // Agregar datos del paciente
+        const selectedPatientId = document.getElementById('selected-patient-id').value;
+        const newPatientForm = document.getElementById('new-patient-form');
+        const isNewPatientVisible = newPatientForm.style.display !== 'none';
+
+        if (selectedPatientId) {
+            data.patient_id = selectedPatientId;
+        } else if (isNewPatientVisible) {
+            // Datos para crear nuevo paciente
+            data.patient_name = document.getElementById('patient-name').value.trim();
+            data.patient_email = document.getElementById('patient-email').value.trim();
+            data.patient_phone = document.getElementById('patient-phone').value.trim();
+            data.patient_birth_date = document.getElementById('patient-birth-date').value;
+        }
+
+        return data;
+    }
+    // Agregar este método en la clase AgendaManager
+    closeModal() {
+        const modal = document.getElementById('appointmentModal');
+        if (modal) {
+            const bootstrapModal = bootstrap.Modal.getInstance(modal);
+            if (bootstrapModal) {
+                bootstrapModal.hide();
+            }
+        }
+    }
+
+    async saveAppointment() {
+        if (!this.validateAppointmentForm()) {
+            return;
+        }
+        
+        const appointmentData = this.getAppointmentFormData();
+        const isEditing = appointmentData.id && appointmentData.id.trim() !== '';
         
         try {
-            this.showLoading(true);
+            let url, method;
             
-            if (appointmentId) {
-                await this.updateAppointment(appointmentId, formData);
+            if (isEditing) {
+                url = `/agenda/appointment/${appointmentData.id}`;
+                method = 'PUT';
             } else {
-                const response = await fetch('/agenda/appointment', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    this.showAlert('Turno creado correctamente', 'success');
-                    bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
-                    this.loadAppointments();
+
+                url = '/agenda/appointment';
+                method = 'POST';
+            }
+            
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(appointmentData)
+            });
+            
+            const result = await response.json();
+
+            if (result.success) {
+                const message = isEditing ? 'Cita actualizada exitosamente' : 'Cita creada exitosamente';
+                this.showAlert(message, 'success');
+                this.closeModal();
+                this.loadAppointments();
+            } else {
+                // Verificar si es un error de disponibilidad
+                if (result.error_type === 'availability') {
+                    this.showAvailabilityAlert(result.error, appointmentData);
                 } else {
-                    // MEJORADO: Mostrar el error específico del servidor
-                    const errorMessage = result.error || result.message || 'Error al crear el turno';
-                    this.showAlert(errorMessage, 'error');
+                    const errorMessage = isEditing ? 'Error al actualizar la cita' : 'Error al crear la cita';
+                    this.showAlert(result.error || errorMessage, 'error');
                 }
             }
             
         } catch (error) {
             console.error('Error saving appointment:', error);
-            this.showAlert('Error de conexión al guardar el turno', 'error');
-        } finally {
-            this.showLoading(false);
+            const errorMessage = isEditing ? 'Error de conexión al actualizar la cita' : 'Error de conexión al guardar la cita';
+            this.showAlert(errorMessage, 'error');
+        }
+    }
+
+
+    /**
+     * Muestra el modal de alerta de disponibilidad
+     */
+    showAvailabilityAlert(message, appointmentData, appointmentId = null) {
+        const modal = document.getElementById('availabilityAlertModal');
+        const messageContainer = document.getElementById('availabilityAlertMessage');
+        const forceButton = document.getElementById('forceCreateAppointment');
+        
+        // Configurar el mensaje
+        messageContainer.innerHTML = `
+            <p class="text-muted mb-3">${message}</p>
+        `;
+        
+        // Limpiar event listeners previos
+        const newForceButton = forceButton.cloneNode(true);
+        forceButton.parentNode.replaceChild(newForceButton, forceButton);
+        
+        // Agregar nuevo event listener
+        newForceButton.addEventListener('click', () => {
+            // Verificar si es edición o creación
+            const isEditing = appointmentId || (appointmentData.id && appointmentData.id.trim() !== '');
+            
+            if (isEditing) {
+                const id = appointmentId || appointmentData.id;
+                this.forceUpdateAppointment(id, appointmentData);
+            } else {
+                this.forceCreateAppointment(appointmentData);
+            }
+            
+            bootstrap.Modal.getInstance(modal).hide();
+        });
+        
+        // Mostrar el modal
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+    }
+    
+    /**
+     * Fuerza la creación de una cita saltándose las validaciones
+     */
+    async forceCreateAppointment(appointmentData) {
+        try {
+            // Agregar el parámetro force
+            appointmentData.force = true;
+            
+            const response = await fetch('/agenda/appointment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(appointmentData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert('Cita creada exitosamente (forzada)', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
+                this.loadAppointments();
+            } else {
+                this.showAlert(result.error || 'Error al crear la cita', 'error');
+            }
+            
+        } catch (error) {
+            console.error('Error forcing appointment creation:', error);
+            this.showAlert('Error de conexión al crear la cita', 'error');
         }
     }
 
     async updateAppointment(appointmentId, formData) {
-        // Convertir FormData a objeto JSON
-        const data = {};
-        for (let [key, value] of formData.entries()) {
-            data[key] = value;
+        try {
+            const response = await fetch(`/agenda/appointment/${appointmentId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(formData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert('Turno actualizado correctamente', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
+                this.loadAppointments();
+            } else {
+                // Verificar si es un error de disponibilidad
+                if (result.error_type === 'availability') {
+                    // Crear appointmentData a partir de formData y appointmentId
+                    const appointmentData = {
+                        ...formData,
+                        id: appointmentId
+                    };
+                    this.showAvailabilityAlert(result.error, appointmentData, appointmentId);
+                } else {
+                    this.showAlert(result.error || 'Error al actualizar el turno', 'error');
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error updating appointment:', error);
+            this.showAlert('Error de conexión', 'error');
         }
-        // Agregar el estado si está presente
-        const statusSelect = document.getElementById('appointment-status');
-        if (statusSelect && !statusSelect.closest('.d-none')) {
-            data.status = statusSelect.value;
-        }
+    }
 
-        const response = await fetch(`/agenda/appointment/${appointmentId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify(data)
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            this.showAlert('Turno actualizado correctamente', 'success');
-            bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
-            this.loadAppointments();
-        } else {
-            this.showAlert(result.message || 'Error al actualizar el turno', 'error');
+    /**
+     * Fuerza la actualización de una cita saltándose las validaciones
+     */
+    async forceUpdateAppointment(appointmentId, appointmentData) {
+        try {
+            // Agregar el parámetro force
+            appointmentData.force = true;
+            
+            const response = await fetch(`/agenda/appointment/${appointmentId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(appointmentData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert('Turno actualizado exitosamente (forzado)', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
+                this.loadAppointments();
+            } else {
+                this.showAlert(result.error || 'Error al actualizar el turno', 'error');
+            }
+            
+        } catch (error) {
+            console.error('Error forcing appointment update:', error);
+            this.showAlert('Error de conexión al actualizar el turno', 'error');
         }
     }
 
