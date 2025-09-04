@@ -1780,7 +1780,6 @@ class AgendaManager {
     }
 
     selectPatient(patientId, patientName, patientEmail, patientPhone) {
-        debugger;
         document.getElementById('selected-patient-id').value = patientId;
         document.getElementById('patient-search').value = '';
         document.getElementById('patient-results').innerHTML = '';

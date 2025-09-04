@@ -74,33 +74,42 @@
                             <table class="table table-modern">
                                 <thead>
                                     <tr>
-                                        <th style="width: 35%;">Cliente</th>
-                                        <th class="hide-md" style="width: 20%;">Teléfono</th>
-                                        <th class="hide-md" style="width: 25%;">Email</th>
-                                        <th class="hide-lg" style="width: 10%;">Citas</th>
+                                        <th style="width: 30%;">Cliente</th>
+                                        <th class="hide-md" style="width: 20%;">Email</th>
+                                        <th class="hide-md" style="width: 15%;">Teléfono</th>
+                                        <th class="hide-md" style="width: 15%;">Documento</th>
                                         <th style="width: 10%;">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody id="patientsTableBody">
                                     {% for patient in patients %}
                                         <tr class="patient-row" 
-                                            data-name="{{ patient.name|lower }}" 
+                                            data-name="{{ patient.fullName|lower }}" 
                                             data-email="{{ patient.email|default('')|lower }}"
-                                            data-phone="{{ patient.phone|default('')|lower }}">
+                                            data-phone="{{ patient.phone|default('')|lower }}"
+                                            data-document="{{ patient.idDocument|default('')|lower }}">
                                             <td>
                                                 <div class="patient-info">
                                                     <div class="patient-avatar hide-md">
                                                         <i class="fas fa-user" style="font-size: 1.5rem;"></i>
                                                     </div>
                                                     <div class="patient-details">
-                                                        <span>{{ patient.name }}</span>
+                                                        <span><strong>{{ patient.firstName }} {{ patient.lastName }}</strong></span>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td class="hide-md">
+                                                {% if patient.email %}
+                                                    <span class="email-display">
+                                                        {{ patient.email }}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="hide-md">
                                                 {% if patient.phone %}
                                                     <span class="phone-display">
-                                                        <i class="fas fa-phone me-1"></i>
                                                         {{ patient.phone }}
                                                     </span>
                                                 {% else %}
@@ -108,28 +117,23 @@
                                                 {% endif %}
                                             </td>
                                             <td class="hide-md">
-                                                {% if patient.email %}
-                                                    <span class="email-display">
-                                                        <i class="fas fa-envelope me-1"></i>
-                                                        {{ patient.email }}
+                                                {% if patient.idDocument %}
+                                                    <span class="document-display">
+                                                        {{ patient.idDocument }}
                                                     </span>
                                                 {% else %}
                                                     <span class="text-muted">-</span>
                                                 {% endif %}
                                             </td>
-                                            <td class="hide-lg">
-                                                <div class="appointments-count">
-                                                    {{ patient.appointments|length }}
-                                                </div>
-                                            </td>
                                             <td>
                                                 <div class="action-buttons" role="group">
-                                                    <button type="button" 
-                                                            class="btn btn-sm action-btn view-btn"
-                                                            data-patient-id="{{ patient.id }}"
-                                                            title="Ver detalles">
+                                                    <a href="{{ path('app_person_show', {'id': patient.id}) }}" 
+                                                       class="btn btn-sm action-btn view-btn"
+                                                       title="Ver detalles"
+                                                       target="_blank"
+                                                       rel="noopener">
                                                         <i class="fas fa-eye"></i>
-                                                    </button>
+                                                    </a>
                                                     <button type="button" 
                                                             class="btn btn-sm action-btn edit-btn"
                                                             data-patient-id="{{ patient.id }}"
@@ -139,7 +143,7 @@
                                                     <button type="button" 
                                                             class="btn btn-sm action-btn delete-btn"
                                                             data-patient-id="{{ patient.id }}"
-                                                            data-patient-name="{{ patient.name }}"
+                                                            data-patient-name="{{ patient.fullName }}"
                                                             data-csrf-token="{{ csrf_token('delete' ~ patient.id) }}"
                                                             title="Eliminar">
                                                         <i class="fas fa-trash"></i>
@@ -162,7 +166,6 @@
 
 {% block javascripts %}
     {{ parent() }}
-    
     <script src="{{ asset('scripts/person-modal.js') }}"></script>
     <script src="{{ asset('scripts/person-index.js') }}"></script>
 {% endblock %}

@@ -19,36 +19,32 @@ document.addEventListener('DOMContentLoaded', function() {
         tableBody.appendChild(noResults);
     }
     
-    function filterPatients(searchTerm) {
-        const term = searchTerm.toLowerCase().trim();
+    function filterPatients() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const rows = document.querySelectorAll('.patient-row');
         let visibleCount = 0;
-        
-        patientRows.forEach(row => {
+    
+        rows.forEach(row => {
             const name = row.dataset.name || '';
             const email = row.dataset.email || '';
             const phone = row.dataset.phone || '';
+            const document = row.dataset.document || '';
             
-            const matches = name.includes(term) || email.includes(term) || phone.includes(term);
+            const isVisible = name.includes(searchTerm) || 
+                            email.includes(searchTerm) || 
+                            phone.includes(searchTerm) ||
+                            document.includes(searchTerm);
             
-            if (matches || term === '') {
+            if (isVisible) {
                 row.style.display = '';
                 visibleCount++;
             } else {
                 row.style.display = 'none';
             }
         });
-        
-        // Mostrar/ocultar mensaje de resultados
-        if (term === '') {
-            document.getElementById('noResultsMessage').style.display = 'none';
-        } else {
-            // Mostrar mensaje de "no hay resultados" si es necesario
-            if (visibleCount === 0) {
-                document.getElementById('noResultsMessage').style.display = '';
-            } else {
-                document.getElementById('noResultsMessage').style.display = 'none';
-            }
-        }
+    
+        // Show/hide no results message
+        updateNoResultsMessage(visibleCount === 0 && searchTerm !== '');
     }
     
     // Filtrar mientras escribe (con debounce para mejor rendimiento)

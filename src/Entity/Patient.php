@@ -19,8 +19,17 @@ class Patient
     #[ORM\JoinColumn(name: 'location_id', referencedColumnName: 'id', nullable: false)]
     private Location $location;
 
+    #[ORM\Column(type: 'string', length: 50, nullable: true)]
+    private ?string $idDocument = null;
+
     #[ORM\Column(type: 'string', length: 255)]
-    private string $name;
+    private string $firstName;
+
+    #[ORM\Column(type: 'string', length: 255)]
+    private string $lastName;
+
+    #[ORM\Column(type: 'date', nullable: true)]
+    private ?\DateTimeInterface $birthdate = null;
 
     #[ORM\Column(type: 'string', length: 50, nullable: true)]
     private ?string $phone = null;
@@ -37,7 +46,6 @@ class Patient
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $updatedAt;
 
-    // NUEVA RELACIÓN
     #[ORM\OneToMany(mappedBy: 'patient', targetEntity: Appointment::class)]
     private Collection $appointments;
 
@@ -45,7 +53,7 @@ class Patient
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
-        $this->appointments = new ArrayCollection(); // NUEVO
+        $this->appointments = new ArrayCollection();
     }
 
     // Getters y Setters
@@ -65,15 +73,60 @@ class Patient
         return $this;
     }
 
-    public function getName(): string
+    public function getIdDocument(): ?string
     {
-        return $this->name;
+        return $this->idDocument;
     }
 
-    public function setName(string $name): self
+    public function setIdDocument(?string $idDocument): self
     {
-        $this->name = $name;
+        $this->idDocument = $idDocument;
         return $this;
+    }
+
+    public function getFirstName(): string
+    {
+        return $this->firstName;
+    }
+
+    public function setFirstName(string $firstName): self
+    {
+        $this->firstName = $firstName;
+        return $this;
+    }
+
+    public function getLastName(): string
+    {
+        return $this->lastName;
+    }
+
+    public function setLastName(string $lastName): self
+    {
+        $this->lastName = $lastName;
+        return $this;
+    }
+
+    public function getBirthdate(): ?\DateTimeInterface
+    {
+        return $this->birthdate;
+    }
+
+    public function setBirthdate(?\DateTimeInterface $birthdate): self
+    {
+        $this->birthdate = $birthdate;
+        return $this;
+    }
+
+    // Método de conveniencia para obtener el nombre completo
+    public function getFullName(): string
+    {
+        return trim($this->firstName . ' ' . $this->lastName);
+    }
+
+    // Mantener getName() por compatibilidad con código existente
+    public function getName(): string
+    {
+        return $this->getFullName();
     }
 
     public function getPhone(): ?string
@@ -131,7 +184,6 @@ class Patient
         return $this;
     }
 
-    // NUEVOS MÉTODOS PARA APPOINTMENTS
     /**
      * @return Collection<int, Appointment>
      */

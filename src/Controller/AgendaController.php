@@ -708,13 +708,16 @@ class AgendaController extends AbstractController
             ->createQueryBuilder('p')
             ->where('p.location = :location')
             ->andWhere('(
-                p.name LIKE :query OR 
+                p.firstName LIKE :query OR 
+                p.lastName LIKE :query OR
+                p.idDocument LIKE :query OR
                 p.email LIKE :query OR 
                 p.phone LIKE :query
             )')
             ->setParameter('location', $location)
             ->setParameter('query', '%' . $query . '%')
-            ->orderBy('p.name', 'ASC')
+            ->orderBy('p.firstName', 'ASC')
+            ->addOrderBy('p.lastName', 'ASC')
             ->setMaxResults(10)
             ->getQuery()
             ->getResult();
@@ -723,10 +726,13 @@ class AgendaController extends AbstractController
         foreach ($patients as $patient) {
             $result[] = [
                 'id' => $patient->getId(),
-                'name' => $patient->getName(),
-                'email' => $patient->getEmail(),
-                'phone' => $patient->getPhone(),
-                // 'birth_date' => $patient->getBirthDate() ? $patient->getBirthDate()->format('Y-m-d') : null
+                'name' => $patient->getFullName(),
+                'firstName' => $patient->getFirstName(),
+                'lastName' => $patient->getLastName(),
+                'idDocument' => $patient->getIdDocument() ?? '',
+                'email' => $patient->getEmail() ?? '',
+                'phone' => $patient->getPhone() ?? '',
+                'birthdate' => $patient->getBirthdate() ? $patient->getBirthdate()->format('Y-m-d') : null
             ];
         }
     

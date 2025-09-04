@@ -50,14 +50,16 @@ class PersonModalManager extends EntityModalManager {
             <div class="row">
                 <div class="col-md-6">
                     <h6 class="text-muted mb-2">Información Personal</h6>
-                    <p><strong>Nombre:</strong> ${data.name}</p>
+                    <p><strong>Documento:</strong> ${data.id_document || 'No especificado'}</p>
+                    <p><strong>Nombre:</strong> ${data.first_name || ''} ${data.last_name || ''}</p>
+                    <p><strong>Fecha de nacimiento:</strong> ${data.birthdate ? new Date(data.birthdate).toLocaleDateString() : 'No especificada'}</p>
                     <p><strong>Teléfono:</strong> ${data.phone || 'No especificado'}</p>
                     <p><strong>Email:</strong> ${data.email || 'No especificado'}</p>
                 </div>
                 <div class="col-md-6">
                     <h6 class="text-muted mb-2">Información Adicional</h6>
                     <p><strong>Notas:</strong> ${data.notes || 'Sin notas'}</p>
-                    <p><strong>Fecha de registro:</strong> ${new Date(data.createdAt).toLocaleDateString()}</p>
+                    <p><strong>Fecha de registro:</strong> ${data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Invalid Date'}</p>
                 </div>
             </div>
         `;

@@ -1,59 +1,350 @@
-<div class="modal-header">
-    <h5 class="modal-title">
-        <i class="fas fa-user me-2"></i>
-        Detalles del Cliente
-    </h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
+{% extends 'base.html.twig' %}
 
-<div class="modal-body">
-    <div class="row">
-        <div class="col-md-12">
-            <div class="patient-details-card">
-                <div class="patient-header">
-                    <div class="patient-avatar-large">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="patient-info">
-                        <h4>{{ patient.name }}</h4>
-                        <p class="text-muted mb-0">Cliente desde {{ patient.createdAt|date('d/m/Y') }}</p>
-                    </div>
-                </div>
-                
-                <div class="patient-contact">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="contact-item">
-                                <i class="fas fa-phone text-primary"></i>
-                                <div>
-                                    <strong>Teléfono</strong>
-                                    <p>{{ patient.phone ?: 'No especificado' }}</p>
-                                </div>
-                            </div>
+{% block title %}Detalles del Cliente - {{ patient.fullName }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link href="{{ asset('styles/person.css') }}" rel="stylesheet">
+{% endblock %}
+
+{% block body %}
+<div class="persons-container">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <!-- Header -->
+                <div class="persons-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="h2 mb-2" style="color: #2c3e50; font-weight: 700;">👤 {{ patient.fullName }}</h1>
+                            <p class="text-muted mb-0" style="font-size: 1.1rem;">Cliente desde {{ patient.createdAt|date('d/m/Y') }}</p>
                         </div>
-                        <div class="col-md-6">
-                            <div class="contact-item">
-                                <i class="fas fa-envelope text-primary"></i>
-                                <div>
-                                    <strong>Email</strong>
-                                    <p>{{ patient.email ?: 'No especificado' }}</p>
-                                </div>
-                            </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" 
+                                    class="btn btn-primary edit-btn"
+                                    data-patient-id="{{ patient.id }}"
+                                    title="Editar">
+                                <i class="fas fa-edit me-2"></i>Editar
+                            </button>
+                            <a href="{{ path('app_person_index') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Volver
+                            </a>
                         </div>
                     </div>
                 </div>
-                
-                {% if patient.notes %}
-                <div class="patient-notes">
-                    <h6><i class="fas fa-sticky-note me-2"></i>Notas</h6>
-                    <p>{{ patient.notes|nl2br }}</p>
+
+                <!-- Resumen de Actividad -->
+                <div class="activity-summary mb-4">
+                    <div class="table-card">
+                        <div class="table-header">
+                            <h4 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>Resumen de Actividad
+                            </h4>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="row text-center">
+                                <div class="col-6 col-md-2 mb-3">
+                                    <div class="stat-card total">
+                                        <div class="stat-number">{{ stats.total }}</div>
+                                        <div class="stat-label">Total</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-2 mb-3">
+                                    <div class="stat-card scheduled">
+                                        <div class="stat-number">{{ stats.scheduled }}</div>
+                                        <div class="stat-label">Reservadas</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-2 mb-3">
+                                    <div class="stat-card confirmed">
+                                        <div class="stat-number">{{ stats.confirmed }}</div>
+                                        <div class="stat-label">Confirmadas</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-2 mb-3">
+                                    <div class="stat-card completed">
+                                        <div class="stat-number">{{ stats.completed }}</div>
+                                        <div class="stat-label">Asistidas</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-2 mb-3">
+                                    <div class="stat-card cancelled">
+                                        <div class="stat-number">{{ stats.cancelled }}</div>
+                                        <div class="stat-label">Canceladas</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-2 mb-3">
+                                    <div class="stat-card no-show">
+                                        <div class="stat-number">{{ stats.no_show }}</div>
+                                        <div class="stat-label">No asistidas</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                {% endif %}
-                
-                <div class="patient-stats">
-                    <div class="stat-item">
-                        <div class="stat-number">{{ patient.appointments|length }}</div>
-                        <div class="stat-label">Citas totales</div>
+
+                <div class="row">
+                    <!-- Información Personal -->
+                    <div class="col-lg-4">
+                        <div class="table-card mb-4">
+                            <div class="table-header">
+                                <h4 class="mb-0">
+                                    <i class="fas fa-user me-2"></i>Información Personal
+                                </h4>
+                            </div>
+                            <div class="card-body p-4">
+                                <div class="info-item">
+                                    <div class="info-label">Documento:</div>
+                                    <div class="info-value">{{ patient.idDocument ?: 'No especificado' }}</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Nombre:</div>
+                                    <div class="info-value">{{ patient.firstName }}</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Apellido:</div>
+                                    <div class="info-value">{{ patient.lastName }}</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Fecha de nacimiento:</div>
+                                    <div class="info-value">{{ patient.birthdate ? patient.birthdate|date('d/m/Y') : 'No especificada' }}</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Teléfono:</div>
+                                    <div class="info-value">
+                                        {% if patient.phone %}
+                                            <div class="text-decoration-none">
+                                                <i class="fas fa-phone me-1"></i>{{ patient.phone }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">No especificado</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Email:</div>
+                                    <div class="info-value">
+                                        {% if patient.email %}
+                                            <div class="text-decoration-none">
+                                                <i class="fas fa-envelope me-1"></i>{{ patient.email }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">No especificado</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if patient.notes %}
+                                <div class="info-item">
+                                    <div class="info-label">Notas:</div>
+                                    <div class="info-value text-muted">{{ patient.notes }}</div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actividad / Citas -->
+                    <div class="col-lg-8">
+                        <div class="table-card">
+                            <div class="table-header">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h4 class="mb-0">
+                                        <i class="fas fa-calendar-alt me-2"></i>Actividad ({{ pagination.total_items }} citas)
+                                    </h4>
+                                </div>
+                            </div>
+                            <!-- Sección de Actividad y Citas -->
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Historial de Citas</h5>
+                                </div>
+                                
+                                <!-- Filtros -->
+                                {% if appointments|length > 0 or (filters.professional or filters.service or filters.status) %}
+                                <div class="card-body border-bottom">
+                                    <form method="GET" class="row g-3" id="filters-form">
+                                        <div class="col-md-4">
+                                            <label for="professional-filter" class="form-label">
+                                                <i class="fas fa-user-md me-1"></i>Profesional
+                                            </label>
+                                            <select name="professional" id="professional-filter" class="form-select">
+                                                <option value="">Todos los profesionales</option>
+                                                {% for professional in professionals %}
+                                                    <option value="{{ professional.id }}" 
+                                                            {% if filters.professional == professional.id %}selected{% endif %}>
+                                                                {{ professional.name }}
+                                                            </option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                
+                                                <div class="col-md-4">
+                                                    <label for="service-filter" class="form-label">
+                                                        <i class="fas fa-cogs me-1"></i>Servicio
+                                                    </label>
+                                                    <select name="service" id="service-filter" class="form-select">
+                                                        <option value="">Todos los servicios</option>
+                                                        {% for service in services %}
+                                                            <option value="{{ service.id }}" 
+                                                                    {% if filters.service == service.id %}selected{% endif %}>
+                                                                        {{ service.name }}
+                                                                    </option>
+                                                                {% endfor %}
+                                                            </select>
+                                                        </div>
+                                                        
+                                                        <div class="col-md-4">
+                                                            <label for="status-filter" class="form-label">
+                                                                <i class="fas fa-flag me-1"></i>Estado
+                                                            </label>
+                                                            <select name="status" id="status-filter" class="form-select">
+                                                                <option value="">Todos los estados</option>
+                                                                <option value="scheduled" {% if filters.status == 'scheduled' %}selected{% endif %}>Programada</option>
+                                                                <option value="confirmed" {% if filters.status == 'confirmed' %}selected{% endif %}>Confirmada</option>
+                                                                <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}>Completada</option>
+                                                                <option value="cancelled" {% if filters.status == 'cancelled' %}selected{% endif %}>Cancelada</option>
+                                                                <option value="no_show" {% if filters.status == 'no_show' %}selected{% endif %}>No se presentó</option>
+                                                            </select>
+                                                        </div>
+                                                        
+                                                        <div class="col-12">
+                                                            <div class="d-flex gap-2">
+                                                                <button type="submit" class="btn btn-primary">
+                                                                    <i class="fas fa-filter me-1"></i>Aplicar Filtros
+                                                                </button>
+                                                                <a href="{{ path('app_person_show', {'id': patient.id}) }}" class="btn btn-outline-secondary">
+                                                                    <i class="fas fa-times me-1"></i>Limpiar
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                                {% endif %}
+                                                
+                                                <div class="card-body">
+                                                    {% if appointments|length > 0 %}
+                                                        <div class="table-responsive">
+                                                            <table class="table table-modern">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th style="width: 25%;">Fecha y Hora</th>
+                                                                        <th style="width: 25%;">Servicio</th>
+                                                                        <th class="hide-md" style="width: 20%;">Profesional</th>
+                                                                        <th style="width: 15%;">Estado</th>
+                                                                        <th style="width: 15%;">Acciones</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {% for appointment in appointments %}
+                                                                    <tr>
+                                                                        <td>
+                                                                            <div class="fw-bold">{{ appointment.scheduledAt|date('d/m/Y') }}</div>
+                                                                            <small class="text-muted">{{ appointment.scheduledAt|date('H:i') }}</small>
+                                                                        </td>
+                                                                        <td>
+                                                                            {% if appointment.service %}
+                                                                                <div class="fw-bold">{{ appointment.service.name }}</div>
+                                                                                <small class="text-muted">{{ appointment.durationMinutes }} min</small>
+                                                                            {% else %}
+                                                                                <span class="text-muted">Sin servicio</span>
+                                                                            {% endif %}
+                                                                        </td>
+                                                                        <td class="hide-md">{{ appointment.professional.name }}</td>
+                                                                        <td>
+                                                                            {% set statusClass = '' %}
+                                                                            {% set statusText = '' %}
+                                                                            {% if appointment.status.value == 'scheduled' %}
+                                                                                {% set statusClass = 'badge bg-primary' %}
+                                                                                {% set statusText = 'Programada' %}
+                                                                            {% elseif appointment.status.value == 'confirmed' %}
+                                                                                {% set statusClass = 'badge bg-success' %}
+                                                                                {% set statusText = 'Confirmada' %}
+                                                                            {% elseif appointment.status.value == 'cancelled' %}
+                                                                                {% set statusClass = 'badge bg-danger' %}
+                                                                                {% set statusText = 'Cancelada' %}
+                                                                            {% elseif appointment.status.value == 'completed' %}
+                                                                                {% set statusClass = 'badge bg-secondary' %}
+                                                                                {% set statusText = 'Completada' %}
+                                                                            {% endif %}
+                                                                            <span class="{{ statusClass }}">{{ statusText }}</span>
+                                                                        </td>
+                                                                        <td>
+                                                                            {% if appointment.status.value in ['scheduled', 'confirmed'] %}
+                                                                                <div class="action-buttons">
+                                                                                    <button type="button" 
+                                                                                            class="btn btn-sm action-btn delete-btn cancel-appointment-btn"
+                                                                                            data-appointment-id="{{ appointment.id }}"
+                                                                                            data-appointment-date="{{ appointment.scheduledAt|date('d/m/Y H:i') }}"
+                                                                                            data-csrf-token="{{ csrf_token('cancel' ~ appointment.id) }}"
+                                                                                            title="Cancelar cita">
+                                                                                        <i class="fas fa-trash"></i>
+                                                                                    </button>
+                                                                                </div>
+                                                                            {% endif %}
+                                                                        </td>
+                                                                    </tr>
+                                                                    {% endfor %}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                        
+                                                        <!-- Paginación -->
+                                                        {% if pagination.total_pages > 1 %}
+                                                            <div class="d-flex justify-content-between align-items-center mt-4">
+                                                                <div class="text-muted">
+                                                                    Mostrando {{ ((pagination.current_page - 1) * pagination.items_per_page + 1) }} - 
+                                                                    {{ min(pagination.current_page * pagination.items_per_page, pagination.total_items) }} 
+                                                                    de {{ pagination.total_items }} citas
+                                                                </div>
+                                                                <nav aria-label="Paginación de citas">
+                                                                    <ul class="pagination pagination-sm mb-0">
+                                                                        {% if pagination.has_previous %}
+                                                                            <li class="page-item">
+                                                                                <a class="page-link" href="{{ path('app_person_show', {'id': patient.id, 'page': pagination.previous_page, 'professional': filters.professional, 'service': filters.service, 'status': filters.status}) }}">
+                                                                                    <i class="fas fa-chevron-left"></i>
+                                                                                </a>
+                                                                            </li>
+                                                                        {% else %}
+                                                                            <li class="page-item disabled">
+                                                                                <span class="page-link"><i class="fas fa-chevron-left"></i></span>
+                                                                            </li>
+                                                                        {% endif %}
+                                                                        
+                                                                        <li class="page-item active">
+                                                                            <span class="page-link">{{ pagination.current_page }} de {{ pagination.total_pages }}</span>
+                                                                        </li>
+                                                                        
+                                                                        {% if pagination.has_next %}
+                                                                            <li class="page-item">
+                                                                                <a class="page-link" href="{{ path('app_person_show', {'id': patient.id, 'page': pagination.next_page, 'professional': filters.professional, 'service': filters.service, 'status': filters.status}) }}">
+                                                                                    <i class="fas fa-chevron-right"></i>
+                                                                                </a>
+                                                                            </li>
+                                                                        {% else %}
+                                                                            <li class="page-item disabled">
+                                                                                <span class="page-link"><i class="fas fa-chevron-right"></i></span>
+                                                                            </li>
+                                                                        {% endif %}
+                                                                    </ul>
+                                                                </nav>
+                                                            </div>
+                                                        {% endif %}
+                                                    {% else %}
+                                                        <div class="empty-state-modern">
+                                                            <div class="mb-4">
+                                                                <i class="fas fa-calendar-times" style="font-size: 4rem; color: #28a745; margin-bottom: 1rem;"></i>
+                                                            </div>
+                                                            <h3 class="text-muted mb-3">📅 No hay citas registradas</h3>
+                                                            <p class="text-muted mb-4" style="font-size: 1.1rem;">Este cliente aún no tiene citas programadas</p>
+                                                            <a href="{{ path('app_agenda_index') }}?patient={{ patient.id }}" class="btn btn-success">
+                                                                <i class="fas fa-plus me-2"></i>Programar Primera Cita
+                                                            </a>
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -61,11 +352,110 @@
     </div>
 </div>
 
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-        <i class="fas fa-times me-2"></i>Cerrar
-    </button>
-    <button type="button" class="btn btn-warning" data-entity="cliente" data-action="edit" data-id="{{ patient.id }}">
-        <i class="fas fa-edit me-2"></i>Editar
-    </button>
+<!-- Modal de Confirmación para Cancelar Cita -->
+<!-- Modal de Cancelación -->
+<div class="modal fade" id="cancelAppointmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cancelar Cita</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro que quieres cancelar la cita del <strong id="appointmentDate"></strong>?</p>
+                <p class="text-muted">Esta acción no se puede deshacer.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmCancelBtn">Aceptar</button>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- Modal para Editar Cliente -->
+<div class="modal fade" id="entityModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="entityModalTitle">Editar Cliente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div id="entityModalContent">
+                <!-- El contenido del formulario se cargará aquí -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script src="{{ asset('scripts/person-modal.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Manejar cancelación de citas
+            const cancelButtons = document.querySelectorAll('.cancel-appointment-btn');
+            const cancelModal = new bootstrap.Modal(document.getElementById('cancelAppointmentModal'));
+            const appointmentDateSpan = document.getElementById('appointmentDate');
+            
+            let currentAppointmentId = null;
+            
+            cancelButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    currentAppointmentId = this.dataset.appointmentId;
+                    const appointmentDate = this.dataset.appointmentDate;
+                    
+                    appointmentDateSpan.textContent = appointmentDate;
+                    cancelModal.show();
+                });
+            });
+            
+            // Manejar confirmación de cancelación
+            document.getElementById('confirmCancelBtn').addEventListener('click', async function() {
+                if (!currentAppointmentId) return;
+                
+                try {
+                    const response = await fetch(`/agenda/appointments/${currentAppointmentId}/status`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ status: 'cancelled' })
+                    });
+                    
+                    if (response.ok) {
+                        // Mostrar mensaje de éxito
+                        showAlert('Cita cancelada correctamente', 'success');
+                        
+                        // Cerrar modal
+                        cancelModal.hide();
+                        
+                        // Recargar la página para mostrar el estado actualizado
+                        window.location.reload();
+                    } else {
+                        throw new Error('Error al cancelar la cita');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showAlert('Error al cancelar la cita', 'error');
+                }
+            });
+            
+            // Función para mostrar alertas
+            function showAlert(message, type) {
+                const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+                const alertHtml = `
+                    <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                
+                // Insertar la alerta al inicio del contenido
+                const container = document.querySelector('.container-fluid');
+                container.insertAdjacentHTML('afterbegin', alertHtml);
+            }
+        });
+    </script>
+{% endblock %}

@@ -4,6 +4,7 @@ namespace App\Form;
 
 use App\Entity\Patient;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\DateType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
@@ -19,11 +20,26 @@ class PersonType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
-            ->add('name', TextType::class, [
-                'label' => 'Nombre completo',
+            ->add('idDocument', TextType::class, [
+                'label' => 'Documento de identidad',
+                'required' => false,
                 'attr' => [
                     'class' => 'form-control',
-                    'placeholder' => 'Ingrese el nombre completo'
+                    'placeholder' => 'DNI, Pasaporte, etc.'
+                ],
+                'constraints' => [
+                    new Length([
+                        'max' => 50,
+                        'maxMessage' => 'El documento no puede tener más de {{ limit }} caracteres'
+                    ])
+                ]
+            ])
+            ->add('firstName', TextType::class, [
+                'label' => 'Nombre*',
+                'required' => true,
+                'attr' => [
+                    'class' => 'form-control',
+                    'placeholder' => 'Ingrese el nombre'
                 ],
                 'constraints' => [
                     new NotBlank(['message' => 'El nombre es obligatorio']),
@@ -33,6 +49,32 @@ class PersonType extends AbstractType
                         'minMessage' => 'El nombre debe tener al menos {{ limit }} caracteres',
                         'maxMessage' => 'El nombre no puede tener más de {{ limit }} caracteres'
                     ])
+                ]
+            ])
+            ->add('lastName', TextType::class, [
+                'label' => 'Apellido*',
+                'required' => true,
+                'attr' => [
+                    'class' => 'form-control',
+                    'placeholder' => 'Ingrese el apellido'
+                ],
+                'constraints' => [
+                    new NotBlank(['message' => 'El apellido es obligatorio']),
+                    new Length([
+                        'min' => 2,
+                        'max' => 255,
+                        'minMessage' => 'El apellido debe tener al menos {{ limit }} caracteres',
+                        'maxMessage' => 'El apellido no puede tener más de {{ limit }} caracteres'
+                    ])
+                ]
+            ])
+            ->add('birthdate', DateType::class, [
+                'label' => 'Fecha de nacimiento',
+                'required' => false,
+                'widget' => 'single_text',
+                'attr' => [
+                    'class' => 'form-control',
+                    'type' => 'date'
                 ]
             ])
             ->add('phone', TelType::class, [

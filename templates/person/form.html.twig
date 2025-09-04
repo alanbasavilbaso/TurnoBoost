@@ -1,11 +1,36 @@
 {{ form_start(form, {'attr': {'class': 'needs-validation', 'novalidate': true, 'id': 'personForm'}}) }}
 <div class="modal-body">
     <div class="row">
-        <div class="col-md-12">
+
+        <div class="col-md-6">
             <div class="mb-3">
-                {{ form_label(form.name, null, {'label_attr': {'class': 'form-label required'}}) }}
-                {{ form_widget(form.name) }}
-                {{ form_errors(form.name) }}
+                {{ form_label(form.firstName, null, {'label_attr': {'class': 'form-label required'}}) }}
+                {{ form_widget(form.firstName) }}
+                {{ form_errors(form.firstName) }}
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="mb-3">
+                {{ form_label(form.lastName, null, {'label_attr': {'class': 'form-label required'}}) }}
+                {{ form_widget(form.lastName) }}
+                {{ form_errors(form.lastName) }}
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="mb-3">
+                {{ form_label(form.birthdate, null, {'label_attr': {'class': 'form-label'}}) }}
+                {{ form_widget(form.birthdate) }}
+                {{ form_errors(form.birthdate) }}
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="mb-3">
+                {{ form_label(form.idDocument, null, {'label_attr': {'class': 'form-label'}}) }}
+                {{ form_widget(form.idDocument) }}
+                {{ form_errors(form.idDocument) }}
             </div>
         </div>
         

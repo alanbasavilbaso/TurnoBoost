@@ -3,6 +3,9 @@
 namespace App\Controller;
 
 use App\Entity\Patient;
+use App\Entity\Appointment;
+use App\Entity\Professional;
+use App\Entity\Service;
 use App\Form\PersonType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -35,10 +38,11 @@ class PersonController extends AbstractController
             ->createQueryBuilder('p')
             ->where('p.location = :location')
             ->setParameter('location', $location)
-            ->orderBy('p.name', 'ASC');
+            ->orderBy('p.firstName', 'ASC')
+            ->addOrderBy('p.lastName', 'ASC');
             
         if (!empty($search)) {
-            $queryBuilder->andWhere('p.name LIKE :search OR p.email LIKE :search OR p.phone LIKE :search')
+            $queryBuilder->andWhere('p.firstName LIKE :search OR p.lastName LIKE :search OR p.email LIKE :search OR p.phone LIKE :search OR p.idDocument LIKE :search')
                 ->setParameter('search', '%' . $search . '%');
         }
         
@@ -116,15 +120,155 @@ class PersonController extends AbstractController
     }
 
     #[Route('/{id}', name: 'app_person_show', methods: ['GET'])]
-    public function show(Patient $patient): Response
+    public function show(Request $request, Patient $patient, EntityManagerInterface $entityManager): Response
     {
         if (!$this->canAccess($patient)) {
             $this->addFlash('error', 'No tiene permisos para ver este cliente.');
             return $this->redirectToRoute('app_person_index');
         }
-
+    
+        // Parámetros de paginación
+        $page = max(1, $request->query->getInt('page', 1));
+        $limit = 10; // Citas por página
+        $offset = ($page - 1) * $limit;
+    
+        // Parámetros de filtros
+        $professionalId = $request->query->get('professional');
+        $serviceId = $request->query->get('service');
+        $status = $request->query->get('status');
+    
+        // Calcular estadísticas de citas por estado
+        $statsQueryBuilder = $entityManager->getRepository(Appointment::class)
+            ->createQueryBuilder('a')
+            ->select('a.status as status, COUNT(a.id) as count')
+            ->where('a.patient = :patient')
+            ->setParameter('patient', $patient)
+            ->groupBy('a.status');
+        
+        $statsResults = $statsQueryBuilder->getQuery()->getResult();
+        
+        // Inicializar estadísticas con valores por defecto
+        $stats = [
+            'total' => 0,
+            'scheduled' => 0,
+            'confirmed' => 0,
+            'completed' => 0,
+            'cancelled' => 0,
+            'no_show' => 0
+        ];
+        
+        // Procesar resultados de estadísticas
+        foreach ($statsResults as $result) {
+            $statusValue = $result['status']->value;
+            $count = (int) $result['count'];
+            $stats[$statusValue] = $count;
+            $stats['total'] += $count;
+        }
+    
+        // Query builder base para contar citas
+        $countQueryBuilder = $entityManager->getRepository(Appointment::class)
+            ->createQueryBuilder('a')
+            ->select('COUNT(a.id)')
+            ->where('a.patient = :patient')
+            ->setParameter('patient', $patient);
+    
+        // Query builder base para obtener citas
+        $queryBuilder = $entityManager->getRepository(Appointment::class)
+            ->createQueryBuilder('a')
+            ->leftJoin('a.location', 'l')
+            ->leftJoin('a.professional', 'p')
+            ->leftJoin('a.service', 's')
+            ->addSelect('l', 'p', 's')  // Evita N+1 queries
+            ->where('a.patient = :patient')
+            ->setParameter('patient', $patient);
+    
+        // Aplicar filtros
+        if ($professionalId) {
+            $countQueryBuilder->andWhere('a.professional = :professional')
+                ->setParameter('professional', $professionalId);
+            $queryBuilder->andWhere('a.professional = :professional')
+                ->setParameter('professional', $professionalId);
+        }
+    
+        if ($serviceId) {
+            $countQueryBuilder->andWhere('a.service = :service')
+                ->setParameter('service', $serviceId);
+            $queryBuilder->andWhere('a.service = :service')
+                ->setParameter('service', $serviceId);
+        }
+    
+        if ($status) {
+            $countQueryBuilder->andWhere('a.status = :status')
+                ->setParameter('status', $status);
+            $queryBuilder->andWhere('a.status = :status')
+                ->setParameter('status', $status);
+        }
+    
+        // Ejecutar consultas
+        $totalAppointments = $countQueryBuilder->getQuery()->getSingleScalarResult();
+        
+        $appointments = $queryBuilder
+            ->orderBy('a.scheduledAt', 'DESC')
+            ->setFirstResult($offset)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    
+        // Calcular información de paginación
+        $totalPages = ceil($totalAppointments / $limit);
+        $hasNextPage = $page < $totalPages;
+        $hasPreviousPage = $page > 1;
+    
+        // Obtener datos para los filtros
+        $location = $patient->getLocation();
+        
+        // Profesionales que han atendido a este paciente
+        $professionals = $entityManager->getRepository(Professional::class)
+            ->createQueryBuilder('p')
+            ->join('p.appointments', 'a')
+            ->where('a.patient = :patient')
+            ->andWhere('p.location = :location')
+            ->setParameter('patient', $patient)
+            ->setParameter('location', $location)
+            ->groupBy('p.id')
+            ->orderBy('p.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+    
+        // Servicios que ha recibido este paciente
+        $services = $entityManager->getRepository(Service::class)
+            ->createQueryBuilder('s')
+            ->join('s.appointments', 'a')
+            ->where('a.patient = :patient')
+            ->andWhere('s.location = :location')
+            ->setParameter('patient', $patient)
+            ->setParameter('location', $location)
+            ->groupBy('s.id')
+            ->orderBy('s.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+    
         return $this->render('person/show.html.twig', [
             'patient' => $patient,
+            'appointments' => $appointments,
+            'professionals' => $professionals,
+            'services' => $services,
+            'stats' => $stats,
+            'filters' => [
+                'professional' => $professionalId,
+                'service' => $serviceId,
+                'status' => $status,
+            ],
+            'pagination' => [
+                'current_page' => $page,
+                'total_pages' => $totalPages,
+                'total_items' => $totalAppointments,
+                'items_per_page' => $limit,
+                'has_next' => $hasNextPage,
+                'has_previous' => $hasPreviousPage,
+                'next_page' => $hasNextPage ? $page + 1 : null,
+                'previous_page' => $hasPreviousPage ? $page - 1 : null,
+            ],
         ]);
     }
 
@@ -188,7 +332,11 @@ class PersonController extends AbstractController
     
         return new JsonResponse([
             'id' => $patient->getId(),
-            'name' => $patient->getName(),
+            'id_document' => $patient->getIdDocument(),
+            'first_name' => $patient->getFirstName(),
+            'last_name' => $patient->getLastName(),
+            'full_name' => $patient->getFullName(),
+            'birthdate' => $patient->getBirthdate() ? $patient->getBirthdate()->format('Y-m-d') : null,
             'phone' => $patient->getPhone(),
             'email' => $patient->getEmail(),
             'notes' => $patient->getNotes(),
