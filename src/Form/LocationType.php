@@ -30,11 +30,11 @@ class LocationType extends AbstractType
             ])
             ->add('domain', TextType::class, [
                 'label' => 'Dominio de Reservas',
-                'help' => 'URL única para que tus clientes reserven turnos online. Solo letras minúsculas, números y guiones. Ejemplo: mi-ubicacion',
+                'help' => 'URL única para que tus clientes reserven turnos online. Solo letras minúsculas, números y guiones. Ejemplo: www.turnoboost.com/mi-centro-belleza',
                 'attr' => [
                     'class' => 'form-control',
-                    'placeholder' => 'mi-ubicacion-belleza',
-                    'pattern' => '[a-z0-9-]+',
+                    'placeholder' => 'mi-centro-belleza',
+                    'pattern' => '[a-z0-9\-]+',
                     'title' => 'Solo letras minúsculas, números y guiones'
                 ],
                 'help_attr' => [

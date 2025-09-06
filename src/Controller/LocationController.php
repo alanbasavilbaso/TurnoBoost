@@ -79,7 +79,7 @@ class LocationController extends AbstractController
     public function newForm(): Response
     {   
         $location = new Location();
-        $location->setDomain($location->getRandomDomain());
+        $location->setDomain('');
         $form = $this->createForm(LocationType::class, $location, ['is_edit' => false]);
         
         return $this->render('location/form.html.twig', [

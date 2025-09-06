@@ -136,10 +136,38 @@ class LocationModalManager extends EntityModalManager {
         `;
     }
 
-    initializeForm(formContainer) {
-        // Aquí puedes agregar inicialización específica del formulario de locations
-        // Por ejemplo, validaciones, selectores especiales, etc.
+    initializeForm() {
+        // Obtener el contenedor del formulario desde el DOM
+        const formContainer = document.getElementById('entityFormBody');
+        if (formContainer) {
+            this.setupDomainAutocomplete(formContainer);
+        }
         console.log('Location form initialized');
+    }
+
+    setupDomainAutocomplete(formContainer) {
+        const nameInput = formContainer.querySelector('#location_name');
+        const domainInput = formContainer.querySelector('#location_domain');
+        
+        if (nameInput && domainInput) {
+            nameInput.addEventListener('blur', function() {
+                // Solo autocompletar si el campo domain está vacío
+                if (!domainInput.value.trim()) {
+                    const nameValue = this.value.trim();
+                    if (nameValue) {
+                        // Convertir a minúsculas, reemplazar espacios por guiones y remover caracteres especiales
+                        const domainValue = nameValue
+                            .toLowerCase()
+                            .replace(/\s+/g, '-')  // Reemplazar espacios por guiones
+                            .replace(/[^a-z0-9-]/g, '')  // Remover caracteres especiales
+                            .replace(/-+/g, '-')  // Reemplazar múltiples guiones por uno solo
+                            .replace(/^-|-$/g, '');  // Remover guiones al inicio y final
+                        
+                        domainInput.value = domainValue;
+                    }
+                }
+            });
+        }
     }
 }
 
