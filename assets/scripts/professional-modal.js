@@ -90,7 +90,7 @@ class ProfessionalModal {
     }
     
     clearModal() {
-        this.modal.find('.modal-body').empty();
+        // this.modal.find('.modal-body').empty();
         
         // Resetear flags de inicialización cuando se cierra el modal
         if (typeof resetFormInitialization === 'function') {

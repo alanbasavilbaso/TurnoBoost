@@ -152,7 +152,7 @@
                                             <td>
                                                 <div class="action-buttons">
                                                     <!-- Botón Ver usando modal genérico -->
-                                                    <button type="button" 
+                                                    {# <button type="button" 
                                                             class="btn btn-sm action-btn view-btn" 
                                                             data-bs-toggle="modal" 
                                                             data-bs-target="#entityDetailsModal"
@@ -160,7 +160,7 @@
                                                             data-action="view"
                                                             title="Ver detalles">
                                                         <i class="fas fa-eye"></i>
-                                                    </button>
+                                                    </button> #}
                                                     <!-- Botón Editar usando modal específico -->
                                                     <button type="button" 
                                                             class="btn btn-sm action-btn edit-btn" 
@@ -176,8 +176,8 @@
                                                             class="btn btn-sm action-btn delete-btn" 
                                                             data-bs-toggle="modal" 
                                                             data-bs-target="#entityDeleteModal" 
-                                                            data-professional-id="{{ professional.id }}" 
-                                                            data-professional-name="{{ professional.name }}" 
+                                                            data-entity-id="{{ professional.id }}" 
+                                                            data-entity-name="{{ professional.name }}" 
                                                             data-delete-url="{{ path('app_professional_delete', {'id': professional.id}) }}" 
                                                             data-csrf-token="{{ csrf_token('delete' ~ professional.id) }}"
                                                             title="Eliminar">
@@ -241,6 +241,13 @@
             baseUrl: '{{ path('app_professional_index') }}',
             createUrl: '{{ path('app_professional_new_form') }}',  // Ruta que devuelve solo el formulario
             editUrl: '{{ path('app_professional_form', {'id': '__ID__'}) }}'  // Ruta que devuelve solo el formulario
+        });
+        
+        new EntityModalManager({
+            entityName: 'profesional',
+            entityNamePlural: 'profesionales',
+            baseUrl: '/profesionales',
+            deleteWarning: 'Esta acción no se puede deshacer.'
         });
     });
     </script>

@@ -9,7 +9,7 @@
 {% endfor %}
 
 <!-- Wizard Container -->
-<div class="wizard-container">
+<div class="wizard-container" data-is-edit="{{ is_edit ? 'true' : 'false' }}">
     <!-- Progress Steps -->
     <div class="wizard-steps">
         <div class="step active" data-step="1">

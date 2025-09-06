@@ -23,7 +23,7 @@
                 {{ form.domain.vars.help }}
                 {% if location.domain %}
                     <br><strong>URL actual:</strong> 
-                    <a href="{{ url('booking_index', {'domain': location.domain}) }}" target="_blank" class="text-decoration-none">
+                    <a href="{{ url('booking_index_path', {'domain': location.domain}) }}" target="_blank" class="text-decoration-none">
                         {{ app.request.schemeAndHttpHost }}/{{ location.domain }}
                         <i class="fas fa-external-link-alt ms-1"></i>
                     </a>

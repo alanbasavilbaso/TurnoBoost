@@ -30,18 +30,22 @@ class ProfessionalController extends AbstractController
     public function index(ProfessionalRepository $professionalRepository): Response
     {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $userLocation = $user->getOwnedLocations()->first();
         
-        if (!$location) {
-            $this->addFlash('error', 'Debe crear un local antes de gestionar profesionales.');
-            return $this->redirectToRoute('app_professional_index');
+        if (!$userLocation) {
+            $this->addFlash('error', 'No tiene una ubicación asignada.');
+            return $this->redirectToRoute('app_dashboard');
         }
-
-        $professionals = $professionalRepository->findBy(['location' => $location], ['name' => 'ASC']);
-
+    
+        // Filtrar solo profesionales activos
+        $professionals = $professionalRepository->findBy([
+            'location' => $userLocation,
+            'active' => true
+        ]);
+    
         return $this->render('professional/index.html.twig', [
             'professionals' => $professionals,
-            'location' => $location,
+            'location' => $userLocation
         ]);
     }
 
@@ -65,7 +69,8 @@ class ProfessionalController extends AbstractController
             'location' => $location,
             'is_edit' => false
         ]);
-         // Establecer valores por defecto para nuevo profesional
+        
+        // Establecer valores por defecto para nuevo profesional
         for ($day = 0; $day <= 6; $day++) {
             if ($day !== 6) { // No domingo
                 $form->get("availability_{$day}_enabled")->setData(true);
@@ -73,8 +78,15 @@ class ProfessionalController extends AbstractController
                 $form->get("availability_{$day}_range1_end")->setData('18:00');
             }
         }
+        
+        // NUEVO: Preseleccionar todos los servicios activos
+        $allServices = $location->getServices()->filter(function($service) {
+            return $service->isActive();
+        });
+        $form->get('services')->setData($allServices);
+        
         $form->handleRequest($request);
-
+    
         if ($form->isSubmitted() && $form->isValid()) {
             // Procesar horarios de disponibilidad
             $this->processAvailabilityData($form, $professional, $entityManager);
@@ -89,17 +101,13 @@ class ProfessionalController extends AbstractController
             return $this->redirectToRoute('app_professional_index');
         }
 
-        // Determinar qué template usar según variable de entorno
-        $useWizard = $_ENV['USE_PROFESSIONAL_WIZARD'] ?? false;
-        $template = $useWizard ? 'professional/form-wizard.html.twig' : 'professional/form.html.twig';
-
-        return $this->render($template, [
+        return $this->render('professional/form.html.twig', [
             'professional' => $professional,
             'form' => $form,
             'location' => $location,
             'services' => $location->getServices(),
             'is_edit' => false,
-            'existing_service_configs' => [], // Agregar esta línea
+            'existing_service_configs' => [],
         ]);
     }
 
@@ -183,12 +191,7 @@ class ProfessionalController extends AbstractController
             }
         }
         
-        // Determinar qué template usar según variable de entorno
-        $useWizard = $_ENV['USE_PROFESSIONAL_WIZARD'] ?? false;
-        
-        $template = $useWizard ? 'professional/form-wizard.html.twig' : 'professional/form.html.twig';
-        
-        return $this->render($template, [
+        return $this->render('professional/form.html.twig', [
             'professional' => $professional,
             'form' => $form,
             'location' => $location,
@@ -218,19 +221,18 @@ class ProfessionalController extends AbstractController
             $this->addFlash('error', 'No tiene permisos para eliminar este profesional.');
             return $this->redirectToRoute('app_professional_index');
         }
-
+    
         if ($this->isCsrfTokenValid('delete'.$professional->getId(), $request->request->get('_token'))) {
-            // Verificar si tiene citas asociadas
-            if ($professional->getAppointments()->count() > 0) {
-                $this->addFlash('error', 'No se puede eliminar el profesional porque tiene citas asociadas.');
-                return $this->redirectToRoute('app_professional_index');
-            }
-
-            $entityManager->remove($professional);
+            // Soft delete: marcar como inactivo
+            $professional->setActive(false);
+            $professional->setUpdatedAt(new \DateTime());
+            
             $entityManager->flush();
             $this->addFlash('success', 'Profesional eliminado exitosamente.');
+        } else {
+            $this->addFlash('error', 'Token CSRF inválido.');
         }
-
+    
         return $this->redirectToRoute('app_professional_index');
     }
 

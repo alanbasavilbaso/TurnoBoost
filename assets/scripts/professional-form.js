@@ -549,7 +549,7 @@ const ServiceManager = {
                                 Duración: ${config.customDurationMinutes || 'Por defecto'} min | 
                                 Precio: $${config.customPrice || 'Por defecto'}
                             </p>
-                            <div class="availability-days">
+                            <div class="availability-days hide">
                                 <small class="text-muted">Días disponibles:</small>
                                 <div class="mt-1">
                                     ${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day, index) => {
@@ -769,7 +769,115 @@ const ServiceManager = {
         
         const modalInstance = bootstrap.Modal.getInstance(modal);
         if (modalInstance) modalInstance.hide();
-    }
+    },
+
+    // Nueva función para verificar si todo está listo
+    isReadyForPreselection() {
+        const servicesSelect = document.getElementById('services-select');
+        const wizardContainer = document.querySelector('.wizard-container');
+        
+        // Verificar que existan los elementos necesarios
+        if (!servicesSelect || !wizardContainer) {
+            return false;
+        }
+        
+        // Verificar que el select tenga opciones cargadas
+        const options = Array.from(servicesSelect.options).filter(option => option.value);
+        if (options.length === 0) {
+            return false;
+        }
+        
+        // Verificar que el contenedor personalizado esté creado (CORREGIDO)
+        const customContainer = document.querySelector('.custom-select-container');
+        if (!customContainer) {
+            return false;
+        }
+        
+        return true;
+    },
+    
+    // Función robusta para preseleccionar con verificación
+    preselectAllServicesWhenReady() {
+        const maxAttempts = 50; // máximo 5 segundos (50 * 100ms)
+        let attempts = 0;
+        
+        const checkAndPreselect = () => {
+            attempts++;
+            
+            if (this.isReadyForPreselection()) {
+                console.log('Componentes listos, preseleccionando servicios...');
+                this.preselectAllServices();
+                return;
+            }
+            
+            if (attempts < maxAttempts) {
+                // Usar requestAnimationFrame para mejor rendimiento
+                requestAnimationFrame(() => {
+                    setTimeout(checkAndPreselect, 100);
+                });
+            } else {
+                console.warn('Timeout: No se pudieron preseleccionar los servicios automáticamente');
+                // Agregar más información de debug
+                console.log('Debug info:');
+                console.log('- services-select:', !!document.getElementById('services-select'));
+                console.log('- wizard-container:', !!document.querySelector('.wizard-container'));
+                console.log('- custom-select-container:', !!document.querySelector('.custom-select-container'));
+                console.log('- options count:', document.getElementById('services-select')?.options.length || 0);
+            }
+        };
+        
+        checkAndPreselect();
+    },
+    
+    preselectAllServices() {
+        // Verificar si es un formulario nuevo
+        const wizardContainer = document.querySelector('.wizard-container');
+        const isEdit = wizardContainer?.dataset.isEdit === 'true';
+        
+        console.log('Debug preselectAllServices:');
+        console.log('- isEdit:', isEdit);
+        console.log('- servicesConfiguration keys:', Object.keys(servicesConfiguration));
+        
+        if (isEdit) {
+            console.log('Modo edición detectado, no preseleccionando servicios');
+            return;
+        }
+        
+        // Verificar si ya hay servicios configurados (para evitar duplicados)
+        const existingServices = Object.keys(servicesConfiguration);
+        if (existingServices.length > 0) {
+            console.log('Ya hay servicios configurados, no preseleccionando:', existingServices);
+            return;
+        }
+        
+        const servicesSelect = document.getElementById('services-select');
+        if (!servicesSelect) {
+            console.warn('Elemento #services-select no encontrado');
+            return;
+        }
+        
+        // Obtener todas las opciones de servicios
+        const options = Array.from(servicesSelect.options).filter(option => option.value);
+        
+        console.log(`Preseleccionando ${options.length} servicios automáticamente...`);
+        
+        // Agregar cada servicio automáticamente
+        options.forEach(option => {
+            const serviceId = option.value;
+            const serviceName = option.dataset.name || option.text;
+            const serviceDuration = option.dataset.duration;
+            const servicePrice = option.dataset.price;
+            
+            // Solo agregar si no está ya agregado
+            if (!servicesConfiguration[serviceId]) {
+                this.addService(serviceId, serviceName, serviceDuration, servicePrice);
+            }
+        });
+        
+        console.log('Todos los servicios preseleccionados automáticamente');
+        console.log('servicesConfiguration después:', Object.keys(servicesConfiguration));
+    },
+
 };
 
 // ===== INICIALIZACIÓN =====
@@ -785,21 +893,6 @@ $(document).ready(function() {
     $('#save-service-days').on('click', () => ServiceManager.saveServiceDays());
 });
 
-// Escuchar cuando se abra el modal de profesionales
-// $(document).on('shown.bs.modal', '.modal', function() {
-//     // Verificar si este modal contiene el formulario de profesionales
-//     if ($(this).find('#services-select').length) {
-//         ServiceManager.reinitialize();
-//     }
-// });
-
-// Reinicializar en SPAs
-// document.addEventListener('turbo:load', function() {
-//     if (typeof $ !== 'undefined' && $('#services-select').length) {
-//         ServiceManager.reinitialize();
-//     }
-// });
-
 // Exponer funciones globales
 window.ServiceManager = ServiceManager;
 window.removeService = (serviceId) => ServiceManager.removeService(serviceId);
@@ -809,17 +902,23 @@ window.saveServiceDays = () => ServiceManager.saveServiceDays();
 
 // Función de inicialización para el modal de profesionales
 function initializeProfessionalForm() {
-    console.log('Initializing professional form in modal...');
+    // NUEVO: Limpiar configuración de servicios al inicializar
+    servicesConfiguration = {};
     
-    // Inicializar WizardManager
-    if (typeof WizardManager !== 'undefined') {
+    // Inicializar WizardManager si existe
+    if (document.querySelector('.wizard-container')) {
         window.wizardManager = new WizardManager();
     }
     
     // Inicializar ServiceManager cuando el formulario se carga en el modal
     if (document.getElementById('services-select')) {
         ServiceManager.initNativeSelect();
+        
+        // Primero cargar configuraciones existentes
         ServiceManager.loadExistingConfigs();
+        
+        // Luego intentar preseleccionar (solo si es nuevo y no hay configuraciones)
+        ServiceManager.preselectAllServicesWhenReady();
     }
     
     // Reinicializar AvailabilityManager

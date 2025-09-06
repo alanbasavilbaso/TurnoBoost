@@ -70,9 +70,24 @@ class EntityModalManager {
     handleDeleteClick(button) {
         const entityId = button.dataset.entityId;
         const entityName = button.dataset.entityName;
+        const csrfToken = button.dataset.csrfToken; // Obtener token del botón
         if (entityId && entityName) {
-            this.showDeleteModal(entityId, entityName);
+            this.showDeleteModal(entityId, entityName, csrfToken);
         }
+    }
+
+    showDeleteModal(entityId, entityName, csrfToken = null) {
+        document.getElementById('entityTypeLabel').textContent = `el ${this.config.entityName}`;
+        document.getElementById('entityName').textContent = entityName;
+        document.getElementById('entityDeleteWarning').textContent = this.config.deleteWarning;
+        document.getElementById('entityDeleteForm').action = `${this.config.baseUrl}/${entityId}`;
+        
+        // Usar el token del botón si está disponible, sino usar el método original
+        const tokenValue = csrfToken || this.getCSRFToken(entityId);
+        document.getElementById('entityDeleteToken').value = tokenValue;
+        
+        const modal = new bootstrap.Modal(document.getElementById('entityDeleteModal'));
+        modal.show();
     }
 
     loadEntityDetails(entityId) {
@@ -137,17 +152,6 @@ class EntityModalManager {
         document.getElementById('entityFormHeader').className = `modal-header ${headerClass}`;
         
         const modal = new bootstrap.Modal(document.getElementById('entityFormModal'));
-        modal.show();
-    }
-
-    showDeleteModal(entityId, entityName) {
-        document.getElementById('entityTypeLabel').textContent = `el ${this.config.entityName}`;
-        document.getElementById('entityName').textContent = entityName;
-        document.getElementById('entityDeleteWarning').textContent = this.config.deleteWarning;
-        document.getElementById('entityDeleteForm').action = `${this.config.baseUrl}/${entityId}`;
-        document.getElementById('entityDeleteToken').value = this.getCSRFToken(entityId);
-        
-        const modal = new bootstrap.Modal(document.getElementById('entityDeleteModal'));
         modal.show();
     }
 
