@@ -8,6 +8,7 @@ use App\Entity\Professional;
 use App\Entity\ProfessionalService;
 use App\Service\AppointmentService;
 use App\Service\TimeSlot;
+use App\Service\SettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -20,6 +21,7 @@ class BookingController extends AbstractController
 {
     private EntityManagerInterface $entityManager;
     private TimeSlot $timeSlotService;
+    private SettingsService $settingsService;
 
     public function __construct(EntityManagerInterface $entityManager, TimeSlot $timeSlotService)
     {
@@ -267,6 +269,113 @@ class BookingController extends AbstractController
             return new JsonResponse([
                 'success' => false,
                 'error' => 'Ha ocurrido un error interno. Por favor, inténtelo nuevamente.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Confirmar turno mediante URL segura
+     */
+    #[Route('/reservas/{domain}/appointment/{id}/confirm/{token}', name: 'booking_confirm_appointment', methods: ['GET'])]
+    public function confirmAppointment(string $domain, int $id, string $token, AppointmentService $appointmentService): Response
+    {
+        $location = $this->getLocationByDomain($domain);
+        
+        try {
+            // Validar token y confirmar turno
+            $appointment = $appointmentService->confirmAppointmentByToken($id, $token, $location);
+            
+            return $this->render('booking/appointment_action.html.twig', [
+                'action' => 'confirmed',
+                'appointment' => $appointment,
+                'location' => $location,
+                'success' => true,
+                'message' => '✅ Tu turno ha sido confirmado exitosamente'
+            ]);
+            
+        } catch (\InvalidArgumentException $e) {
+            return $this->render('booking/appointment_action.html.twig', [
+                'action' => 'confirm',
+                'success' => false,
+                'error' => $e->getMessage(),
+                'location' => $location
+            ]);
+        }
+    }
+
+    /**
+     * Cancelar turno mediante URL segura
+     */
+    #[Route('/reservas/{domain}/appointment/{id}/cancel/{token}', name: 'booking_cancel_appointment', methods: ['GET'])]
+    public function cancelAppointment(string $domain, int $id, string $token, AppointmentService $appointmentService): Response
+    {
+        $location = $this->getLocationByDomain($domain);
+        
+        try {
+            // Validar token y cancelar turno
+            $appointment = $appointmentService->cancelAppointmentByToken($id, $token, $location);
+            
+            return $this->render('booking/appointment_action.html.twig', [
+                'action' => 'cancelled',
+                'appointment' => $appointment,
+                'location' => $location,
+                'success' => true,
+                'message' => '❌ Tu turno ha sido cancelado'
+            ]);
+            
+        } catch (\InvalidArgumentException $e) {
+            return $this->render('booking/appointment_action.html.twig', [
+                'action' => 'cancel',
+                'success' => false,
+                'error' => $e->getMessage(),
+                'location' => $location
+            ]);
+        }
+    }
+
+    #[Route('/booking/validate-date', name: 'booking_validate_date', methods: ['POST'])]
+    public function validateDate(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        $appointmentDate = new \DateTime($data['date'] ?? '');
+        
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        $errors = $this->settingsService->validateAppointmentDate($user, $appointmentDate);
+        
+        return new JsonResponse([
+            'valid' => empty($errors),
+            'errors' => $errors
+        ]);
+    }
+
+    #[Route('/booking/create', name: 'booking_create', methods: ['POST'])]
+    public function create(Request $request, AppointmentService $appointmentService): JsonResponse
+    {
+        try {
+            $data = json_decode($request->getContent(), true);
+            $appointmentDate = new \DateTime($data['appointment_date']);
+            
+            /** @var User $user */
+            $user = $this->getUser();
+            
+            // Validar fecha según configuración
+            $errors = $this->settingsService->validateAppointmentDate($user, $appointmentDate);
+            
+            if (!empty($errors)) {
+                return new JsonResponse([
+                    'success' => false,
+                    'errors' => $errors
+                ], 400);
+            }
+
+            // ... resto del código de creación de cita ...
+            
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'success' => false,
+                'message' => 'Error al crear la cita: ' . $e->getMessage()
             ], 500);
         }
     }

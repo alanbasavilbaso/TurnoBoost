@@ -275,4 +275,137 @@ class AppointmentService
             'notes' => $appointment->getNotes()
         ];
     }
+
+    /**
+     * Generar token seguro para un appointment
+     */
+    public function generateSecureToken(int $appointmentId, string $action = 'confirm'): string
+    {
+        $secret = $_ENV['APP_SECRET'] ?? 'default-secret';
+        $expiration = time() + (24 * 60 * 60); // 24 horas
+        
+        $data = [
+            'appointment_id' => $appointmentId,
+            'action' => $action,
+            'expires' => $expiration
+        ];
+        
+        $payload = base64_encode(json_encode($data));
+        $signature = hash_hmac('sha256', $payload, $secret);
+        
+        return $payload . '.' . $signature;
+    }
+
+    /**
+     * Validar token y confirmar appointment
+     */
+    public function confirmAppointmentByToken(int $appointmentId, string $token, Location $location): Appointment
+    {
+        $this->validateToken($appointmentId, $token);
+        
+        $appointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
+        
+        if (!$appointment) {
+            throw new \InvalidArgumentException('Turno no encontrado');
+        }
+        
+        if ($appointment->getProfessional()->getLocation() !== $location) {
+            throw new \InvalidArgumentException('Turno no pertenece a esta ubicación');
+        }
+        
+        if ($appointment->getStatus() === StatusEnum::CANCELLED) {
+            throw new \InvalidArgumentException('Este turno ya fue cancelado');
+        }
+        
+        if ($appointment->getStatus() === StatusEnum::CONFIRMED) {
+            throw new \InvalidArgumentException('Este turno ya fue confirmado');
+        }
+        
+        // Confirmar el turno
+        $appointment->setStatus(StatusEnum::CONFIRMED);
+        $this->entityManager->flush();
+        
+        // Log de auditoría
+        $this->auditService->log(
+            'appointment_confirmed_by_link',
+            'Appointment',
+            $appointment->getId(),
+            ['method' => 'secure_link']
+        );
+        
+        return $appointment;
+    }
+
+    /**
+     * Validar token y cancelar appointment
+     */
+    public function cancelAppointmentByToken(int $appointmentId, string $token, Location $location): Appointment
+    {
+        $this->validateToken($appointmentId, $token);
+        
+        $appointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
+        
+        if (!$appointment) {
+            throw new \InvalidArgumentException('Turno no encontrado');
+        }
+        
+        if ($appointment->getProfessional()->getLocation() !== $location) {
+            throw new \InvalidArgumentException('Turno no pertenece a esta ubicación');
+        }
+        
+        if ($appointment->getStatus() === StatusEnum::CANCELLED) {
+            throw new \InvalidArgumentException('Este turno ya fue cancelado');
+        }
+        
+        // Cancelar el turno
+        $appointment->setStatus(StatusEnum::CANCELLED);
+        $this->entityManager->flush();
+        
+        // Log de auditoría
+        $this->auditService->log(
+            'appointment_cancelled_by_link',
+            'Appointment',
+            $appointment->getId(),
+            ['method' => 'secure_link']
+        );
+        
+        return $appointment;
+    }
+
+    /**
+     * Validar token de seguridad
+     */
+    private function validateToken(int $appointmentId, string $token): void
+    {
+        $secret = $_ENV['APP_SECRET'] ?? 'default-secret';
+        $parts = explode('.', $token);
+        
+        if (count($parts) !== 2) {
+            throw new \InvalidArgumentException('Token inválido');
+        }
+        
+        [$payload, $signature] = $parts;
+        
+        // Verificar firma
+        $expectedSignature = hash_hmac('sha256', $payload, $secret);
+        if (!hash_equals($expectedSignature, $signature)) {
+            throw new \InvalidArgumentException('Token inválido');
+        }
+        
+        // Decodificar payload
+        $data = json_decode(base64_decode($payload), true);
+        if (!$data) {
+            throw new \InvalidArgumentException('Token inválido');
+        }
+        
+        // Verificar expiración
+        if (time() > $data['expires']) {
+            throw new \InvalidArgumentException('El enlace ha expirado');
+        }
+        
+        // Verificar que el appointment ID coincida
+        if ($data['appointment_id'] !== $appointmentId) {
+            throw new \InvalidArgumentException('Token inválido para este turno');
+        }
+    }
 }

@@ -1,0 +1,63 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Configuración de la Empresa{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Configuración de Reservas</h4>
+                </div>
+                <div class="card-body">
+                    {{ form_start(form) }}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form_label(form.minimumBookingTime) }}
+                                {{ form_widget(form.minimumBookingTime) }}
+                                {{ form_help(form.minimumBookingTime) }}
+                                {{ form_errors(form.minimumBookingTime) }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form_label(form.maximumFutureTime) }}
+                                {{ form_widget(form.maximumFutureTime) }}
+                                {{ form_help(form.maximumFutureTime) }}
+                                {{ form_errors(form.maximumFutureTime) }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        {{ form_widget(form.save) }}
+                    </div>
+                    
+                    {{ form_end(form) }}
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Configuración Actual</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Tiempo mínimo de reserva:</strong><br>
+                            {{ settings.minimumBookingTime }} minutos
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Tiempo máximo futuro:</strong><br>
+                            {{ settings.maximumFutureTime }} meses
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

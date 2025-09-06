@@ -25,6 +25,11 @@ Comparte tu link de reserva con tus clientes:
 https://tuturno.io/test35
 
 
+--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- 
+correr worker en local:
+        php bin/console messenger:consume async -vv
+--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- 
+
 
 # Secuencia completa de reset de BD
 php bin/console doctrine:database:drop --force
@@ -52,207 +57,163 @@ php bin/console doctrine:migrations:version --delete --all
 php bin/console doctrine:migrations:migrate --no-interaction
 php bin/console doctrine:schema:validate
 
--- ENUMS
-CREATE TYPE role_enum AS ENUM ('admin', 'profesional', 'recepcionista', 'paciente');
-CREATE TYPE status_enum AS ENUM ('scheduled', 'confirmed', 'cancelled', 'no_show', 'completed');
-CREATE TYPE notif_type_enum AS ENUM ('whatsapp', 'sms', 'email');
-CREATE TYPE notif_status_enum AS ENUM ('pending', 'sent', 'failed');
 
--- CLINICS
-CREATE TABLE locations (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    address VARCHAR(255),
-    phone VARCHAR(50),
-    email VARCHAR(255),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
 
--- USERS
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    role role_enum NOT NULL,
-    location_id INT REFERENCES locations(id),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
+## 🏗️ Arquitectura General
+### Symfony (Backend Principal)
+- Maneja la lógica de negocio de citas
+- Almacena notificaciones en la base de datos
+- Envía peticiones HTTP al microservicio de WhatsApp
+- Gestiona el sistema de colas con Messenger
 
--- PROFESSIONALS
-CREATE TABLE professionals (
-    id SERIAL PRIMARY KEY,
-    location_id INT REFERENCES locations(id) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    specialty VARCHAR(255),
-    email VARCHAR(255),
-    phone VARCHAR(50),
-    active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
 
--- PATIENTS
-CREATE TABLE patients (
-    id SERIAL PRIMARY KEY,
-    location_id INT REFERENCES locations(id) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    phone VARCHAR(50),
-    email VARCHAR(255),
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- SERVICES (catálogo de servicios)
-CREATE TABLE services (
-    id SERIAL PRIMARY KEY,
-    location_id INT REFERENCES locations(id) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    default_duration_minutes INT NOT NULL,
-    price NUMERIC(10,2),
-    active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- RELACIÓN PROFESIONAL ↔ SERVICIOS
-CREATE TABLE professional_services (
-    id SERIAL PRIMARY KEY,
-    professional_id INT REFERENCES professionals(id) NOT NULL,
-    service_id INT REFERENCES services(id) NOT NULL,
-    custom_duration_minutes INT,
-    custom_price NUMERIC(10,2)
-);
-
--- APPOINTMENTS
-CREATE TABLE appointments (
-    id SERIAL PRIMARY KEY,
-    location_id INT REFERENCES locations(id) NOT NULL,
-    professional_id INT REFERENCES professionals(id) NOT NULL,
-    patient_id INT REFERENCES patients(id),
-    service_id INT REFERENCES services(id),
-    scheduled_at TIMESTAMP NOT NULL,
-    duration_minutes INT NOT NULL,
-    status status_enum DEFAULT 'scheduled' NOT NULL,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- DISPONIBILIDAD SEMANAL DEL PROFESIONAL
-CREATE TABLE professional_availability (
-    id SERIAL PRIMARY KEY,
-    professional_id INT REFERENCES professionals(id) NOT NULL,
-    weekday INT NOT NULL, -- 0=Lunes ... 6=Domingo
-    start_time TIME NOT NULL,
-    end_time TIME NOT NULL
-);
-
--- BLOQUEOS DE AGENDA
-CREATE TABLE schedule_blocks (
-    id SERIAL PRIMARY KEY,
-    professional_id INT REFERENCES professionals(id) NOT NULL,
-    start_datetime TIMESTAMP NOT NULL,
-    end_datetime TIMESTAMP NOT NULL,
-    reason TEXT
-);
-
--- NOTIFICATIONS
-CREATE TABLE notifications (
-    id SERIAL PRIMARY KEY,
-    appointment_id INT REFERENCES appointments(id) NOT NULL,
-    type notif_type_enum NOT NULL,
-    template_used VARCHAR(255),
-    sent_at TIMESTAMP,
-    status notif_status_enum DEFAULT 'pending' NOT NULL
-);
-
--- FEEDBACK
-CREATE TABLE feedback (
-    id SERIAL PRIMARY KEY,
-    appointment_id INT UNIQUE REFERENCES appointments(id) NOT NULL,
-    rating INT,
-    comment TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- MARKETING POSTS
-CREATE TABLE marketing_posts (
-    id SERIAL PRIMARY KEY,
-    location_id INT REFERENCES locations(id) NOT NULL,
-    professional_id INT REFERENCES professionals(id),
-    content TEXT NOT NULL,
-    image_url VARCHAR(255),
-    generated_for TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Índices útiles
-CREATE INDEX idx_appointments_professional_date ON appointments(professional_id, scheduled_at);
-CREATE INDEX idx_patients_location ON patients(location_id);
-CREATE INDEX idx_notifications_appointment ON notifications(appointment_id);
-CREATE INDEX idx_services_location ON services(location_id);
-CREATE INDEX idx_prof_availability_professional ON professional_availability(professional_id);
-CREATE INDEX idx_schedule_blocks_professional ON schedule_blocks(professional_id);
-CREATE INDEX idx_marketing_posts_location ON marketing_posts(location_id);
+### Node.js + Baileys (Microservicio)
+- Maneja la conexión con WhatsApp
+- Guarda y mantiene la sesión de WhatsApp
+- Expone API REST para recibir mensajes
+- Procesa y envía mensajes a WhatsApp
 
 
 
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+## 🤖 Bot de WhatsApp - Funcionalidades Simples
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+MENSAJES (que pueden cancelar en cualquier momento)
+---------------------------------------------
+## 📅 Mensaje de Confirmación de Turno
+🎉 ¡Tu turno ha sido confirmado!
 
-🏗 Orden recomendado de configuración
-1️⃣ Horario laboral (agenda base)
+👤 Paciente: [Nombre del paciente]
+🏥 Servicio: [Nombre del servicio]
+👨‍⚕️ Profesional: Dr./Dra. [Nombre del profesional]
+📅 Fecha: [Día de la semana], [DD/MM/YYYY]
+🕐 Hora: [HH:MM]
+📍 Ubicación: [Nombre de la clínica/consultorio]
+📍 Dirección: [Dirección completa]
 
-2️⃣ Servicios que ofrece
+💡 ¿Necesitas modificar o cancelar tu turno? 👆 Haz clic aquí: [LINK DE GESTIÓN]
 
-Por qué segundo:
+⚠️ Importante: Llega 10 minutos antes de tu cita
 
-La duración del servicio define cuánto ocupa cada turno y cómo se llenan los huecos.
+---------------------------------------------
+## ⏰ Recordatorio 24 Horas Antes
+🔔 Recordatorio de tu turno
 
-Qué configurar:
+¡Hola [Nombre]! Te recordamos que mañana tienes tu cita:
 
-Nombre del servicio
+👨‍⚕️ Con: Dr./Dra. [Nombre del profesional]
+🏥 Servicio: [Nombre del servicio]
+📅 Mañana [DD/MM] a las 🕐 [HH:MM] 📍 En: [Nombre de la clínica]
 
-Duración (ej: 20, 35, 45 min)
+📋 Recomendaciones: • Llega 10 minutos antes
+• Trae tu documento de identidad
+• [Preparación específica si aplica]
 
-Precio opcional
+❌ ¿Necesitas cancelar? [LINK DE GESTIÓN]
 
-Extra UX: permitir duplicar un servicio para otros profesionales o copiar duración default.
-3️⃣ Información personal del profesional
+---------------------------------------------
+## ⚡ Recordatorio Urgente 2 Horas Antes
+🚨 ¡Tu turno es en 2 horas!
 
-Por qué último:
+⏰ RECORDATORIO URGENTE
 
-Es información de contacto / identidad.
+Hola [Nombre], tu cita es HOY a las [HH:MM]
 
-No afecta la agenda directamente, solo se muestra en turnos, recordatorios y métricas.
+👨‍⚕️ Dr./Dra. [Nombre del profesional]
+📍 [Nombre de la clínica] 🗺️ Dirección: [Dirección]
 
-Qué incluir:
+🏃‍♂️ ¡No olvides salir con tiempo!
 
-Nombre, foto, especialidad
+⚠️ Último momento para cancelar: [LINK DE GESTIÓN]
 
-Email, teléfono
+---------------------------------------------
+## ❌ Confirmación de Cancelación
+✅ Turno cancelado exitosamente
 
-Foto/logo para marketing / posts
+Hola [Nombre], tu turno ha sido cancelado:
+
+📅 Fecha cancelada: [DD/MM/YYYY] a las [HH:MM]
+👨‍⚕️ Con: Dr./Dra. [Nombre del profesional]
+
+📞 ¿Quieres reagendar? Llámanos al [teléfono] o visita [link del sistema]
+
+💙 ¡Esperamos verte pronto!
+
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+## 💰 Mensajes con Políticas de Cancelación
+---------------------------------------------
+### 📅 Mensaje de Confirmación
+🎉 ¡Tu turno ha sido confirmado!
+
+👤 Cliente: [Nombre del cliente]
+🏥 Servicio: [Nombre del servicio]
+👨‍⚕️ Profesional: [Nombre del profesional]
+📅 Fecha: [Día de la semana], [DD/MM/YYYY]
+🕐 Hora: [HH:MM]
+📍 Ubicación: [Nombre de la clínica/consultorio]
+
+💡 ¿Necesitas modificar tu turno? 👆 Haz clic aquí: [LINK DE GESTIÓN]
+
+⚠️ POLÍTICA DE CANCELACIÓN
+✅ Gratuita: Antes de las 24 horas.
+💸 Con Cargo: Dentro de las 24 horas.
+---------------------------------------------
+### ⏰ Recordatorio 24 Horas (Con Advertencia)
+🔔 Recordatorio de tu turno
+
+¡Hola [Nombre]! Te recordamos que mañana tienes tu cita:
+
+👨‍⚕️ Con: Dr./Dra. [Nombre del profesional]
+📅 Mañana [DD/MM] a las 🕐 [HH:MM]
+
+⚠️ ¡ÚLTIMO DÍA para cancelación GRATUITA! A partir de mañana, las cancelaciones tendrán un cargo de $[MONTO]
+
+❌ ¿Necesitas cancelar? [LINK DE GESTIÓN]
+---------------------------------------------
+### 🚨 Recordatorio 2 Horas (Crítico)
+🚨 ¡Tu turno es en 2 horas!
+
+Hola [Nombre], tu cita es HOY a las [HH:MM]
+
+⚠️ ATENCIÓN: Ya no es posible cancelar este turno
+En caso de no asistir, se cobrará el 100% del valor
+
+🏃‍♂️ ¡Te esperamos!
 
 
-✅ Flujo recomendado en la UI
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
 
-Paso 1 – Horario laboral: “Definí tu agenda base semanal”
+## 🔗 Sobre el Link de Gestión
+La idea del link sin login es excelente . Podrías implementarlo así:
 
-Paso 2 – Servicios: “Qué tratamientos ofrecés y cuánto duran”
+URL ejemplo: https://turnoboost.com/manage/[TOKEN_ÚNICO]
 
-Paso 3 – Información personal: “Tus datos y cómo te ven los pacientes”
+El token podría ser: hash(appointment_id + patient_phone + secret_key)
 
-Paso 4 – Bloqueos / excepciones (opcional): “Feriados o vacaciones”
+Funcionalidades del link:
 
-Paso 5 – Confirmación y guardar
+- ✅ Ver detalles del turno
+- 📅 Reagendar (si hay disponibilidad)
+- ❌ Cancelar turno
+- 📞 Contactar a la clínica
+- 🗺️ Ver ubicación en mapa
+Ventajas:
 
+- 🔒 Seguro (token único por turno)
+- 📱 Fácil acceso desde WhatsApp
+- ⚡ Sin fricción (no requiere registro)
+- ⏰ Token con expiración automática
+Seguridad:
 
-
-
-<a href="{{ path('app_index') }}" class="btn btn-outline-secondary me-3">
-    <i class="fas fa-arrow-left"></i>
-</a>
+- Token expira después del turno
+- Solo permite acciones del turno específico
+- Rate limiting para prevenir abuso
+- Log de todas las acciones

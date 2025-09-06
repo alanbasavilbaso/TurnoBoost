@@ -99,7 +99,7 @@
                                             <td class="hide-md">
                                                 <div class="address-display">
                                                     <i class="fas fa-map-marker-alt text-muted me-1"></i>
-                                                    {{ location.address|slice(0, 40) }}{% if location.address|length > 40 %}...{% endif %}
+                                                    {{ location.address|slice(0, 30) }}{% if location.address|length > 30 %}...{% endif %}
                                                 </div>
                                             </td>
                                             <td>
@@ -110,7 +110,7 @@
                                                     </div>
                                                     <div>
                                                         <i class="fas fa-envelope text-muted me-1"></i>
-                                                        {{ location.email|slice(0, 20) }}{% if location.email|length > 20 %}...{% endif %}
+                                                        {{ location.email|slice(0, 15) }}{% if location.email|length > 15 %}...{% endif %}
                                                     </div>
                                                 </div>
                                             </td>

@@ -29,17 +29,38 @@ class PersonController extends AbstractController
             $this->addFlash('error', 'Debe crear un local antes de gestionar clientes.');
             return $this->redirectToRoute('location_index');
         }
-
+    
+        // Parámetros de paginación
+        $page = max(1, $request->query->getInt('page', 1));
+        $limit = 20; // Clientes por página
+        $offset = ($page - 1) * $limit;
+        
         // Obtener el parámetro de búsqueda
         $search = $request->query->get('search', '');
         
-        // Buscar pacientes con filtro por nombre si se proporciona
+        // Query base para contar total de clientes
+        $countQueryBuilder = $entityManager->getRepository(Patient::class)
+            ->createQueryBuilder('p')
+            ->select('COUNT(p.id)')
+            ->where('p.location = :location')
+            ->setParameter('location', $location);
+            
+        if (!empty($search)) {
+            $countQueryBuilder->andWhere('p.firstName LIKE :search OR p.lastName LIKE :search OR p.email LIKE :search OR p.phone LIKE :search OR p.idDocument LIKE :search')
+                ->setParameter('search', '%' . $search . '%');
+        }
+        
+        $totalPatients = $countQueryBuilder->getQuery()->getSingleScalarResult();
+        
+        // Query para obtener clientes de la página actual
         $queryBuilder = $entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
             ->where('p.location = :location')
             ->setParameter('location', $location)
             ->orderBy('p.firstName', 'ASC')
-            ->addOrderBy('p.lastName', 'ASC');
+            ->addOrderBy('p.lastName', 'ASC')
+            ->setFirstResult($offset)
+            ->setMaxResults($limit);
             
         if (!empty($search)) {
             $queryBuilder->andWhere('p.firstName LIKE :search OR p.lastName LIKE :search OR p.email LIKE :search OR p.phone LIKE :search OR p.idDocument LIKE :search')
@@ -47,11 +68,24 @@ class PersonController extends AbstractController
         }
         
         $patients = $queryBuilder->getQuery()->getResult();
-
+        
+        // Calcular información de paginación
+        $totalPages = ceil($totalPatients / $limit);
+        $hasNextPage = $page < $totalPages;
+        $hasPreviousPage = $page > 1;
+    
         return $this->render('person/index.html.twig', [
             'patients' => $patients,
             'location' => $location,
             'search' => $search,
+            'pagination' => [
+                'currentPage' => $page,
+                'totalPages' => $totalPages,
+                'totalItems' => $totalPatients,
+                'itemsPerPage' => $limit,
+                'hasNextPage' => $hasNextPage,
+                'hasPreviousPage' => $hasPreviousPage,
+            ],
         ]);
     }
 

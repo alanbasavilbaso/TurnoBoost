@@ -4,7 +4,8 @@ namespace App\Entity;
 
 enum NotificationTypeEnum: string
 {
-    case WHATSAPP = 'whatsapp';
-    case SMS = 'sms';
-    case EMAIL = 'email';
+    case CONFIRMATION = 'confirmation';
+    case REMINDER = 'reminder';
+    case URGENT_REMINDER = 'urgent_reminder';
+    case CANCELLATION = 'cancellation';
 }

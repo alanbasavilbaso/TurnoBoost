@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Location;
 use App\Entity\User;
+use App\Service\PhoneUtilityService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,7 +19,8 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 class LocationController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private PhoneUtilityService $phoneUtility
     ) {}
 
     #[Route('/', name: 'location_index', methods: ['GET'])]
@@ -45,6 +47,11 @@ class LocationController extends AbstractController
         
         if ($form->isSubmitted()) {
             if ($form->isValid()) {
+                // Limpiar el teléfono antes de guardar
+                if ($location->getPhone()) {
+                    $location->setPhone($this->phoneUtility->cleanPhoneNumber($location->getPhone()));
+                }
+                
                 $location->setCreatedAt(new \DateTime());
                 $location->setUpdatedAt(new \DateTime());
                 $location->setCreatedBy($user);
@@ -61,7 +68,6 @@ class LocationController extends AbstractController
             }
         }
         
-        // Agregar el return statement que faltaba
         return $this->render('location/form.html.twig', [
             'form' => $form,
             'location' => $location,
@@ -117,6 +123,11 @@ class LocationController extends AbstractController
 
         if ($form->isSubmitted()) {
             if ($form->isValid()) {
+                // Limpiar el teléfono antes de guardar
+                if ($location->getPhone()) {
+                    $location->setPhone($this->phoneUtility->cleanPhoneNumber($location->getPhone()));
+                }
+                
                 $location->setUpdatedAt(new \DateTime());
                 $entityManager->flush();
                 
@@ -171,7 +182,7 @@ class LocationController extends AbstractController
             'id' => $location->getId(),
             'name' => $location->getName(),
             'address' => $location->getAddress(),
-            'phone' => $location->getPhone(),
+            'phone' => $this->phoneUtility->formatForDisplay($location->getPhone()),
             'email' => $location->getEmail(),
             'domain' => $location->getDomain(),
             'created_at' => $location->getCreatedAt()?->format('d/m/Y H:i'),

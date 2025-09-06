@@ -26,3 +26,17 @@ services:
         arguments:
             $entityManager: '@doctrine.orm.entity_manager'
         tags: ['controller.service_arguments']
+    
+    App\Service\WhatsAppService:
+        arguments:
+            $whatsappServiceUrl: '%env(WHATSAPP_SERVICE_URL)%'
+            $originHeader: '%env(WHATSAPP_ORIGIN_HEADER)%'
+            $apiAuthHeader: '%env(WHATSAPP_API_AUTH_HEADER)%'
+            $userAgentHeader: '%env(WHATSAPP_USER_AGENT_HEADER)%'
+    
+    App\Service\PhoneUtilityService:
+        tags: ['app.service']
+    
+    App\Service\SettingsService:
+        arguments:
+            $entityManager: '@doctrine.orm.entity_manager'

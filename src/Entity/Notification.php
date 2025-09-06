@@ -26,6 +26,21 @@ class Notification
     #[ORM\Column(type: 'datetime', nullable: true)]
     private ?\DateTimeInterface $sentAt = null;
 
+    #[ORM\Column(type: 'datetime', nullable: true)]
+    private ?\DateTimeInterface $scheduledAt = null;
+
+    // Agregar métodos getter/setter:
+    public function getScheduledAt(): ?\DateTimeInterface
+    {
+        return $this->scheduledAt;
+    }
+
+    public function setScheduledAt(?\DateTimeInterface $scheduledAt): static
+    {
+        $this->scheduledAt = $scheduledAt;
+        return $this;
+    }
+
     #[ORM\Column(type: 'string', enumType: NotificationStatusEnum::class)]
     private NotificationStatusEnum $status = NotificationStatusEnum::PENDING;
 

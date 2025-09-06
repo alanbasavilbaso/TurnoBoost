@@ -1,0 +1,43 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ action == 'confirmed' ? 'Turno Confirmado' : 'Turno Cancelado' }}{% endblock %}
+
+{% block body %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body text-center">
+                    {% if success %}
+                        <div class="alert alert-success">
+                            <h4>{{ message }}</h4>
+                        </div>
+                        
+                        {% if appointment %}
+                            <div class="mt-4">
+                                <h5>Detalles del Turno</h5>
+                                <p><strong>Paciente:</strong> {{ appointment.patient.name }}</p>
+                                <p><strong>Fecha:</strong> {{ appointment.appointmentDate|date('d/m/Y') }}</p>
+                                <p><strong>Hora:</strong> {{ appointment.appointmentDate|date('H:i') }}</p>
+                                <p><strong>Profesional:</strong> {{ appointment.professional.name }}</p>
+                                <p><strong>Servicio:</strong> {{ appointment.service.name }}</p>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="alert alert-danger">
+                            <h4>Error</h4>
+                            <p>{{ error }}</p>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mt-4">
+                        <a href="/reservas/{{ location.domain }}" class="btn btn-primary">
+                            Volver a Reservas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

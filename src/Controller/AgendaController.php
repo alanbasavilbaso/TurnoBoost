@@ -22,6 +22,8 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use App\Service\TimeSlot;
+use App\Service\NotificationService;
+use App\Service\PhoneUtilityService;
 
 #[Route('/agenda')]
 #[IsGranted('ROLE_ADMIN')]
@@ -32,19 +34,25 @@ class AgendaController extends AbstractController
     private ServiceRepository $serviceRepository;
     private TimeSlot $timeSlotService;
     private PatientService $patientService;
+    private NotificationService $notificationService;
+    private PhoneUtilityService $phoneUtilityService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         ProfessionalRepository $professionalRepository,
         ServiceRepository $serviceRepository,
         TimeSlot $timeSlotService,
-        PatientService $patientService
+        PatientService $patientService,
+        NotificationService $notificationService,
+        PhoneUtilityService $phoneUtilityService
     ) {
         $this->entityManager = $entityManager;
         $this->professionalRepository = $professionalRepository;
         $this->serviceRepository = $serviceRepository;
         $this->timeSlotService = $timeSlotService;
         $this->patientService = $patientService;
+        $this->notificationService = $notificationService;
+        $this->phoneUtilityService = $phoneUtilityService;
     }
 
     #[Route('/', name: 'app_agenda_index', methods: ['GET'])]
@@ -347,6 +355,9 @@ class AgendaController extends AbstractController
         try {
             $appointment = $appointmentService->createAppointment($data, $location, $force);
             
+            // Programar notificaciones
+            $this->notificationService->scheduleAppointmentNotifications($appointment);
+            
             return new JsonResponse([
                 'success' => true,
                 'appointment' => $appointmentService->appointmentToArray($appointment)
@@ -535,7 +546,7 @@ class AgendaController extends AbstractController
                 $patientData['email'] = $data['patient_email'];
             }
             if (isset($data['patient_phone'])) {
-                $patientData['phone'] = $data['patient_phone'];
+                $patientData['phone'] = $this->phoneUtilityService->cleanPhoneNumber($data['patient_phone']);
             }
             if (isset($data['patient_birth_date'])) {
                 $patientData['birth_date'] = $data['patient_birth_date'];

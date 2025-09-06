@@ -41,35 +41,56 @@
                     </div>
                 {% endfor %}
 
-                {% if patients is empty %}
-                    <!-- Estado Vacío -->
-                    <div class="empty-state-modern">
-                        <div class="mb-4">
-                            <i class="fas fa-users" style="font-size: 4rem; color: #28a745; margin-bottom: 1rem;"></i>
-                        </div>
-                        <h3 class="text-muted mb-3">👥 No hay clientes registrados</h3>
-                        <p class="text-muted mb-4" style="font-size: 1.1rem;">Crea tu primer cliente para comenzar a gestionar citas</p>
-                    </div>
-                {% else %}
-                    <!-- Tabla de Clientes -->
-                    <div class="table-card">
-                        <div class="table-header">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h4 class="mb-0">
-                                    <i class="fas fa-users me-2"></i>
-                                    ({{ patients|length }})
-                                </h4>
-                                <div class="d-flex align-items-center gap-2">
-                                    <div class="position-relative">
-                                        <i class="fas fa-search position-absolute" style="left: 1rem; top: 50%; transform: translateY(-50%); color: #6c757d; z-index: 10;"></i>
-                                        <input type="text" 
-                                               class="form-control search-input-header ps-5" 
-                                               id="searchInput"
-                                               placeholder="Buscar clientes...">
-                                    </div>
+                <!-- Header de búsqueda siempre visible -->
+                <div class="table-card">
+                    <div class="table-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h4 class="mb-0">
+                                <i class="fas fa-users me-2"></i>
+                                {% if patients is not empty %}
+                                    ({{ pagination.totalItems }})
+                                {% else %}
+                                    (0)
+                                {% endif %}
+                            </h4>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="position-relative">
+                                    <i class="fas fa-search position-absolute" style="left: 1rem; top: 50%; transform: translateY(-50%); color: #6c757d; z-index: 10;"></i>
+                                    <input type="text" 
+                                           class="form-control search-input-header ps-5" 
+                                           id="searchInput"
+                                           value="{{ search }}"
+                                           placeholder="Buscar clientes...">
+                                    {% if search %}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary position-absolute" 
+                                                style="right: 0.5rem; top: 50%; transform: translateY(-50%); z-index: 10;"
+                                                onclick="window.location.href='{{ path('app_person_index') }}'"
+                                                title="Limpiar búsqueda">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    {% if patients is empty %}
+                        <!-- Estado Vacío -->
+                        <div class="empty-state-modern" style="padding: 3rem 2rem;">
+                            {% if search %}
+                                <h3 class="text-muted mb-3">🔍 No se encontraron resultados</h3>
+                                <p class="text-muted mb-4" style="font-size: 1.1rem;">No hay clientes que coincidan con "{{ search }}"</p>
+                                <button type="button" class="btn btn-outline-primary" 
+                                        onclick="window.location.href='{{ path('app_person_index') }}'">
+                                    <i class="fas fa-times me-2"></i>Limpiar búsqueda
+                                </button>
+                            {% else %}
+                                <h3 class="text-muted mb-3">👥 No hay clientes registrados</h3>
+                                <p class="text-muted mb-4" style="font-size: 1.1rem;">Crea tu primer cliente para comenzar a gestionar citas</p>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <!-- Tabla de Clientes -->
                         <div class="table-responsive">
                             <table class="table table-modern">
                                 <thead>
@@ -83,11 +104,7 @@
                                 </thead>
                                 <tbody id="patientsTableBody">
                                     {% for patient in patients %}
-                                        <tr class="patient-row" 
-                                            data-name="{{ patient.fullName|lower }}" 
-                                            data-email="{{ patient.email|default('')|lower }}"
-                                            data-phone="{{ patient.phone|default('')|lower }}"
-                                            data-document="{{ patient.idDocument|default('')|lower }}">
+                                        <tr class="patient-row">
                                             <td>
                                                 <div class="patient-info">
                                                     <div class="patient-avatar hide-md">
@@ -155,8 +172,75 @@
                                 </tbody>
                             </table>
                         </div>
-                    </div>
-                {% endif %}
+                        
+                        <!-- Controles de Paginación -->
+                        {% if pagination.totalPages > 1 %}
+                            <div class="pagination-container">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="pagination-info">
+                                        <span class="text-muted">
+                                            Mostrando {{ ((pagination.currentPage - 1) * pagination.itemsPerPage + 1) }} - 
+                                            {{ min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems) }} 
+                                            de {{ pagination.totalItems }} clientes
+                                        </span>
+                                    </div>
+                                    
+                                    <nav aria-label="Paginación de clientes">
+                                        <ul class="pagination pagination-modern mb-0">
+                                            <!-- Botón Anterior -->
+                                            <li class="page-item {{ not pagination.hasPreviousPage ? 'disabled' : '' }}">
+                                                <a class="page-link" 
+                                                   href="{{ pagination.hasPreviousPage ? path('app_person_index', {'page': pagination.currentPage - 1, 'search': search}) : '#' }}">
+                                                    <i class="fas fa-chevron-left"></i>
+                                                </a>
+                                            </li>
+                                            
+                                            <!-- Números de página -->
+                                            {% set startPage = max(1, pagination.currentPage - 2) %}
+                                            {% set endPage = min(pagination.totalPages, pagination.currentPage + 2) %}
+                                            
+                                            {% if startPage > 1 %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="{{ path('app_person_index', {'page': 1, 'search': search}) }}">1</a>
+                                                </li>
+                                                {% if startPage > 2 %}
+                                                    <li class="page-item disabled">
+                                                        <span class="page-link">...</span>
+                                                    </li>
+                                                {% endif %}
+                                            {% endif %}
+                                            
+                                            {% for page in startPage..endPage %}
+                                                <li class="page-item {{ page == pagination.currentPage ? 'active' : '' }}">
+                                                    <a class="page-link" href="{{ path('app_person_index', {'page': page, 'search': search}) }}">{{ page }}</a>
+                                                </li>
+                                            {% endfor %}
+                                            
+                                            {% if endPage < pagination.totalPages %}
+                                                {% if endPage < pagination.totalPages - 1 %}
+                                                    <li class="page-item disabled">
+                                                        <span class="page-link">...</span>
+                                                    </li>
+                                                {% endif %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="{{ path('app_person_index', {'page': pagination.totalPages, 'search': search}) }}">{{ pagination.totalPages }}</a>
+                                                </li>
+                                            {% endif %}
+                                            
+                                            <!-- Botón Siguiente -->
+                                            <li class="page-item {{ not pagination.hasNextPage ? 'disabled' : '' }}">
+                                                <a class="page-link" 
+                                                   href="{{ pagination.hasNextPage ? path('app_person_index', {'page': pagination.currentPage + 1, 'search': search}) : '#' }}">
+                                                    <i class="fas fa-chevron-right"></i>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </nav>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
