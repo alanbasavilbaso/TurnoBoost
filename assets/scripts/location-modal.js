@@ -169,6 +169,16 @@ class LocationModalManager extends EntityModalManager {
             });
         }
     }
+
+    showUrlPreview(url) {
+        let preview = document.querySelector('.domain-preview');
+        if (!preview) {
+            preview = document.createElement('div');
+            preview.className = 'domain-preview mt-2 text-muted small';
+            document.querySelector('#location_domain').parentNode.appendChild(preview);
+        }
+        preview.innerHTML = `<i class="fas fa-link"></i> URL: <a href="${url}" target="_blank">${url}</a>`;
+    }
 }
 
 // Inicializar cuando el DOM esté listo

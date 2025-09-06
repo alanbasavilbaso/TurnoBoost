@@ -30,12 +30,24 @@ class BookingController extends AbstractController
     }
 
     /**
-     * Página principal de reservas por dominio
-     * URL: localhost/reservas/{domain}
+     * Página principal de reservas
+     * Detecta automáticamente si es subdominio o path
      */
-    #[Route('/reservas/{domain}', name: 'booking_index', requirements: ['domain' => '[a-z0-9-]+'])]
-    public function index(string $domain): Response
+    #[Route('/', name: 'booking_index_subdomain', host: '{domain}.{base_domain}', requirements: ['domain' => '[a-z0-9-]+'], priority: 2)]
+    #[Route('/reservas/{domain}', name: 'booking_index_path', requirements: ['domain' => '[a-z0-9-]+'], priority: 1)]
+    public function index(string $domain = null, Request $request): Response
     {
+        // Si no hay dominio en la ruta, intentar obtenerlo del host
+        if (!$domain) {
+            $host = $request->getHost();
+            $parts = explode('.', $host);
+            $domain = $parts[0] ?? null;
+        }
+        
+        if (!$domain) {
+            throw $this->createNotFoundException('Domain not found');
+        }
+        
         $location = $this->getLocationByDomain($domain);
         
         return $this->render('booking/index.html.twig', [
@@ -43,6 +55,7 @@ class BookingController extends AbstractController
             'domain' => $domain
         ]);
     }
+    
 
     /**
      * API: Obtener servicios activos de el local
