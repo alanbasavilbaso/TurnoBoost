@@ -29,13 +29,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'string', enumType: RoleEnum::class)]
     private RoleEnum $role;
 
-    #[ORM\ManyToOne(targetEntity: Location::class, inversedBy: 'users')]
-    #[ORM\JoinColumn(name: 'location_id', referencedColumnName: 'id', nullable: true)]
-    private ?Location $location = null;
+    // RELACIÓN CORREGIDA: Un usuario pertenece a UNA company
+    #[ORM\ManyToOne(targetEntity: Company::class, inversedBy: 'users')]
+    #[ORM\JoinColumn(name: 'company_id', referencedColumnName: 'id', nullable: false)]
+    private Company $company;
 
-    // NUEVA RELACIÓN: Clínicas que este usuario ha creado
-    #[ORM\OneToMany(mappedBy: 'createdBy', targetEntity: Location::class)]
-    private Collection $ownedLocations;
+    // Campo para indicar si es el owner de la company
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    private bool $isOwner = false;
 
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $createdAt;
@@ -47,7 +48,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
-        $this->ownedLocations = new ArrayCollection();
     }
 
     // Getters y Setters
@@ -100,17 +100,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function getLocation(): ?Location
-    {
-        return $this->location;
-    }
-
-    public function setLocation(?Location $location): self
-    {
-        $this->location = $location;
-        return $this;
-    }
-
     public function getCreatedAt(): \DateTimeInterface
     {
         return $this->createdAt;
@@ -149,28 +138,37 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         // Si almacenas datos temporales sensibles en el usuario, límpialos aquí
     }
 
+    public function getCompany(): Company
+    {
+        return $this->company;
+    }
+
+    public function setCompany(Company $company): self
+    {
+        $this->company = $company;
+        return $this;
+    }
+
+    public function isOwner(): bool
+    {
+        return $this->isOwner;
+    }
+
+    public function setIsOwner(bool $isOwner): self
+    {
+        $this->isOwner = $isOwner;
+        return $this;
+    }
+    
+    public function canEdit(Company $company): bool
+    {
+        return $this->company->getId() === $company->getId() && $this->isOwner;
+    }
+
     // Método requerido por PasswordAuthenticatedUserInterface
     public function getPassword(): string
     {
         return $this->passwordHash;
     }
     
-    public function getOwnedLocations(): Collection
-    {
-        return $this->ownedLocations;
-    }
-    
-    public function addOwnedLocation(Location $location): self
-    {
-        if (!$this->ownedLocations->contains($location)) {
-            $this->ownedLocations->add($location);
-            $location->setCreatedBy($this);
-        }
-        return $this;
-    }
-    
-    public function canEdit(Location $location): bool
-    {
-        return $location->getCreatedBy()->getId() === $this->getId();
-    }
 }

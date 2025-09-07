@@ -221,11 +221,20 @@ class BookingController extends AbstractController
      */
     private function getLocationByDomain(string $domain): Location
     {
-        $location = $this->entityManager->getRepository(Location::class)
+        // Buscar la empresa por dominio
+        $company = $this->entityManager->getRepository(Company::class)
             ->findOneBy(['domain' => $domain]);
+            
+        if (!$company) {
+            throw new NotFoundHttpException(sprintf('No se encontró una empresa con el dominio "%s"', $domain));
+        }
         
+        // Obtener la primera ubicación activa de la empresa
+        $location = $this->entityManager->getRepository(Location::class)
+            ->findOneBy(['company' => $company, 'active' => true]);
+            
         if (!$location) {
-            throw new NotFoundHttpException(sprintf('No se encontró un local con el dominio "%s"', $domain));
+            throw new NotFoundHttpException(sprintf('No se encontró una ubicación activa para la empresa con dominio "%s"', $domain));
         }
         
         return $location;

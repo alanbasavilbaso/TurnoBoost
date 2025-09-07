@@ -29,25 +29,96 @@ class LocationController extends AbstractController
         /** @var User $user */
         $user = $this->getUser();
         
-        // Obtener solo los locales que el usuario ha creado
-        $locations = $user->getOwnedLocations();
-
+        // Obtener locations de la empresa del usuario
+        $locations = $this->entityManager->getRepository(Location::class)
+            ->createQueryBuilder('l')
+            ->where('l.company = :company')
+            ->setParameter('company', $user->getCompany())
+            ->orderBy('l.active', 'DESC')
+            ->addOrderBy('l.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+        
         return $this->render('location/index.html.twig', [
             'locations' => $locations,
         ]);
     }
 
+    #[Route('/{id}/reactivate', name: 'location_reactivate', methods: ['POST'])]
+    public function reactivate(Request $request, Location $location): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        // Verificar que la location pertenece a la empresa del usuario
+        if ($location->getCompany() !== $user->getCompany()) {
+            $this->addFlash('error', 'No tienes permisos para reactivar esta ubicación.');
+            return $this->redirectToRoute('location_index');
+        }
+        
+        // Verificar si ya existe un local activo para esta empresa
+        $activeLocationCount = $this->entityManager->getRepository(Location::class)
+            ->createQueryBuilder('l')
+            ->select('COUNT(l.id)')
+            ->where('l.company = :company')
+            ->andWhere('l.active = :active')
+            ->andWhere('l.id != :currentLocation')
+            ->setParameter('company', $user->getCompany())
+            ->setParameter('active', true)
+            ->setParameter('currentLocation', $location->getId())
+            ->getQuery()
+            ->getSingleScalarResult();
+        
+        if ($activeLocationCount > 0) {
+            $this->addFlash('error', 'Has llegado al límite de tu plan actual (Para agregar un nuevo local contactanos)');
+            return $this->redirectToRoute('location_index');
+        }
+    
+        if ($this->isCsrfTokenValid('reactivate'.$location->getId(), $request->request->get('_token'))) {
+            $location->setActive(true);
+            $location->setUpdatedAt(new \DateTime());
+            
+            $this->entityManager->flush();
+            $this->addFlash('success', 'Ubicación reactivada exitosamente.');
+        } else {
+            $this->addFlash('error', 'Token de seguridad inválido.');
+        }
+    
+        return $this->redirectToRoute('location_index');
+    }
+
     #[Route('/new', name: 'location_new', methods: ['GET', 'POST'])]
     public function new(Request $request, EntityManagerInterface $entityManager): Response
     {   
+        /** @var User $user */
         $user = $this->getUser();
+        
+        // Verificar si ya existe un local activo para esta empresa
+        $activeLocationCount = $this->entityManager->getRepository(Location::class)
+            ->createQueryBuilder('l')
+            ->select('COUNT(l.id)')
+            ->where('l.company = :company')
+            ->andWhere('l.active = :active')
+            ->setParameter('company', $user->getCompany())
+            ->setParameter('active', true)
+            ->getQuery()
+            ->getSingleScalarResult();
+        
+        if ($activeLocationCount > 0) {
+            $this->addFlash('error', 'eee Has llegado al límite de tu plan actual (Para agregar un nuevo local contactanos)');
+            return $this->redirectToRoute('location_index');
+        }
+        
         $location = new Location();
+        
+        // Asignar automáticamente la empresa del usuario logueado
+        $location->setCompany($user->getCompany());
+        
         $form = $this->createForm(LocationType::class, $location, ['is_edit' => false]);
         $form->handleRequest($request);
         
         if ($form->isSubmitted()) {
             if ($form->isValid()) {
-                // Limpiar el teléfono antes de guardar
                 if ($location->getPhone()) {
                     $location->setPhone($this->phoneUtility->cleanPhoneNumber($location->getPhone()));
                 }
@@ -55,13 +126,13 @@ class LocationController extends AbstractController
                 $location->setCreatedAt(new \DateTime());
                 $location->setUpdatedAt(new \DateTime());
                 $location->setCreatedBy($user);
+                // La empresa ya está asignada arriba
                 $entityManager->persist($location);
                 $entityManager->flush();
                 
                 $this->addFlash('success', 'Local creado exitosamente.');
                 return $this->redirectToRoute('location_index');
             } else {
-                // Mostrar errores de validación como flash messages
                 foreach ($form->getErrors(true) as $error) {
                     $this->addFlash('error', $error->getMessage());
                 }
@@ -76,10 +147,34 @@ class LocationController extends AbstractController
     }
 
     #[Route('/new/form', name: 'location_new_form', methods: ['GET'])]
-    public function newForm(): Response
+    public function newForm(Request $request): Response
     {   
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        // Verificar si ya existe un local activo para esta empresa
+        $activeLocationCount = $this->entityManager->getRepository(Location::class)
+            ->createQueryBuilder('l')
+            ->select('COUNT(l.id)')
+            ->where('l.company = :company')
+            ->andWhere('l.active = :active')
+            ->setParameter('company', $user->getCompany())
+            ->setParameter('active', true)
+            ->getQuery()
+            ->getSingleScalarResult();
+        
+        if ($activeLocationCount > 0) {
+            return $this->render('location/error.html.twig', [
+                'message' => 'Has llegado al límite de tu plan actual (Para agregar un nuevo local contactanos)',
+                'title' => 'Límite de Plan Alcanzado'
+            ]);
+        }
+        
         $location = new Location();
-        $location->setDomain('');
+        
+        // Asignar automáticamente la empresa del usuario logueado
+        $location->setCompany($user->getCompany());
+        
         $form = $this->createForm(LocationType::class, $location, ['is_edit' => false]);
         
         return $this->render('location/form.html.twig', [
@@ -95,8 +190,8 @@ class LocationController extends AbstractController
         /** @var User $user */
         $user = $this->getUser();
         
-        // Verificar que el usuario puede ver esta ubicación
-        if (!$user->canEdit($location)) {
+        // Verificar que la location pertenece a la empresa del usuario
+        if ($location->getCompany() !== $user->getCompany()) {
             $this->addFlash('error', 'No tienes permisos para ver esta ubicación.');
             return $this->redirectToRoute('location_index');
         }
@@ -112,8 +207,8 @@ class LocationController extends AbstractController
         /** @var User $user */
         $user = $this->getUser();
         
-        // Verificar permisos de edición
-        if (!$user->canEdit($location)) {
+        // Verificar que la location pertenece a la empresa del usuario
+        if ($location->getCompany() !== $user->getCompany()) {
             $this->addFlash('error', 'No tienes permisos para editar esta ubicación.');
             return $this->redirectToRoute('location_index');
         }
@@ -123,7 +218,6 @@ class LocationController extends AbstractController
 
         if ($form->isSubmitted()) {
             if ($form->isValid()) {
-                // Limpiar el teléfono antes de guardar
                 if ($location->getPhone()) {
                     $location->setPhone($this->phoneUtility->cleanPhoneNumber($location->getPhone()));
                 }
@@ -131,10 +225,9 @@ class LocationController extends AbstractController
                 $location->setUpdatedAt(new \DateTime());
                 $entityManager->flush();
                 
-                $this->addFlash('success', 'Servicio actualizado exitosamente.');
-                return $this->redirectToRoute('app_service_index');
+                $this->addFlash('success', 'Ubicación actualizada exitosamente.');
+                return $this->redirectToRoute('location_index');
             } else {
-                // Mostrar errores de validación como flash messages
                 foreach ($form->getErrors(true) as $error) {
                     $this->addFlash('error', $error->getMessage());
                 }
@@ -143,6 +236,8 @@ class LocationController extends AbstractController
 
         return $this->render('location/form.html.twig', [
             'location' => $location,
+            'form' => $form,
+            'is_edit' => true
         ]);
     }
 
@@ -153,7 +248,7 @@ class LocationController extends AbstractController
         $user = $this->getUser();
         
         // Verificar permisos de edición
-        if (!$user->canEdit($location)) {
+        if (!$user->canEdit($user->getCompany())) {
             throw $this->createAccessDeniedException('No tienes permisos para editar esta ubicación.');
         }
 
@@ -174,7 +269,7 @@ class LocationController extends AbstractController
         $user = $this->getUser();
         
         // Verificar permisos
-        if (!$user->canEdit($location)) {
+        if (!$user->canEdit($user->getCompany())) {
             return $this->json(['error' => 'No tienes permisos para ver esta ubicación.'], 403);
         }
 
@@ -184,7 +279,6 @@ class LocationController extends AbstractController
             'address' => $location->getAddress(),
             'phone' => $this->phoneUtility->formatForDisplay($location->getPhone()),
             'email' => $location->getEmail(),
-            'domain' => $location->getDomain(),
             'created_at' => $location->getCreatedAt()?->format('d/m/Y H:i'),
             'updated_at' => $location->getUpdatedAt()?->format('d/m/Y H:i')
         ]);
@@ -196,31 +290,29 @@ class LocationController extends AbstractController
         /** @var User $user */
         $user = $this->getUser();
         
-        // Verificar permisos de eliminación
-        if (!$user->canEdit($location)) {
+        // Verificar que la location pertenece a la empresa del usuario
+        if ($location->getCompany() !== $user->getCompany()) {
             $this->addFlash('error', 'No tienes permisos para eliminar esta ubicación.');
             return $this->redirectToRoute('location_index');
         }
 
-        // Verificar token CSRF para seguridad
         if ($this->isCsrfTokenValid('delete'.$location->getId(), $request->request->get('_token'))) {
-            // Verificar que no tenga usuarios, profesionales, pacientes o servicios asociados
-            if ($location->getUsers()->count() > 0 || 
-                $location->getProfessionals()->count() > 0 || 
-                $location->getPatients()->count() > 0 || 
-                $location->getServices()->count() > 0) {
-                $this->addFlash('error', 'No se puede eliminar la ubicación porque tiene datos asociados.');
-                return $this->redirectToRoute('location_show', ['id' => $location->getId()]);
-            }
-
-            $this->entityManager->remove($location);
-            $this->entityManager->flush();
+            $location->setActive(false);
+            $location->setUpdatedAt(new \DateTime());
             
-            $this->addFlash('success', 'Ubicación eliminada exitosamente.');
+            $this->entityManager->flush();
+            $this->addFlash('success', 'Ubicación desactivada exitosamente.');
         } else {
             $this->addFlash('error', 'Token de seguridad inválido.');
         }
 
         return $this->redirectToRoute('location_index');
+    }
+
+    private function isXmlHttpRequest(Request $request): bool
+    {
+        return $request->isXmlHttpRequest() || 
+               $request->headers->get('Content-Type') === 'application/json' ||
+               $request->query->get('ajax') === '1';
     }
 }

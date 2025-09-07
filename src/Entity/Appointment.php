@@ -15,6 +15,10 @@ class Appointment
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
+    #[ORM\ManyToOne(targetEntity: Company::class)]
+    #[ORM\JoinColumn(name: 'company_id', referencedColumnName: 'id', nullable: false)]
+    private Company $company;
+
     #[ORM\ManyToOne(targetEntity: Location::class, inversedBy: 'professionals')]
     #[ORM\JoinColumn(name: 'location_id', referencedColumnName: 'id', nullable: false)]
     private Location $location;
@@ -36,6 +40,9 @@ class Appointment
 
     #[ORM\Column(type: 'integer')]
     private int $durationMinutes;
+
+    #[ORM\Column(type: 'decimal', precision: 10, scale: 2, nullable: true)]
+    private ?float $price = null;
 
     #[ORM\Column(type: 'string', enumType: StatusEnum::class)]
     private StatusEnum $status = StatusEnum::SCHEDULED;
@@ -243,8 +250,25 @@ class Appointment
     /**
      * Obtiene el precio de la cita basado en el servicio o configuración personalizada
      */
+    public function getCompany(): Company
+    {
+        return $this->company;
+    }
+
+    public function setCompany(Company $company): static
+    {
+        $this->company = $company;
+        return $this;
+    }
+
     public function getPrice(): ?float
     {
+        // Si ya tiene un precio almacenado, devolverlo (precio fijo al momento de la cita)
+        if ($this->price !== null) {
+            return $this->price;
+        }
+
+        // Si no tiene precio almacenado, calcular dinámicamente (para compatibilidad con citas existentes)
         if ($this->service && $this->professional) {
             // Buscar si hay configuración personalizada en ProfessionalService
             foreach ($this->professional->getProfessionalServices() as $ps) {
@@ -256,6 +280,32 @@ class Appointment
             return $this->service->getPriceAsFloat();
         }
         return null;
+    }
+
+    public function setPrice(?float $price): static
+    {
+        $this->price = $price;
+        return $this;
+    }
+
+    /**
+     * Establece el precio basado en el servicio y profesional actuales
+     * Útil para fijar el precio al momento de crear la cita
+     */
+    public function setPriceFromService(): static
+    {
+        if ($this->service && $this->professional) {
+            // Buscar si hay configuración personalizada en ProfessionalService
+            foreach ($this->professional->getProfessionalServices() as $ps) {
+                if ($ps->getService() === $this->service) {
+                    $this->price = $ps->getEffectivePrice();
+                    return $this;
+                }
+            }
+            // Si no hay configuración personalizada, usar precio del servicio
+            $this->price = $this->service->getPriceAsFloat();
+        }
+        return $this;
     }
 
     /**

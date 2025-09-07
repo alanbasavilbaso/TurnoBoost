@@ -907,6 +907,12 @@ class AgendaManager {
             // Determinar el tipo de vista actual
             const viewType = this.determineAutoView();
             
+            // Agregar filtro de ubicación
+            const selectedLocationId = document.getElementById('locationFilter').value;
+            if (selectedLocationId) {
+                params.append('location', selectedLocationId);
+            }
+            
             // Agregar filtro de fecha según la vista
             if (this.currentDate) {
                 if (viewType === 'week') {
@@ -1881,6 +1887,7 @@ class AgendaManager {
             appointment_time_from: document.getElementById('appointment-hour-from').value + ':' + document.getElementById('appointment-minute-from').value,
             professional_id: document.getElementById('modal-professional').value,
             service_id: document.getElementById('modal-service').value,
+            location_id: document.getElementById('appointment-location-id').value, // Agregar esta línea
             notes: document.getElementById('appointment-notes').value || ''
         };
 
@@ -2355,8 +2362,201 @@ class AgendaManager {
     }
 }
 
+// Sincronizar filtro de location con campo hidden del modal Y actualizar grilla
+document.getElementById('locationFilter').addEventListener('change', function() {
+    const selectedLocationId = this.value;
+    
+    // Sincronizar con el campo hidden del modal
+    document.getElementById('appointment-location-id').value = selectedLocationId;
+    
+    // Actualizar la grilla de la agenda
+    if (agendaManager) {
+        // Actualizar profesionales y servicios según la ubicación seleccionada
+        agendaManager.updateFiltersForLocation(selectedLocationId);
+        // Recargar las citas
+        agendaManager.loadAppointments();
+    }
+});
+
+// Al abrir el modal, asegurar que el location_id esté sincronizado
+document.getElementById('appointmentModal').addEventListener('show.bs.modal', function() {
+    const selectedLocationId = document.getElementById('locationFilter').value;
+    document.getElementById('appointment-location-id').value = selectedLocationId;
+});
+
+// Funcionalidad del botón flotante
+function initFloatingActionButton() {
+    const floatingBtn = document.getElementById('floatingActionBtn');
+    const floatingOptions = document.getElementById('floatingOptions');
+    const floatingIcon = document.getElementById('floatingIcon');
+    const reserveOption = document.getElementById('reserveOption');
+    const blockOption = document.getElementById('blockOption');
+    
+    let isOpen = false;
+    
+    // Toggle del menú flotante
+    floatingBtn.addEventListener('click', function() {
+        isOpen = !isOpen;
+        
+        if (isOpen) {
+            floatingOptions.classList.add('show');
+            floatingBtn.classList.add('active');
+            floatingIcon.className = 'fas fa-times';
+        } else {
+            floatingOptions.classList.remove('show');
+            floatingBtn.classList.remove('active');
+            floatingIcon.className = 'fas fa-plus';
+        }
+    });
+    
+    // Cerrar menú al hacer clic fuera
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.floating-action-container') && isOpen) {
+            closeFloatingMenu();
+        }
+    });
+    
+    // Opción de reservar
+    reserveOption.addEventListener('click', function() {
+        closeFloatingMenu();
+        // El modal se abre automáticamente por data-bs-toggle
+        // Aquí puedes agregar lógica adicional si es necesaria
+        console.log('Abriendo modal de reserva');
+    });
+    
+    // Opción de bloqueo horario
+    blockOption.addEventListener('click', function() {
+        closeFloatingMenu();
+        // Abrir modal de bloqueo
+        const blockModal = new bootstrap.Modal(document.getElementById('blockModal'));
+        blockModal.show();
+        console.log('Abriendo modal de bloqueo horario');
+    });
+    
+    function closeFloatingMenu() {
+        isOpen = false;
+        floatingOptions.classList.remove('show');
+        floatingBtn.classList.remove('active');
+        floatingIcon.className = 'fas fa-plus';
+    }
+}
+
+// Funcionalidad del modal de bloqueo de horario
+function initBlockModal() {
+    const blockTypeSelect = document.getElementById('blockType');
+    const singleDayGroup = document.getElementById('singleDayGroup');
+    const dateRangeGroup = document.getElementById('dateRangeGroup');
+    const weekdaysPatternGroup = document.getElementById('patternGroup');
+    const monthlyRecurringGroup = document.getElementById('monthlyRecurringGroup');
+    const monthlyPreview = document.getElementById('monthlyPreview');
+    
+    if (!blockTypeSelect) return;
+    
+    // Función para mostrar/ocultar grupos según el tipo seleccionado
+    function toggleBlockGroups() {
+        const selectedType = blockTypeSelect.value;
+        
+        // Ocultar todos los grupos primero
+        singleDayGroup.style.display = 'none';
+        dateRangeGroup.style.display = 'none';
+        weekdaysPatternGroup.style.display = 'none';
+        monthlyRecurringGroup.style.display = 'none';
+        
+        // Mostrar el grupo correspondiente
+        switch(selectedType) {
+            case 'single_day':
+                singleDayGroup.style.display = 'block';
+                break;
+            case 'date_range':
+                dateRangeGroup.style.display = 'block';
+                break;
+            case 'pattern':
+                weekdaysPatternGroup.style.display = 'block';
+                break;
+            case 'monthly_recurring':
+                monthlyRecurringGroup.style.display = 'block';
+                break;
+        }
+    }
+    
+    // Event listener para cambio de tipo de bloqueo
+    blockTypeSelect.addEventListener('change', toggleBlockGroups);
+    
+    // Función para generar vista previa de repetición mensual
+    function generateMonthlyPreview() {
+        const startDate = document.getElementById('monthlyStartDate')?.value;
+        const endDate = document.getElementById('monthlyEndDate')?.value;
+        
+        if (!startDate) {
+            monthlyPreview.innerHTML = '<small class="text-muted">Selecciona una fecha de inicio para ver la vista previa</small>';
+            return;
+        }
+        
+        const start = new Date(startDate);
+        const end = endDate ? new Date(endDate) : new Date(start.getFullYear() + 1, start.getMonth(), start.getDate());
+        const dayOfMonth = start.getDate();
+        
+        const dates = [];
+        const current = new Date(start.getFullYear(), start.getMonth(), dayOfMonth);
+        
+        while (current <= end && dates.length < 12) { // Limitar a 12 meses para la vista previa
+            if (current.getDate() === dayOfMonth) { // Verificar que el día existe en el mes
+                dates.push(new Date(current));
+            }
+            current.setMonth(current.getMonth() + 1);
+        }
+        
+        if (dates.length > 0) {
+            const dateStrings = dates.map(date => 
+                date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            );
+            
+            let previewText = `<strong>Fechas a bloquear:</strong><br>`;
+            previewText += dateStrings.slice(0, 6).join(', ');
+            
+            if (dates.length > 6) {
+                previewText += ` y ${dates.length - 6} fechas más...`;
+            }
+            
+            monthlyPreview.innerHTML = previewText;
+        } else {
+            monthlyPreview.innerHTML = '<small class="text-warning">No se encontraron fechas válidas en el rango especificado</small>';
+        }
+    }
+    
+    // Event listeners para vista previa mensual
+    document.getElementById('monthlyStartDate')?.addEventListener('change', generateMonthlyPreview);
+    document.getElementById('monthlyEndDate')?.addEventListener('change', generateMonthlyPreview);
+    
+    // Inicializar estado del modal
+    toggleBlockGroups();
+}
+
 // Inicializar cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', async function() {
     agendaManager = new AgendaManager();
     await agendaManager.init();
+    
+    // Inicializar botón flotante
+    initFloatingActionButton();
+    
+    // Inicializar modal de bloqueo
+    initBlockModal();
+
+    // Ejemplos dinámicos para repetición
+    function updateRepeatExample() {
+        const repeatType = document.getElementById('repeatType').value;
+        const exampleText = document.getElementById('repeatExampleText');
+        
+        const examples = {
+            'daily': 'Ej: Si eliges 15 de enero, se bloqueará todos los días: 15/01, 16/01, 17/01...',
+            'weekly': 'Ej: Si eliges lunes 15 de enero, se bloqueará todos los lunes: 15/01, 22/01, 29/01...',
+            'monthly': 'Ej: Si eliges 15 de enero, se bloqueará el día 15 de cada mes: 15/01, 15/02, 15/03...'
+        };
+        
+        exampleText.textContent = examples[repeatType] || examples['daily'];
+    }
+
+    // Event listener para cambio de tipo de repetición
+    document.getElementById('repeatType')?.addEventListener('change', updateRepeatExample);
 });

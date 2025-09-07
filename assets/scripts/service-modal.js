@@ -5,8 +5,11 @@ class ServiceModalManager extends EntityModalManager {
             entityName: 'servicio',
             entityNamePlural: 'servicios',
             baseUrl: '/servicios',
-            deleteWarning: 'Esta acción no se puede deshacer y eliminará todas las citas asociadas.'
+            deleteWarning: 'Esta acción no se puede deshacer.'
         });
+        
+        // Agregar listener para reactivación
+        this.initializeReactivateHandler();
     }
 
     // Sobrescribir los métodos para usar los atributos correctos
@@ -58,8 +61,8 @@ class ServiceModalManager extends EntityModalManager {
                 <div class="col-md-6">
                     <h6><i class="fas fa-cogs text-info me-2"></i>Configuración</h6>
                     <p><strong>Estado:</strong> ${data.active ? 'Activo' : 'Inactivo'}</p>
-                    <p><strong>Tipo de Entrega:</strong> ${data.delivery_type}</p>
-                    <p><strong>Tipo de Servicio:</strong> ${data.service_type}</p>
+                   
+                    
                     ${data.frequency_weeks ? `<p><strong>Frecuencia:</strong> Cada ${data.frequency_weeks} semanas</p>` : ''}
                     <p><strong>Profesionales:</strong> ${data.professionals_count}</p>
                 </div>
@@ -72,6 +75,46 @@ class ServiceModalManager extends EntityModalManager {
         if (typeof initializeServiceForm === 'function') {
             initializeServiceForm();
         }
+    }
+
+    // Nuevo método para manejar reactivación
+    handleReactivateClick(button) {
+        const entityId = button.dataset.serviceId;
+        const entityName = button.dataset.serviceName;
+        const reactivateUrl = button.dataset.reactivateUrl;
+        const csrfToken = button.dataset.csrfToken;
+        
+        if (entityId && entityName) {
+            this.showReactivateConfirmation(entityId, entityName, reactivateUrl, csrfToken);
+        }
+    }
+
+    showReactivateConfirmation(entityId, entityName, reactivateUrl, csrfToken) {
+        if (confirm(`¿Estás seguro de que deseas reactivar el ${this.config.entityName} "${entityName}"?`)) {
+            // Crear formulario para envío POST
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = reactivateUrl;
+            
+            const tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '_token';
+            tokenInput.value = csrfToken;
+            
+            form.appendChild(tokenInput);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+
+    initializeReactivateHandler() {
+        // Delegar eventos para botones de reactivación
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.reactivate-btn')) {
+                e.preventDefault();
+                this.handleReactivateClick(e.target.closest('.reactivate-btn'));
+            }
+        });
     }
 }
 

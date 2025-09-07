@@ -2,8 +2,8 @@
 
 namespace App\Controller;
 
-use App\Entity\Location;
-use App\Form\LocationType;
+use App\Entity\Company;
+use App\Form\CompanyType;
 use App\Form\LoginType;
 use App\Entity\StatusEnum;
 use Doctrine\ORM\EntityManagerInterface;
@@ -57,10 +57,9 @@ class SecurityController extends AbstractController
         $user = $this->getUser();
         
         // Obtener el local del usuario
-        $location = $entityManager->getRepository(Location::class)
-            ->findOneBy(['createdBy' => $user]);
+        $company = $user->getCompany();
         
-        if (!$location) {
+        if (!$company) {
             // Si no tiene locales, mostrar datos vacíos
             return $this->render('security/index.html.twig', [
                 'user' => $user,
@@ -74,7 +73,7 @@ class SecurityController extends AbstractController
         }
         
         // Obtener todas las estadísticas en una sola query optimizada
-        $stats = $this->getDashboardStats($entityManager, $location);
+        $stats = $this->getDashboardStats($entityManager, $company);
         
         return $this->render('security/index.html.twig', [
             'user' => $user,
@@ -82,7 +81,7 @@ class SecurityController extends AbstractController
         ]);
     }
 
-    private function getDashboardStats(EntityManagerInterface $entityManager, Location $location): array
+    private function getDashboardStats(EntityManagerInterface $entityManager, Company $company): array
     {
         $today = new \DateTime('today');
         $tomorrow = new \DateTime('tomorrow');
@@ -93,13 +92,13 @@ class SecurityController extends AbstractController
         $appointmentsToday = $entityManager->createQuery('
             SELECT COUNT(a.id) as count
             FROM App\Entity\Appointment a
-            WHERE a.location = :location
+            WHERE a.company = :company
             AND a.scheduledAt >= :today
             AND a.scheduledAt < :tomorrow
             AND a.status != :cancelled
         ')
         ->setParameters([
-            'location' => $location,
+            'company' => $company,
             'today' => $today,
             'tomorrow' => $tomorrow,
             'cancelled' => StatusEnum::CANCELLED
@@ -110,21 +109,21 @@ class SecurityController extends AbstractController
         $totalPatients = $entityManager->createQuery('
             SELECT COUNT(DISTINCT p.id) as count
             FROM App\Entity\Patient p
-            WHERE p.location = :location
+            WHERE p.company = :company
         ')
-        ->setParameter('location', $location)
+        ->setParameter('company', $company)
         ->getSingleScalarResult();
         
         // Query 3: Citas pendientes (scheduled + confirmed)
         $pendingAppointments = $entityManager->createQuery('
             SELECT COUNT(a.id) as count
             FROM App\Entity\Appointment a
-            WHERE a.location = :location
+            WHERE a.company = :company
             AND a.scheduledAt >= :now
             AND a.status IN (:pending_statuses)
         ')
         ->setParameters([
-            'location' => $location,
+            'company' => $company,
             'now' => new \DateTime(),
             'pending_statuses' => [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED]
         ])
@@ -134,13 +133,13 @@ class SecurityController extends AbstractController
         $appointmentsThisMonth = $entityManager->createQuery('
             SELECT COUNT(a.id) as count
             FROM App\Entity\Appointment a
-            WHERE a.location = :location
+            WHERE a.company = :company
             AND a.scheduledAt >= :first_day
             AND a.scheduledAt < :first_day_next
             AND a.status != :cancelled
         ')
         ->setParameters([
-            'location' => $location,
+            'company' => $company,
             'first_day' => $firstDayOfMonth,
             'first_day_next' => $firstDayOfNextMonth,
             'cancelled' => StatusEnum::CANCELLED

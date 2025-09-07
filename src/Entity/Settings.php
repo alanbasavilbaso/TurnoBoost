@@ -14,9 +14,9 @@ class Settings
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
-    #[ORM\OneToOne(targetEntity: User::class)]
+    #[ORM\OneToOne(targetEntity: Company::class)]
     #[ORM\JoinColumn(nullable: false)]
-    private User $user;
+    private Company $company;
 
     #[ORM\Column(type: 'integer')]
     #[Assert\NotBlank(message: 'El tiempo mínimo de reserva es requerido')]
@@ -45,14 +45,14 @@ class Settings
         return $this->id;
     }
 
-    public function getUser(): User
+    public function getCompany(): Company
     {
-        return $this->user;
+        return $this->company;
     }
 
-    public function setUser(User $user): self
+    public function setCompany(Company $company): self
     {
-        $this->user = $user;
+        $this->company = $company;
         return $this;
     }
 

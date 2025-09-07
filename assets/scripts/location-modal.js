@@ -56,28 +56,48 @@ class LocationModalManager extends EntityModalManager {
         const entityNameElement = document.getElementById('entityName');
         const entityDeleteWarning = document.getElementById('entityDeleteWarning');
         const tokenInput = document.getElementById('entityDeleteToken');
-
+        
+        // Elementos adicionales para personalizar el modal
+        const modalTitle = modal.querySelector('.modal-title');
+        const submitButton = modal.querySelector('button[type="submit"]');
+        const modalBody = modal.querySelector('.modal-body p'); // Para cambiar el texto principal
+    
         if (!modal || !form || !entityTypeLabel || !entityNameElement) {
             console.error('Delete modal elements not found');
             return;
         }
-
-        // Configurar el modal
+    
+        // Configurar el modal con textos específicos para soft delete
+        if (modalTitle) {
+            modalTitle.innerHTML = '<i class="fas fa-power-off me-2"></i>Desactivar Local';
+        }
+        
+        // Cambiar el texto principal del modal
+        if (modalBody) {
+            modalBody.innerHTML = `¿Deseas desactivar <span id="entityTypeLabel">${this.config.entityType}</span> <strong id="entityName">${entityName}</strong>?`;
+        }
+        
         entityTypeLabel.textContent = this.config.entityType;
         entityNameElement.textContent = entityName;
         
         if (entityDeleteWarning) {
             entityDeleteWarning.innerHTML = `
-                Esta acción eliminará el local y todos los datos asociados (servicios, profesionales, citas).
+                Esta acción desactivará el local. Podrás reactivarlo más tarde si es necesario.
             `;
         }
-
+        
+        // Cambiar el texto del botón de submit
+        if (submitButton) {
+            submitButton.innerHTML = '<i class="fas fa-power-off me-2"></i>Desactivar';
+            submitButton.className = 'btn btn-warning'; // Cambiar color a warning en lugar de danger
+        }
+    
         // Configurar el formulario
         form.action = deleteUrl;
         if (tokenInput && csrfToken) {
             tokenInput.value = csrfToken;
         }
-
+    
         // Mostrar el modal
         const bsModal = new bootstrap.Modal(modal);
         bsModal.show();
@@ -92,43 +112,32 @@ class LocationModalManager extends EntityModalManager {
                         <p class="form-control-plaintext">${data.name || 'N/A'}</p>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Teléfono</label>
+                        <label class="form-label fw-bold">
+                            Teléfono 
+                            <i class="fas fa-phone text-muted me-2"></i>
+                        </label>
                         <p class="form-control-plaintext">
-                            <i class="fas fa-phone text-muted me-2"></i>${data.phone || 'N/A'}
-                        </p>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Email</label>
-                        <p class="form-control-plaintext">
-                            <i class="fas fa-envelope text-muted me-2"></i>${data.email || 'N/A'}
+                            ${data.phone || 'N/A'}
                         </p>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Dirección Completa</label>
+                        <label class="form-label fw-bold">
+                            Dirección Completa 
+                            <i class="fas fa-map-marker-alt text-muted me-2"></i>
+                        </label>
                         <p class="form-control-plaintext">
-                            <i class="fas fa-map-marker-alt text-muted me-2"></i>${data.address || 'N/A'}
+                            ${data.address || 'N/A'}
                         </p>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Dominio</label>
+                        <label class="form-label fw-bold">
+                            Email 
+                            <i class="fas fa-envelope text-muted me-2"></i>
+                        </label>
                         <p class="form-control-plaintext">
-                            ${data.domain ? 
-                                `<i class="fas fa-globe text-muted me-2"></i>${data.domain}` : 
-                                '<span class="text-muted">Sin dominio configurado</span>'
-                            }
-                        </p>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">URL de Reservas</label>
-                        <p class="form-control-plaintext">
-                            ${data.domain ? 
-                                `<a href="${window.location.protocol}//${window.location.host}/${data.domain}" target="_blank" class="text-decoration-none">
-                                    <i class="fas fa-external-link-alt text-muted me-2"></i>${window.location.protocol}//${window.location.host}/${data.domain}
-                                </a>` : 
-                                '<span class="text-muted">No configurada</span>'
-                            }
+                            ${data.email || 'N/A'}
                         </p>
                     </div>
                 </div>
@@ -136,49 +145,6 @@ class LocationModalManager extends EntityModalManager {
         `;
     }
 
-    initializeForm() {
-        // Obtener el contenedor del formulario desde el DOM
-        const formContainer = document.getElementById('entityFormBody');
-        if (formContainer) {
-            this.setupDomainAutocomplete(formContainer);
-        }
-        console.log('Location form initialized');
-    }
-
-    setupDomainAutocomplete(formContainer) {
-        const nameInput = formContainer.querySelector('#location_name');
-        const domainInput = formContainer.querySelector('#location_domain');
-        
-        if (nameInput && domainInput) {
-            nameInput.addEventListener('blur', function() {
-                // Solo autocompletar si el campo domain está vacío
-                if (!domainInput.value.trim()) {
-                    const nameValue = this.value.trim();
-                    if (nameValue) {
-                        // Convertir a minúsculas, reemplazar espacios por guiones y remover caracteres especiales
-                        const domainValue = nameValue
-                            .toLowerCase()
-                            .replace(/\s+/g, '-')  // Reemplazar espacios por guiones
-                            .replace(/[^a-z0-9-]/g, '')  // Remover caracteres especiales
-                            .replace(/-+/g, '-')  // Reemplazar múltiples guiones por uno solo
-                            .replace(/^-|-$/g, '');  // Remover guiones al inicio y final
-                        
-                        domainInput.value = domainValue;
-                    }
-                }
-            });
-        }
-    }
-
-    showUrlPreview(url) {
-        let preview = document.querySelector('.domain-preview');
-        if (!preview) {
-            preview = document.createElement('div');
-            preview.className = 'domain-preview mt-2 text-muted small';
-            document.querySelector('#location_domain').parentNode.appendChild(preview);
-        }
-        preview.innerHTML = `<i class="fas fa-link"></i> URL: <a href="${url}" target="_blank">${url}</a>`;
-    }
 }
 
 // Inicializar cuando el DOM esté listo

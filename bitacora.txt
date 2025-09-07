@@ -217,3 +217,21 @@ Seguridad:
 - Solo permite acciones del turno específico
 - Rate limiting para prevenir abuso
 - Log de todas las acciones
+
+
+
+
+
+    ->add('domain', TextType::class, [
+        'label' => 'Dominio de Reservas',
+        'help' => 'URL única para que tus clientes reserven turnos online. Solo letras minúsculas, números y guiones. Ejemplo: www.turnoboost.com/mi-centro-belleza',
+        'attr' => [
+            'class' => 'form-control',
+            'placeholder' => 'mi-centro-belleza',
+            'pattern' => '[a-z0-9\\-]+',
+            'title' => 'Solo letras minúsculas, números y guiones'
+        ],
+        'help_attr' => [
+            'class' => 'form-text text-muted'
+        ]
+    ])

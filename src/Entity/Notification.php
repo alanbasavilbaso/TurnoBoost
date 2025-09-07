@@ -29,6 +29,9 @@ class Notification
     #[ORM\Column(type: 'datetime', nullable: true)]
     private ?\DateTimeInterface $scheduledAt = null;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $errorMessage = null;
+
     // Agregar métodos getter/setter:
     public function getScheduledAt(): ?\DateTimeInterface
     {
@@ -150,5 +153,16 @@ class Notification
     public function isFailed(): bool
     {
         return $this->status === NotificationStatusEnum::FAILED;
+    }
+
+    public function getErrorMessage(): ?string
+    {
+        return $this->errorMessage;
+    }
+
+    public function setErrorMessage(?string $errorMessage): static
+    {
+        $this->errorMessage = $errorMessage;
+        return $this;
     }
 }

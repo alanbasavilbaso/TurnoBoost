@@ -19,12 +19,13 @@ use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Constraints\Regex;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
+use Doctrine\ORM\EntityRepository;
 
 class ProfessionalType extends AbstractType
 {
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
-        $location = $options['location'] ?? null;
+        $company = $options['company'] ?? null;
         $isEdit = $options['is_edit'] ?? false;
         
         $builder
@@ -83,17 +84,6 @@ class ProfessionalType extends AbstractType
                     ])
                 ]
             ])
-            // ->add('active', CheckboxType::class, [
-            //     'label' => 'Activo',
-            //     'required' => false,
-            //     'attr' => [
-            //         'class' => 'form-check-input'
-            //     ],
-            //     'label_attr' => [
-            //         'class' => 'form-check-label'
-            //     ],
-            //     'data' => true // Por defecto activo
-            // ])
             ->add('onlineBookingEnabled', CheckboxType::class, [
                 'label' => 'Reserva online disponible',
                 'required' => false,
@@ -103,7 +93,7 @@ class ProfessionalType extends AbstractType
                 'label_attr' => [
                     'class' => 'form-check-label'
                 ],
-                'data' => true // Por defecto habilitado
+                'data' => true
             ]);
             
         // Agregar campos de horarios para cada día de la semana
@@ -118,9 +108,6 @@ class ProfessionalType extends AbstractType
         ];
         
         foreach ($days as $dayNumber => $dayName) {
-            // Solo establecer valor por defecto si NO es edición
-            $defaultEnabled = !$isEdit && $dayNumber !== 6;
-            
             $builder
                 ->add("availability_{$dayNumber}_enabled", CheckboxType::class, [
                     'label' => "Trabajar {$dayName}",
@@ -133,7 +120,6 @@ class ProfessionalType extends AbstractType
                     'label_attr' => [
                         'class' => 'form-check-label'
                     ]
-                    // Eliminar completamente la línea 'data' => ...
                 ]);
                 
             // Permitir hasta 2 rangos horarios por día con selects de tiempo
@@ -175,15 +161,14 @@ class ProfessionalType extends AbstractType
             }
         }
         
-        // En el método buildForm, después del campo 'services':
-        if ($location) {
+        if ($company) {
             $builder->add('services', EntityType::class, [
                 'class' => Service::class,
-                'query_builder' => function ($repository) use ($location) {
+                'query_builder' => function (EntityRepository $repository) use ($company) {
                     return $repository->createQueryBuilder('s')
-                        ->andWhere('s.location = :location')
+                        ->andWhere('s.company = :company')
                         ->andWhere('s.active = :active')
-                        ->setParameter('location', $location)
+                        ->setParameter('company', $company)
                         ->setParameter('active', true)
                         ->orderBy('s.name', 'ASC');
                 },
@@ -224,12 +209,12 @@ class ProfessionalType extends AbstractType
     {
         $resolver->setDefaults([
             'data_class' => Professional::class,
-            'location' => null,
+            'company' => null,
             'is_edit' => false,
             'allow_extra_fields' => true, // Permitir campos extra
         ]);
         
-        $resolver->setAllowedTypes('location', ['null', 'App\Entity\Location']);
+        $resolver->setAllowedTypes('company', ['null', 'App\Entity\Company']);
         $resolver->setAllowedTypes('is_edit', 'bool');
     }
 }

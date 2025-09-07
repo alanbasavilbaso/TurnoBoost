@@ -1,0 +1,174 @@
+<!-- Modal de Bloqueo Horario -->
+<div class="modal fade" id="blockModal" tabindex="-1" aria-labelledby="blockModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="blockModalLabel">Bloqueo de Horario</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="blockForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="blockReason" class="form-label">Motivo del bloqueo</label>
+                                <input type="text" class="form-control" id="blockReason" placeholder="Ej: Vacaciones, Capacitación, etc." required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="blockProfessional" class="form-label">Profesional</label>
+                                <select class="form-control" id="blockProfessional" required>
+                                    <option value="">Seleccionar profesional</option>
+                                    <option value="1">Dr. Juan Pérez</option>
+                                    <option value="2">Dra. María García</option>
+                                    <option value="3">Dr. Carlos López</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="form-label">Tipo de bloqueo</label>
+                        <select class="form-control" id="blockType">
+                            <option value="single_day">Un solo día</option>
+                            <option value="date_range">Rango de fechas (todos los días)</option>
+                            <option value="pattern">Patrón de días específicos</option>
+                            <option value="monthly_recurring">Repetición mensual</option>
+                        </select>
+                    </div>
+
+                    <!-- Fecha única -->
+                    <div class="form-group mb-3" id="singleDayGroup">
+                        <label for="blockDate" class="form-label">Fecha</label>
+                        <input type="date" class="form-control" id="blockDate">
+                    </div>
+
+                    <!-- Rango de fechas -->
+                    <div class="form-group mb-3" id="dateRangeGroup" style="display:none;">
+                        <label class="form-label">Período</label>
+                        <div class="row">
+                            <div class="col-6">
+                                <label for="startDate" class="form-label">Desde</label>
+                                <input type="date" class="form-control" id="startDate">
+                            </div>
+                            <div class="col-6">
+                                <label for="endDate" class="form-label">Hasta</label>
+                                <input type="date" class="form-control" id="endDate">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Patrón de días específicos -->
+                    <div class="form-group mb-3" id="patternGroup" style="display:none;">
+                        <label class="form-label">Período</label>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label for="patternStartDate" class="form-label">Desde</label>
+                                <input type="date" class="form-control" id="patternStartDate">
+                            </div>
+                            <div class="col-6">
+                                <label for="patternEndDate" class="form-label">Hasta</label>
+                                <input type="date" class="form-control" id="patternEndDate">
+                            </div>
+                        </div>
+                        
+                        <label class="form-label">Días de la semana a bloquear</label>
+                        <div class="form-check-group d-flex flex-wrap gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="monday" value="1">
+                                <label class="form-check-label" for="monday">Lunes</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="tuesday" value="2">
+                                <label class="form-check-label" for="tuesday">Martes</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="wednesday" value="3">
+                                <label class="form-check-label" for="wednesday">Miércoles</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="thursday" value="4">
+                                <label class="form-check-label" for="thursday">Jueves</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="friday" value="5">
+                                <label class="form-check-label" for="friday">Viernes</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="saturday" value="6">
+                                <label class="form-check-label" for="saturday">Sábado</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="sunday" value="0">
+                                <label class="form-check-label" for="sunday">Domingo</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Repetición mensual -->
+                    <div class="form-group mb-3" id="monthlyRecurringGroup" style="display:none;">
+                        <div class="alert alert-info mb-3">
+                            <strong>Repetición mensual:</strong> El mismo día de cada mes se bloqueará automáticamente.
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label for="monthlyStartDate" class="form-label">Fecha de inicio</label>
+                                <input type="date" class="form-control" id="monthlyStartDate">
+                                <small class="form-text text-muted">Ej: Si eliges 15 de enero, se bloqueará el 15 de cada mes</small>
+                            </div>
+                            <div class="col-6">
+                                <label for="monthlyEndDate" class="form-label">Repetir hasta (opcional)</label>
+                                <input type="date" class="form-control" id="monthlyEndDate">
+                                <small class="form-text text-muted">Dejar vacío para repetir indefinidamente</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Vista previa mensual -->
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="showMonthlyPreview">
+                            <label class="form-check-label" for="showMonthlyPreview">Mostrar vista previa</label>
+                        </div>
+                        
+                        <div id="monthlyPreview" class="alert alert-light" style="display:none;">
+                            <strong>Vista previa (primeros 6 meses):</strong>
+                            <ul id="monthlyPreviewList" class="mb-0 mt-2"></ul>
+                        </div>
+                    </div>
+
+                    <!-- Horario -->
+                    <div class="form-group mb-3">
+                        <label class="form-label">Horario</label>
+                        <div class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input" id="allDay" checked>
+                            <label class="form-check-label" for="allDay">Todo el día</label>
+                        </div>
+                        
+                        <div id="timeRange" style="display:none;">
+                            <div class="row">
+                                <div class="col-6">
+                                    <label for="startTime" class="form-label">Hora inicio</label>
+                                    <input type="time" class="form-control" id="startTime">
+                                </div>
+                                <div class="col-6">
+                                    <label for="endTime" class="form-label">Hora fin</label>
+                                    <input type="time" class="form-control" id="endTime">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ejemplos visuales -->
+                    <div class="alert alert-info" id="exampleText" style="display:none;">
+                        <small><strong>Ejemplo:</strong> <span id="exampleContent"></span></small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveBlock">Guardar Bloqueo</button>
+            </div>
+        </div>
+    </div>
+</div>

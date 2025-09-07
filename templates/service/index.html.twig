@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Servicios - {{ location.name }}{% endblock %}
+{% block title %}Servicios - {{ company.name }}{% endblock %}
 
 {% block stylesheets %}
     {{ parent() }}
@@ -126,32 +126,34 @@
                                             <td>
                                                 <div class="action-buttons">
                                                     <!-- En la tabla, cambiar los botones de acción -->
-                                                    <button type="button" class="btn btn-sm action-btn view-btn" 
-                                                            data-service-id="{{ service.id }}"
-                                                            data-service-name="{{ service.name }}"
-                                                            data-service-description="{{ service.description }}"
-                                                            data-service-duration="{{ service.defaultDurationMinutes }}"
-                                                            data-service-price="{{ service.priceAsFloat }}"
-                                                            data-service-active="{{ service.active ? 'true' : 'false' }}"
-                                                            data-service-professionals="{{ service.professionalServices|length }}"
-                                                            title="Ver detalles">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
-                                                    
-                                                    <button type="button" class="btn btn-sm action-btn edit-btn"
-                                                            data-service-id="{{ service.id }}"
-                                                            title="Editar">
-                                                        <i class="fas fa-edit"></i>
-                                                    </button>
-                                                    
-                                                    <button type="button" class="btn btn-sm action-btn delete-btn"
-                                                            data-service-id="{{ service.id }}"
-                                                            data-service-name="{{ service.name }}"
-                                                            data-delete-url="{{ path('app_service_delete', {'id': service.id}) }}"
-                                                            data-csrf-token="{{ csrf_token('delete' ~ service.id) }}"
-                                                            title="Eliminar">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
+                                                    {% if service.active %}
+                                                        <button type="button" class="btn btn-sm action-btn view-btn" 
+                                                                data-service-id="{{ service.id }}"
+                                                                data-service-name="{{ service.name }}"
+                                                                data-service-description="{{ service.description }}"
+                                                                data-service-duration="{{ service.defaultDurationMinutes }}"
+                                                                data-service-price="{{ service.priceAsFloat }}"
+                                                                data-service-active="{{ service.active ? 'true' : 'false' }}"
+                                                                data-service-professionals="{{ service.professionalServices|length }}"
+                                                                title="Ver detalles">
+                                                            <i class="fas fa-eye"></i>
+                                                        </button>
+                                                        
+                                                        <button type="button" class="btn btn-sm action-btn edit-btn"
+                                                                data-service-id="{{ service.id }}"
+                                                                title="Editar">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                        
+                                                        <button type="button" class="btn btn-sm action-btn delete-btn"
+                                                                data-service-id="{{ service.id }}"
+                                                                data-service-name="{{ service.name }}"
+                                                                data-delete-url="{{ path('app_service_delete', {'id': service.id}) }}"
+                                                                data-csrf-token="{{ csrf_token('delete' ~ service.id) }}"
+                                                                title="Desactivar">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    {% endif %}
                                                 </div>
                                             </td>
                                         </tr>

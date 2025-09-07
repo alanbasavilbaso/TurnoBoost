@@ -15,9 +15,10 @@ class Service
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: Location::class, inversedBy: 'professionals')]
-    #[ORM\JoinColumn(name: 'location_id', referencedColumnName: 'id', nullable: false)]
-    private Location $location;
+    // CAMBIO: De Location a Company
+    #[ORM\ManyToOne(targetEntity: Company::class, inversedBy: 'services')]
+    #[ORM\JoinColumn(name: 'company_id', referencedColumnName: 'id', nullable: false)]
+    private Company $company;
 
     #[ORM\Column(type: 'string', length: 255)]
     private string $name;
@@ -77,17 +78,6 @@ class Service
     public function getId(): ?int
     {
         return $this->id;
-    }
-
-    public function getLocation(): Location
-    {
-        return $this->location;
-    }
-
-    public function setLocation(Location $location): self
-    {
-        $this->location = $location;
-        return $this;
     }
 
     public function getName(): string
@@ -315,6 +305,17 @@ class Service
     public function setFrequencyWeeks(?int $frequencyWeeks): self
     {
         $this->frequencyWeeks = $frequencyWeeks;
+        return $this;
+    }
+
+    public function getCompany(): Company
+    {
+        return $this->company;
+    }
+
+    public function setCompany(Company $company): self
+    {
+        $this->company = $company;
         return $this;
     }
 }

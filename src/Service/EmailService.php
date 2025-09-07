@@ -19,7 +19,7 @@ class EmailService
         $patient = $appointment->getPatient();
         $professional = $appointment->getProfessional();
         $service = $appointment->getService();
-        $location = $professional->getLocation();
+        $location = $appointment->getLocation(); // Cambiar esta línea
         
         $htmlContent = $this->twig->render('emails/appointment_confirmation.html.twig', [
             'business_name' => $location->getName(),

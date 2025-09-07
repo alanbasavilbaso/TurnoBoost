@@ -3,7 +3,7 @@
 namespace App\Service;
 
 use App\Entity\Patient;
-use App\Entity\Location;
+use App\Entity\Company;
 use Doctrine\ORM\EntityManagerInterface;
 
 class PatientService
@@ -12,12 +12,12 @@ class PatientService
         private EntityManagerInterface $entityManager
     ) {}
 
-    public function findOrCreatePatient(array $patientData, Location $location): Patient
+    public function findOrCreatePatient(array $patientData, Company $company): Patient
     {
         if (isset($patientData['id']) && $patientData['id']) {
             $patient = $this->entityManager->getRepository(Patient::class)->find($patientData['id']);
             
-            if ($patient && $patient->getLocation() === $location) {
+            if ($patient && $patient->getCompany() === $company) {
                 // Si el paciente existe, simplemente lo devolvemos sin modificar nada
                 return $patient;
             }
@@ -26,8 +26,8 @@ class PatientService
         // Buscar paciente existente por email o teléfono
         if (isset($patientData['email']) || isset($patientData['phone'])) {
             $qb = $this->entityManager->getRepository(Patient::class)->createQueryBuilder('p')
-                ->where('p.location = :location')
-                ->setParameter('location', $location);
+                ->where('p.company = :company')
+                ->setParameter('company', $company);
             
             if (isset($patientData['email'])) {
                 $qb->andWhere('p.email = :email')
@@ -48,7 +48,7 @@ class PatientService
         
         // Crear nuevo paciente solo si no existe
         $patient = new Patient();
-        $patient->setLocation($location)
+        $patient->setCompany($company)
                 ->setName($patientData['name'])
                 ->setEmail($patientData['email'] ?? null)
                 ->setPhone($patientData['phone'] ?? null);
@@ -58,17 +58,17 @@ class PatientService
         return $patient;
     }
     
-    public function searchPatients(string $query, Location $location, int $limit = 10): array
+    public function searchPatients(string $query, Company $company, int $limit = 10): array
     {
         return $this->entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
-            ->where('p.location = :location')
+            ->where('p.company = :company')
             ->andWhere('(
                 p.name LIKE :query OR 
                 p.email LIKE :query OR 
                 p.phone LIKE :query
             )')
-            ->setParameter('location', $location)
+            ->setParameter('company', $company)
             ->setParameter('query', '%' . $query . '%')
             ->orderBy('p.name', 'ASC')
             ->setMaxResults($limit)

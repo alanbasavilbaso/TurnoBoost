@@ -15,9 +15,9 @@ class Patient
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: Location::class, inversedBy: 'professionals')]
-    #[ORM\JoinColumn(name: 'location_id', referencedColumnName: 'id', nullable: false)]
-    private Location $location;
+    #[ORM\ManyToOne(targetEntity: Company::class, inversedBy: 'patients')]
+    #[ORM\JoinColumn(name: 'company_id', referencedColumnName: 'id', nullable: false)]
+    private Company $company;
 
     #[ORM\Column(type: 'string', length: 50, nullable: true)]
     private ?string $idDocument = null;
@@ -62,14 +62,14 @@ class Patient
         return $this->id;
     }
 
-    public function getLocation(): Location
+    public function getCompany(): Company
     {
-        return $this->location;
+        return $this->company;
     }
 
-    public function setLocation(Location $location): self
+    public function setCompany(Company $company): self
     {
-        $this->location = $location;
+        $this->company = $company;
         return $this;
     }
 

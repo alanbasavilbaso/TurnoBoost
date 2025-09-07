@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Service;
+use App\Entity\User;
 use App\Form\ServiceType;
 use App\Repository\ServiceRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,12 +21,13 @@ class ServiceController extends AbstractController
     #[Route('/', name: 'app_service_index', methods: ['GET'])]
     public function index(Request $request, ServiceRepository $serviceRepository): Response
     {
+        /** @var User $user */
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            $this->addFlash('error', 'Debe crear un local antes de gestionar servicios.');
-            return $this->redirectToRoute('location_index');
+        if (!$company) {
+            $this->addFlash('error', 'Debe estar asociado a una empresa para gestionar servicios.');
+            return $this->redirectToRoute('app_dashboard');
         }
 
         // Obtener el parámetro de búsqueda
@@ -33,14 +35,22 @@ class ServiceController extends AbstractController
         
         // Buscar servicios con filtro por nombre si se proporciona
         if (!empty($search)) {
-            $services = $serviceRepository->findByNameAndLocation($search, $location);
+            $services = $serviceRepository->findByNameAndCompany($search, $company);
         } else {
-            $services = $serviceRepository->findBy(['location' => $location], ['name' => 'ASC']);
+            // Ordenar por activo primero, luego por nombre
+            $services = $serviceRepository->createQueryBuilder('s')
+                ->where('s.company = :company')
+                ->andWhere('s.active = :active')
+                ->setParameter('company', $company)
+                ->setParameter('active', true)
+                ->orderBy('s.name', 'ASC')
+                ->getQuery()
+                ->getResult();
         }
 
         return $this->render('service/index.html.twig', [
             'services' => $services,
-            'location' => $location,
+            'company' => $company,
             'search' => $search,
         ]);
     }
@@ -48,17 +58,18 @@ class ServiceController extends AbstractController
     #[Route('/new', name: 'app_service_new', methods: ['GET', 'POST'])]
     public function new(Request $request, EntityManagerInterface $entityManager): Response
     {
+        /** @var User $user */
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            $this->addFlash('error', 'Debe crear un local antes de gestionar servicios.');
-            return $this->redirectToRoute('location_index');
+        if (!$company) {
+            $this->addFlash('error', 'Debe estar asociado a una empresa para gestionar servicios.');
+            return $this->redirectToRoute('app_dashboard');
         }
         
         $service = new Service();
-        $service->setLocation($location);
-        $service->setActive(true); // Por defecto activo
+        $service->setCompany($company);
+        $service->setActive(true);
         
         $form = $this->createForm(ServiceType::class, $service, ['is_edit' => false]);
         $form->handleRequest($request);
@@ -72,7 +83,6 @@ class ServiceController extends AbstractController
                 $this->addFlash('success', 'Servicio creado exitosamente.');
                 return $this->redirectToRoute('app_service_index');
             } else {
-                // Mostrar errores de validación como flash messages
                 foreach ($form->getErrors(true) as $error) {
                     $this->addFlash('error', $error->getMessage());
                 }
@@ -82,7 +92,7 @@ class ServiceController extends AbstractController
         return $this->render('service/form.html.twig', [
             'form' => $form,
             'service' => $service,
-            'location' => $location,
+            'company' => $company,
             'is_edit' => false
         ]);
     }
@@ -90,15 +100,16 @@ class ServiceController extends AbstractController
     #[Route('/new/form', name: 'app_service_new_form', methods: ['GET'])]
     public function newForm(): Response
     {
+        /** @var User $user */
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            return new Response('<div class="alert alert-danger">Debe crear un local antes de gestionar servicios.</div>');
+        if (!$company) {
+            return new Response('<div class="alert alert-danger">Debe estar asociado a una empresa para gestionar servicios.</div>');
         }
         
         $service = new Service();
-        $service->setLocation($location);
+        $service->setCompany($company);
         $service->setActive(true);
         
         $form = $this->createForm(ServiceType::class, $service, ['is_edit' => false]);
@@ -106,7 +117,7 @@ class ServiceController extends AbstractController
         return $this->render('service/form.html.twig', [
             'form' => $form,
             'service' => $service,
-            'location' => $location,
+            'company' => $company,
             'is_edit' => false
         ]);
     }
@@ -143,7 +154,6 @@ class ServiceController extends AbstractController
                 $this->addFlash('success', 'Servicio actualizado exitosamente.');
                 return $this->redirectToRoute('app_service_index');
             } else {
-                // Mostrar errores de validación como flash messages
                 foreach ($form->getErrors(true) as $error) {
                     $this->addFlash('error', $error->getMessage());
                 }
@@ -153,7 +163,7 @@ class ServiceController extends AbstractController
         return $this->render('service/form.html.twig', [
             'form' => $form,
             'service' => $service,
-            'location' => $service->getLocation(),
+            'company' => $service->getCompany(),
             'is_edit' => true
         ]);
     }
@@ -170,7 +180,7 @@ class ServiceController extends AbstractController
         return $this->render('service/form.html.twig', [
             'form' => $form,
             'service' => $service,
-            'location' => $service->getLocation(),
+            'company' => $service->getCompany(),
             'is_edit' => true
         ]);
     }
@@ -207,15 +217,35 @@ class ServiceController extends AbstractController
         }
 
         if ($this->isCsrfTokenValid('delete'.$service->getId(), $request->request->get('_token'))) {
-            // Verificar si tiene citas asociadas
-            if ($service->getAppointments()->count() > 0) {
-                $this->addFlash('error', 'No se puede eliminar el servicio porque tiene citas asociadas.');
-                return $this->redirectToRoute('app_service_index');
-            }
-
-            $entityManager->remove($service);
+            // Borrado soft: desactivar en lugar de eliminar
+            $service->setActive(false);
+            $service->setUpdatedAt(new \DateTime());
+            
             $entityManager->flush();
-            $this->addFlash('success', 'Servicio eliminado exitosamente.');
+            $this->addFlash('success', 'Servicio desactivado exitosamente.');
+        } else {
+            $this->addFlash('error', 'Token de seguridad inválido.');
+        }
+
+        return $this->redirectToRoute('app_service_index');
+    }
+
+    #[Route('/{id}/reactivate', name: 'app_service_reactivate', methods: ['POST'])]
+    public function reactivate(Request $request, Service $service, EntityManagerInterface $entityManager): Response
+    {
+        if (!$this->canAccess($service)) {
+            $this->addFlash('error', 'No tiene permisos para reactivar este servicio.');
+            return $this->redirectToRoute('app_service_index');
+        }
+
+        if ($this->isCsrfTokenValid('reactivate'.$service->getId(), $request->request->get('_token'))) {
+            $service->setActive(true);
+            $service->setUpdatedAt(new \DateTime());
+            
+            $entityManager->flush();
+            $this->addFlash('success', 'Servicio reactivado exitosamente.');
+        } else {
+            $this->addFlash('error', 'Token de seguridad inválido.');
         }
 
         return $this->redirectToRoute('app_service_index');
@@ -223,9 +253,10 @@ class ServiceController extends AbstractController
 
     private function canAccess(Service $service): bool
     {
+        /** @var User $user */
         $user = $this->getUser();
-        $userLocation = $user->getOwnedLocations()->first();
+        $userCompany = $user->getCompany();
         
-        return $userLocation && $service->getLocation() === $userLocation;
+        return $userCompany && $service->getCompany() === $userCompany;
     }
 }

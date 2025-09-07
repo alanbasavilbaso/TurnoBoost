@@ -6,6 +6,7 @@ use App\Entity\Professional;
 use App\Entity\ProfessionalAvailability;
 use App\Form\ProfessionalType;
 use App\Repository\ProfessionalRepository;
+use App\Repository\ServiceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormInterface;
@@ -16,36 +17,38 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 #[Route('/profesionales')]
-#[IsGranted('ROLE_ADMIN')] // Cambiado de ROLE_USER a ROLE_ADMIN
+#[IsGranted('ROLE_ADMIN')]
 class ProfessionalController extends AbstractController
 {
     private RequestStack $requestStack;
-
-    public function __construct(RequestStack $requestStack)
+    private ServiceRepository $serviceRepository;
+    
+    public function __construct(RequestStack $requestStack, ServiceRepository $serviceRepository)
     {
         $this->requestStack = $requestStack;
+        $this->serviceRepository = $serviceRepository;
     }
 
     #[Route('/', name: 'app_professional_index', methods: ['GET'])]
     public function index(ProfessionalRepository $professionalRepository): Response
     {
         $user = $this->getUser();
-        $userLocation = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$userLocation) {
-            $this->addFlash('error', 'No tiene una ubicación asignada.');
+        if (!$company) {
+            $this->addFlash('error', 'No tiene una empresa asignada.');
             return $this->redirectToRoute('app_dashboard');
         }
     
-        // Filtrar solo profesionales activos
+        // Filtrar solo profesionales activos de la empresa
         $professionals = $professionalRepository->findBy([
-            'location' => $userLocation,
+            'company' => $company,
             'active' => true
         ]);
     
         return $this->render('professional/index.html.twig', [
             'professionals' => $professionals,
-            'location' => $userLocation
+            'company' => $company
         ]);
     }
 
@@ -53,20 +56,20 @@ class ProfessionalController extends AbstractController
     public function new(Request $request, EntityManagerInterface $entityManager): Response
     {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            $this->addFlash('error', 'Debe crear un local antes de agregar profesionales.');
-            return $this->redirectToRoute('location_index');
+        if (!$company) {
+            $this->addFlash('error', 'Debe tener una empresa asignada antes de agregar profesionales.');
+            return $this->redirectToRoute('app_dashboard');
         }
 
         $professional = new Professional();
-        $professional->setLocation($location);
+        $professional->setCompany($company);
         $professional->setCreatedAt(new \DateTime());
         $professional->setUpdatedAt(new \DateTime());
         
         $form = $this->createForm(ProfessionalType::class, $professional, [
-            'location' => $location,
+            'company' => $company,
             'is_edit' => false
         ]);
         
@@ -80,9 +83,7 @@ class ProfessionalController extends AbstractController
         }
         
         // NUEVO: Preseleccionar todos los servicios activos
-        $allServices = $location->getServices()->filter(function($service) {
-            return $service->isActive();
-        });
+        $allServices = $this->serviceRepository->findActiveByCompany($company);
         $form->get('services')->setData($allServices);
         
         $form->handleRequest($request);
@@ -104,8 +105,11 @@ class ProfessionalController extends AbstractController
         return $this->render('professional/form.html.twig', [
             'professional' => $professional,
             'form' => $form,
-            'location' => $location,
-            'services' => $location->getServices(),
+            'company' => $company,
+            'services' => $this->serviceRepository->findBy([
+                'company' => $company,
+                'active' => true
+            ]),
             'is_edit' => false,
             'existing_service_configs' => [],
         ]);
@@ -119,10 +123,10 @@ class ProfessionalController extends AbstractController
             return $this->redirectToRoute('app_professional_index');
         }
     
-        $location = $professional->getLocation();
+        $company = $professional->getCompany();
         
         $form = $this->createForm(ProfessionalType::class, $professional, [
-            'location' => $location,
+            'company' => $company,
             'is_edit' => true
         ]);
         
@@ -194,8 +198,11 @@ class ProfessionalController extends AbstractController
         return $this->render('professional/form.html.twig', [
             'professional' => $professional,
             'form' => $form,
-            'location' => $location,
-            'services' => $location->getServices(),
+            'company' => $company,
+            'services' => $this->serviceRepository->findBy([
+                'company' => $company,
+                'active' => true
+            ]),
             'is_edit' => true,
             'existing_service_configs' => $serviceConfigs,
         ]);
@@ -239,9 +246,164 @@ class ProfessionalController extends AbstractController
     private function canAccess(Professional $professional): bool
     {
         $user = $this->getUser();
-        $userLocation = $user->getOwnedLocations()->first();
+        $userCompany = $user->getCompany();
         
-        return $userLocation && $professional->getLocation() === $userLocation;
+        return $userCompany && $professional->getCompany() === $userCompany;
+    }
+
+    #[Route('/new/form', name: 'app_professional_new_form', methods: ['GET'])]
+    public function newForm(Request $request): Response
+    {
+        $user = $this->getUser();
+        $company = $user->getCompany();
+        
+        if (!$company) {
+            return new Response('Debe tener una empresa asignada antes de agregar profesionales.', 400);
+        }
+
+        $professional = new Professional();
+        $professional->setCompany($company);
+        $professional->setCreatedAt(new \DateTime());
+        $professional->setUpdatedAt(new \DateTime());
+        
+        $form = $this->createForm(ProfessionalType::class, $professional, [
+            'company' => $company,
+            'is_edit' => false
+        ]);
+        
+        // Establecer valores por defecto para nuevo profesional
+        for ($day = 0; $day <= 6; $day++) {
+            if ($day !== 6) { // No domingo
+                $form->get("availability_{$day}_enabled")->setData(true);
+                $form->get("availability_{$day}_range1_start")->setData('09:00');
+                $form->get("availability_{$day}_range1_end")->setData('18:00');
+            }
+        }
+        
+        // NUEVO: Preseleccionar todos los servicios activos
+        $allServices = $this->serviceRepository->findActiveByCompany($company);
+        $form->get('services')->setData($allServices);
+        
+        $form->handleRequest($request);
+    
+        if ($form->isSubmitted() && $form->isValid()) {
+            // Procesar horarios de disponibilidad
+            $this->processAvailabilityData($form, $professional, $entityManager);
+            
+            // Procesar servicios seleccionados
+            $this->processServices($form, $professional, $entityManager);
+            
+            $entityManager->persist($professional);
+            $entityManager->flush();
+
+            $this->addFlash('success', 'Profesional creado exitosamente.');
+            return $this->redirectToRoute('app_professional_index');
+        }
+
+        return $this->render('professional/form.html.twig', [
+            'professional' => $professional,
+            'form' => $form,
+            'company' => $company,
+            'services' => $this->serviceRepository->findBy([
+                'company' => $company,
+                'active' => true
+            ]),
+            'is_edit' => false,
+            'existing_service_configs' => [],
+        ]);
+    }
+
+    #[Route('/{id}/form', name: 'app_professional_form', methods: ['GET'])]
+    public function form(Professional $professional, Request $request): Response
+    {
+        if (!$this->canAccess($professional)) {
+            return new Response('No tiene permisos para editar este profesional.', 403);
+        }
+
+        $user = $this->getUser();
+        $company = $user->getCompany();
+        
+        $form = $this->createForm(ProfessionalType::class, $professional, [
+            'company' => $company,
+            'is_edit' => true
+        ]);
+        
+        // Precargar servicios actuales
+        $currentServices = $professional->getServices()->toArray();
+        $form->get('services')->setData($currentServices);
+        
+        // Pre-llenar datos de disponibilidad existentes
+        $this->populateAvailabilityData($form, $professional);
+        
+        // AGREGAR: Pre-llenar configuraciones de servicios existentes
+        $serviceConfigs = $this->populateServiceConfigs($form, $professional);
+        
+        $form->handleRequest($request);
+    
+        if ($form->isSubmitted()) {
+            // Debug: Mostrar errores de validación
+            if (!$form->isValid()) {
+                error_log('Form is not valid. Errors:');
+                foreach ($form->getErrors(true) as $error) {
+                    error_log('Form error: ' . $error->getMessage());
+                }
+                
+                // Mostrar errores específicos en desarrollo
+                if ($this->getParameter('kernel.environment') === 'dev') {
+                    $errors = [];
+                    foreach ($form->getErrors(true) as $error) {
+                        $errors[] = $error->getMessage();
+                    }
+                    $this->addFlash('error', 'Errores de validación: ' . implode(', ', $errors));
+                } else {
+                    $this->addFlash('error', 'Hay errores en el formulario. Por favor, revise los datos.');
+                }
+            } else {
+                try {
+                    $professional->setUpdatedAt(new \DateTime());
+                    
+                    // Eliminar disponibilidades existentes
+                    foreach ($professional->getAvailabilities() as $availability) {
+                        $entityManager->remove($availability);
+                    }
+                    
+                    // Procesar horarios de disponibilidad
+                    $this->processAvailabilityData($form, $professional, $entityManager);
+                    
+                    // Procesar servicios seleccionados
+                    // En el método edit/create, después de procesar availability:
+                    $this->processServices($form, $professional, $entityManager);
+                    
+                    $entityManager->flush();
+                    
+                    $this->addFlash('success', 'Profesional actualizado exitosamente.');
+                    return $this->redirectToRoute('app_professional_index');
+                } catch (\Exception $e) {
+                    // Log del error completo siempre
+                    error_log('Error al actualizar profesional: ' . $e->getMessage());
+                    error_log('Stack trace: ' . $e->getTraceAsString());
+                    
+                    // Mostrar mensaje específico solo en desarrollo
+                    if ($this->getParameter('kernel.environment') === 'dev') {
+                        $this->addFlash('error', 'Error al actualizar el profesional: ' . $e->getMessage());
+                    } else {
+                        $this->addFlash('error', 'Error al actualizar el profesional. Por favor, inténtelo de nuevo.');
+                    }
+                }
+            }
+        }
+        
+        return $this->render('professional/form.html.twig', [
+            'professional' => $professional,
+            'form' => $form,
+            'company' => $company,
+            'services' => $this->serviceRepository->findBy([
+                'company' => $company,
+                'active' => true
+            ]),
+            'is_edit' => true,
+            'existing_service_configs' => $serviceConfigs,
+        ]);
     }
 
     private function processAvailabilityData(FormInterface $form, Professional $professional, EntityManagerInterface $entityManager): void
@@ -333,14 +495,20 @@ class ProfessionalController extends AbstractController
         $request = $this->requestStack->getCurrentRequest();
         $serviceConfigs = $request->request->all('service_configs') ?? [];
         
+        // Obtener la empresa del usuario logueado
+        $company = $this->getUser()->getCompany();
+        
         $serviceRepository = $entityManager->getRepository(\App\Entity\Service::class);
         $selectedServices = [];
-        foreach (array_keys($serviceConfigs) as $serviceId) {
-            $service = $serviceRepository->find($serviceId);
-            if ($service) {
-                $selectedServices[] = $service;
-            }
-        }
+
+        // Obtener todos los servicios de una vez (más eficiente)
+        $serviceIds = array_keys($serviceConfigs);
+        $selectedServices = $serviceRepository->findBy([
+            'id' => $serviceIds,
+            'company' => $company,
+            'active' => true
+        ]);
+        
         
         // Eliminar todas las asociaciones existentes
         foreach ($professional->getProfessionalServices() as $professionalService) {
@@ -409,7 +577,7 @@ class ProfessionalController extends AbstractController
             }
         }
     }
-    
+
     private function populateServiceConfigs(FormInterface $form, Professional $professional): array
     {
         $serviceConfigs = [];
@@ -443,110 +611,5 @@ class ProfessionalController extends AbstractController
         // Nota: Como serviceConfigs tiene mapped => false, no podemos usar setData directamente
         // El frontend JavaScript deberá leer esta información desde el template
         return $serviceConfigs;
-    }
-
-    #[Route('/new/form', name: 'app_professional_new_form', methods: ['GET'])]
-    public function newForm(): Response
-    {
-        $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
-        
-        if (!$location) {
-            return new Response('Debe crear un local antes de agregar profesionales.', 400);
-        }
-
-        $professional = new Professional();
-        $professional->setLocation($location);
-        $professional->setCreatedAt(new \DateTime());
-        $professional->setUpdatedAt(new \DateTime());
-        
-        $form = $this->createForm(ProfessionalType::class, $professional, [
-            'location' => $location,
-            'is_edit' => false
-        ]);
-        
-        // Establecer valores por defecto para nuevo profesional
-        for ($day = 0; $day <= 6; $day++) {
-            if ($day !== 6) { // No domingo
-                $form->get("availability_{$day}_enabled")->setData(true);
-                $form->get("availability_{$day}_range1_start")->setData('09:00');
-                $form->get("availability_{$day}_range1_end")->setData('18:00');
-            }
-        }
-        
-        return $this->render('professional/form.html.twig', [
-            'professional' => $professional,
-            'form' => $form,
-            'location' => $location,
-            'services' => $location->getServices(),
-            'is_edit' => false,
-            'existing_service_configs' => [],
-        ]);
-    }
-
-    #[Route('/{id}/details', name: 'app_professional_details', methods: ['GET'])]
-    public function details(Professional $professional): Response
-    {
-        if (!$this->canAccess($professional)) {
-            return $this->json(['error' => 'No tiene permisos para ver este profesional.'], 403);
-        }
-
-        $availabilities = [];
-        $days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-        
-        foreach ($professional->getAvailabilities() as $availability) {
-            $dayIndex = $availability->getWeekday();
-            $availabilities[] = [
-                'day_name' => $days[$dayIndex],
-                'ranges' => [[
-                    'start' => $availability->getStartTime()->format('H:i'),
-                    'end' => $availability->getEndTime()->format('H:i')
-                ]]
-            ];
-        }
-
-        return $this->json([
-            'id' => $professional->getId(),
-            'name' => $professional->getName(),
-            'email' => $professional->getEmail(),
-            'phone' => $professional->getPhone(),
-            'active' => $professional->isActive(),
-            'onlineBookingEnabled' => $professional->isOnlineBookingEnabled(),
-            'services_count' => $professional->getServices()->count(),
-            'appointments_count' => $professional->getAppointments()->count(),
-            'availabilities' => $availabilities
-        ]);
-    }
-
-
-    #[Route('/{id}/form', name: 'app_professional_form', methods: ['GET'])]
-    public function form(Professional $professional): Response
-    {
-        if (!$this->canAccess($professional)) {
-            return new Response('No tiene permisos para editar este profesional.', 403);
-        }
-
-        $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
-        
-        $form = $this->createForm(ProfessionalType::class, $professional, [
-            'location' => $location,
-            'is_edit' => true
-        ]);
-        
-        // Poblar datos de disponibilidad existentes
-        $this->populateAvailabilityData($form, $professional);
-        
-        // Poblar configuraciones de servicios existentes
-        $serviceConfigs = $this->populateServiceConfigs($form, $professional);
-        
-        return $this->render('professional/form.html.twig', [
-            'professional' => $professional,
-            'form' => $form,
-            'location' => $location,
-            'services' => $location->getServices(),
-            'is_edit' => true,
-            'existing_service_configs' => $serviceConfigs,
-        ]);
     }
 }

@@ -3,7 +3,7 @@
 namespace App\Service;
 
 use App\Entity\Appointment;
-use App\Entity\Location;
+use App\Entity\Company;
 use App\Entity\Professional;
 use App\Entity\Service;
 use App\Entity\ProfessionalService;
@@ -11,6 +11,7 @@ use App\Entity\StatusEnum;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Entity\Location; // Agregar esta línea
 
 class AppointmentService
 {
@@ -34,14 +35,15 @@ class AppointmentService
     /**
      * Crea una nueva cita con todas las validaciones necesarias
      */
-    public function createAppointment(array $data, Location $location, bool $force = false): Appointment
+    public function createAppointment(array $data, Company $company, bool $force = false): Appointment
     {
         // Validar y obtener datos básicos
         $appointmentData = $this->validateAndParseData($data);
         
         // Obtener entidades relacionadas
-        $professional = $this->getProfessional($appointmentData['professionalId'], $location);
-        $service = $this->getService($appointmentData['serviceId'], $location);
+        $professional = $this->getProfessional($appointmentData['professionalId'], $company);
+        $service = $this->getService($appointmentData['serviceId'], $company);
+        $location = $this->getLocation($appointmentData['locationId'], $company); // Agregar esta línea
         
         // Calcular duración y hora de finalización
         $duration = $this->calculateDuration($professional, $service);
@@ -53,22 +55,23 @@ class AppointmentService
                 $appointmentData['scheduledAt'],
                 $endTime,
                 $professional,
-                $location
+                $location // Ahora $location está definida
             );
         }
         
         // Crear o buscar paciente
-        $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $location);
+        $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $company);
         
         // Crear la cita
         $appointment = new Appointment();
-        $appointment->setLocation($location)
-                   ->setProfessional($professional)
-                   ->setService($service)
-                   ->setPatient($patient)
-                   ->setScheduledAt($appointmentData['scheduledAt'])
-                   ->setDurationMinutes($duration)
-                   ->setNotes($appointmentData['notes']);
+        $appointment->setCompany($company) // Agregar esta línea
+               ->setLocation($location)
+               ->setProfessional($professional)
+               ->setService($service)
+               ->setPatient($patient)
+               ->setScheduledAt($appointmentData['scheduledAt'])
+               ->setDurationMinutes($duration)
+               ->setNotes($appointmentData['notes']);
         
         $this->entityManager->persist($appointment);
         $this->entityManager->flush();
@@ -84,6 +87,7 @@ class AppointmentService
         // Mapear nombres de campos del formulario a los esperados
         $professionalId = $data['professional_id'] ?? $data['professional'] ?? null;
         $serviceId = $data['service_id'] ?? $data['service'] ?? null;
+        $locationId = $data['location_id'] ?? null; // Agregar esta línea
         
         // Construir la fecha y hora programada
         if (isset($data['scheduled_at'])) {
@@ -101,8 +105,8 @@ class AppointmentService
             throw new \InvalidArgumentException('Fecha y hora son requeridas');
         }
         
-        if (!$professionalId || !$serviceId) {
-            throw new \InvalidArgumentException('Profesional y servicio son requeridos');
+        if (!$professionalId || !$serviceId || !$locationId) {
+            throw new \InvalidArgumentException('Profesional, servicio y ubicación son requeridos');
         }
         
         // Preparar datos del paciente
@@ -126,6 +130,7 @@ class AppointmentService
         return [
             'professionalId' => $professionalId,
             'serviceId' => $serviceId,
+            'locationId' => $locationId, // Agregar esta línea
             'scheduledAt' => $scheduledAt,
             'patientData' => $patientData,
             'notes' => $data['notes'] ?? null
@@ -135,25 +140,22 @@ class AppointmentService
     /**
      * Obtiene y valida el profesional
      */
-    private function getProfessional(int $professionalId, Location $location): Professional
+    private function getProfessional(int $professionalId, Company $company): Professional
     {
         $professional = $this->professionalRepository->find($professionalId);
         
-        if (!$professional || $professional->getLocation() !== $location) {
+        if (!$professional || $professional->getCompany() !== $company) {
             throw new \InvalidArgumentException('Profesional no encontrado');
         }
         
         return $professional;
     }
 
-    /**
-     * Obtiene y valida el servicio
-     */
-    private function getService(int $serviceId, Location $location): Service
+    private function getService(int $serviceId, Company $company): Service
     {
         $service = $this->serviceRepository->find($serviceId);
         
-        if (!$service || $service->getLocation() !== $location) {
+        if (!$service || $service->getCompany() !== $company) {
             throw new \InvalidArgumentException('Servicio no encontrado');
         }
         
@@ -190,8 +192,8 @@ class AppointmentService
         // Validar disponibilidad del profesional
         $this->validateProfessionalAvailability($scheduledAt, $endTime, $professional);
         
-        // Validar conflictos de horarios
-        $this->validateTimeConflicts($scheduledAt, $endTime, $professional, $location);
+        // Validar conflictos de horarios - CORREGIR: pasar company en lugar de location
+        $this->validateTimeConflicts($scheduledAt, $endTime, $professional, $professional->getCompany());
     }
 
     /**
@@ -231,20 +233,21 @@ class AppointmentService
         \DateTime $scheduledAt,
         \DateTime $endTime,
         Professional $professional,
-        Location $location
+        Company $company
     ): void {
         $conflictCount = $this->entityManager->createQueryBuilder()
             ->select('COUNT(a.id)')
             ->from(Appointment::class, 'a')
+            ->join('a.professional', 'p')
             ->where('a.professional = :professional')
-            ->andWhere('a.location = :location')
+            ->andWhere('p.company = :company')
             ->andWhere('a.status NOT IN (:cancelledStatus)')
             ->andWhere(
                 '(a.scheduledAt < :endTime AND ' .
                 'DATE_ADD(a.scheduledAt, a.durationMinutes, \'MINUTE\') > :startTime)'
             )
             ->setParameter('professional', $professional)
-            ->setParameter('location', $location)
+            ->setParameter('company', $company)
             ->setParameter('cancelledStatus', [StatusEnum::CANCELLED])
             ->setParameter('startTime', $scheduledAt)
             ->setParameter('endTime', $endTime)
@@ -299,7 +302,7 @@ class AppointmentService
     /**
      * Validar token y confirmar appointment
      */
-    public function confirmAppointmentByToken(int $appointmentId, string $token, Location $location): Appointment
+    public function confirmAppointmentByToken(int $appointmentId, string $token, Company $company): Appointment
     {
         $this->validateToken($appointmentId, $token);
         
@@ -309,8 +312,8 @@ class AppointmentService
             throw new \InvalidArgumentException('Turno no encontrado');
         }
         
-        if ($appointment->getProfessional()->getLocation() !== $location) {
-            throw new \InvalidArgumentException('Turno no pertenece a esta ubicación');
+        if ($appointment->getProfessional()->getCompany() !== $company) {
+            throw new \InvalidArgumentException('Turno no pertenece a esta empresa');
         }
         
         if ($appointment->getStatus() === StatusEnum::CANCELLED) {
@@ -339,7 +342,7 @@ class AppointmentService
     /**
      * Validar token y cancelar appointment
      */
-    public function cancelAppointmentByToken(int $appointmentId, string $token, Location $location): Appointment
+    public function cancelAppointmentByToken(int $appointmentId, string $token, Company $company): Appointment
     {
         $this->validateToken($appointmentId, $token);
         
@@ -349,8 +352,8 @@ class AppointmentService
             throw new \InvalidArgumentException('Turno no encontrado');
         }
         
-        if ($appointment->getProfessional()->getLocation() !== $location) {
-            throw new \InvalidArgumentException('Turno no pertenece a esta ubicación');
+        if ($appointment->getProfessional()->getCompany() !== $company) {
+            throw new \InvalidArgumentException('Turno no pertenece a esta empresa');
         }
         
         if ($appointment->getStatus() === StatusEnum::CANCELLED) {
@@ -407,5 +410,16 @@ class AppointmentService
         if ($data['appointment_id'] !== $appointmentId) {
             throw new \InvalidArgumentException('Token inválido para este turno');
         }
+    }
+
+    private function getLocation(int $locationId, Company $company): Location
+    {
+        $location = $this->entityManager->getRepository(Location::class)->find($locationId);
+        
+        if (!$location || $location->getCompany() !== $company) {
+            throw new \InvalidArgumentException('Ubicación no encontrada');
+        }
+        
+        return $location;
     }
 }

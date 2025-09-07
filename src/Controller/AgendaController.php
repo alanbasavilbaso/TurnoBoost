@@ -6,9 +6,10 @@ use App\Entity\Appointment;
 use App\Entity\Patient;
 use App\Entity\Professional;
 use App\Entity\ProfessionalService;
-use App\Entity\Location;
+use App\Entity\Company;
 use App\Entity\Service;
 use App\Entity\StatusEnum;
+use App\Entity\Location;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
 use App\Service\PatientService;
@@ -59,20 +60,32 @@ class AgendaController extends AbstractController
     public function index(): Response
     {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            throw $this->createNotFoundException('No se encontró el local.');
+        if (!$company) {
+            throw $this->createNotFoundException('No se encontró la empresa.');
         }
 
-        // Obtener profesionales y servicios de el local
-        $professionals = $this->professionalRepository->findBy(['location' => $location, 'active' => true]);
-        $services = $this->serviceRepository->findBy(['location' => $location, 'active' => true]);
+        // Obtener profesionales, servicios y locations de la empresa
+        $professionals = $this->professionalRepository->findBy(['company' => $company, 'active' => true]);
+        $services = $this->serviceRepository->findBy(['company' => $company, 'active' => true]);
+        
+        // Agregar locations de la empresa
+        $locations = $this->entityManager->getRepository(Location::class)
+            ->createQueryBuilder('l')
+            ->where('l.company = :company')
+            ->andWhere('l.active = :active')
+            ->setParameter('company', $company)
+            ->setParameter('active', true)
+            ->orderBy('l.name', 'ASC')
+            ->getQuery()
+            ->getResult();
 
         return $this->render('agenda/index.html.twig', [
             'professionals' => $professionals,
             'services' => $services,
-            'location' => $location
+            'locations' => $locations,
+            'company' => $company
         ]);
     }
 
@@ -81,7 +94,7 @@ class AgendaController extends AbstractController
     public function getAppointments(Request $request): JsonResponse
     {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
         // Verificar si se proporciona una fecha específica
         $specificDate = $request->query->get('date');
@@ -112,13 +125,13 @@ class AgendaController extends AbstractController
             ->leftJoin('a.professional', 'p')
             ->leftJoin('a.service', 's')
             ->leftJoin('a.patient', 'pat')
-            ->where('a.location = :location')
+            ->where('a.company = :company')
             ->andWhere('a.scheduledAt BETWEEN :start AND :end')
             ->andWhere('a.status NOT IN (:cancelStatus)')
             ->setParameter('cancelStatus', [
                 StatusEnum::CANCELLED,
             ])
-            ->setParameter('location', $location)
+            ->setParameter('company', $company)
             ->setParameter('start', $startDate)
             ->setParameter('end', $endDate)
             ->orderBy('a.scheduledAt', 'ASC');
@@ -176,10 +189,10 @@ class AgendaController extends AbstractController
     #[Route('/business-hours', name: 'app_agenda_business_hours', methods: ['GET'])]
     public function getBusinessHours(Request $request): JsonResponse {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            return new JsonResponse(['error' => 'No se encontró el local'], 404);
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
         }
 
         // Obtener parámetros de filtro
@@ -191,9 +204,9 @@ class AgendaController extends AbstractController
             ->select('pa.weekday', 'MIN(pa.startTime) as minStartTime', 'MAX(pa.endTime) as maxEndTime')
             ->from('App\Entity\ProfessionalAvailability', 'pa')
             ->join('pa.professional', 'p')
-            ->where('p.location = :location')
+            ->where('p.company = :company')
             ->andWhere('p.active = true')
-            ->setParameter('location', $location);
+            ->setParameter('company', $company);
     
         // Filtrar por profesional si se especifica
         if ($professionalId) {
@@ -219,9 +232,9 @@ class AgendaController extends AbstractController
             ->select('MIN(pa.startTime) as globalMinStart', 'MAX(pa.endTime) as globalMaxEnd')
             ->from('App\Entity\ProfessionalAvailability', 'pa')
             ->join('pa.professional', 'p')
-            ->where('p.location = :location')
+            ->where('p.company = :company')
             ->andWhere('p.active = true')
-            ->setParameter('location', $location);
+            ->setParameter('company', $company);
     
         // Aplicar los mismos filtros a la consulta global
         if ($professionalId) {
@@ -347,13 +360,13 @@ class AgendaController extends AbstractController
         }
         
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
         // Obtener el parámetro force del request
         $force = $data['force'] ?? false;
         
         try {
-            $appointment = $appointmentService->createAppointment($data, $location, $force);
+            $appointment = $appointmentService->createAppointment($data, $company, $force);
             
             // Programar notificaciones
             $this->notificationService->scheduleAppointmentNotifications($appointment);
@@ -375,6 +388,7 @@ class AgendaController extends AbstractController
                 'error_type' => $isAvailabilityError ? 'availability' : 'validation'
             ], 400);
         } catch (\Throwable $e) {
+            var_dump($e->getMessage());exit;
             error_log('Error creating appointment: ' . $e->getMessage());
             return new JsonResponse([
                 'success' => false,
@@ -388,10 +402,10 @@ class AgendaController extends AbstractController
     public function getAppointment(int $id): JsonResponse
     {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            return new JsonResponse(['error' => 'No se encontró el local'], 404);
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
         }
 
         $appointment = $this->entityManager->getRepository(Appointment::class)->find($id);
@@ -400,8 +414,8 @@ class AgendaController extends AbstractController
             return new JsonResponse(['error' => 'Turno no encontrado'], 404);
         }
 
-        // Verificar que la cita pertenece a el local del usuario
-        if ($appointment->getLocation() !== $location) {
+        // Verificar que la cita pertenece a la empresa del usuario
+        if ($appointment->getCompany() !== $company) {
             return new JsonResponse(['error' => 'Acceso denegado'], 403);
         }
 
@@ -453,7 +467,7 @@ class AgendaController extends AbstractController
         }
     
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
     
         // Obtener el parámetro force del request
         $force = $data['force'] ?? false;
@@ -529,7 +543,7 @@ class AgendaController extends AbstractController
                     $scheduledAt,
                     $endTime,
                     $appointment->getProfessional(),
-                    $location,
+                    $company,
                     $appointment->getId()
                 );
             }
@@ -554,7 +568,7 @@ class AgendaController extends AbstractController
             
             // Actualizar o crear paciente
             if (!empty($patientData)) {
-                $patient = $this->patientService->findOrCreatePatient($patientData, $location);
+                $patient = $this->patientService->findOrCreatePatient($patientData, $company);
                 $appointment->setPatient($patient);
             }
             
@@ -668,15 +682,15 @@ class AgendaController extends AbstractController
     public function getProfessionalServices(int $id): JsonResponse
     {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            return new JsonResponse(['error' => 'No se encontró el local'], 404);
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
         }
 
         $professional = $this->professionalRepository->find($id);
         
-        if (!$professional || $professional->getLocation() !== $location) {
+        if (!$professional || $professional->getCompany() !== $company) {
             return new JsonResponse(['error' => 'Profesional no encontrado'], 404);
         }
 
@@ -703,10 +717,10 @@ class AgendaController extends AbstractController
     public function searchPatients(Request $request): JsonResponse
     {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            return new JsonResponse(['error' => 'No se encontró el local'], 404);
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
         }
     
         $query = $request->query->get('q', '');
@@ -717,7 +731,7 @@ class AgendaController extends AbstractController
     
         $patients = $this->entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
-            ->where('p.location = :location')
+            ->where('p.company = :company')
             ->andWhere('(
                 p.firstName LIKE :query OR 
                 p.lastName LIKE :query OR
@@ -725,7 +739,7 @@ class AgendaController extends AbstractController
                 p.email LIKE :query OR 
                 p.phone LIKE :query
             )')
-            ->setParameter('location', $location)
+            ->setParameter('company', $company)
             ->setParameter('query', '%' . $query . '%')
             ->orderBy('p.firstName', 'ASC')
             ->addOrderBy('p.lastName', 'ASC')
@@ -754,14 +768,14 @@ class AgendaController extends AbstractController
     public function getProfessionals(): JsonResponse
     {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            return new JsonResponse(['error' => 'Clínica no encontrada'], 404);
+        if (!$company) {
+            return new JsonResponse(['error' => 'Empresa no encontrada'], 404);
         }
 
         $professionals = $this->professionalRepository->findBy([
-            'location' => $location, 
+            'company' => $company, 
             'active' => true
         ]);
 
@@ -782,15 +796,15 @@ class AgendaController extends AbstractController
     #[Route('/appointments/{id}/status', name: 'app_agenda_update_appointment_status', methods: ['PATCH'])]
     public function updateAppointmentStatus(int $id, Request $request, AuditService $auditService): JsonResponse {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            return new JsonResponse(['error' => 'No se encontró el local'], 404);
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
         }
 
         $appointment = $this->entityManager->getRepository(Appointment::class)->find($id);
         
-        if (!$appointment || $appointment->getLocation() !== $location) {
+        if (!$appointment || $appointment->getCompany() !== $company) {
             return new JsonResponse(['error' => 'Turno no encontrado'], 404);
         }
 
@@ -850,10 +864,10 @@ class AgendaController extends AbstractController
     public function getProfessionalsByIds(string $ids): JsonResponse
     {
         $user = $this->getUser();
-        $location = $user->getOwnedLocations()->first();
+        $company = $user->getCompany();
         
-        if (!$location) {
-            return new JsonResponse(['error' => 'Clínica no encontrada'], 404);
+        if (!$company) {
+            return new JsonResponse(['error' => 'Empresa no encontrada'], 404);
         }
 
         // Convertir string de IDs separados por comas a array
@@ -864,10 +878,10 @@ class AgendaController extends AbstractController
         }
 
         $professionals = $this->professionalRepository->createQueryBuilder('p')
-            ->where('p.location = :location')
+            ->where('p.company = :company')
             ->andWhere('p.active = true')
             ->andWhere('p.id IN (:ids)')
-            ->setParameter('location', $location)
+            ->setParameter('company', $company)
             ->setParameter('ids', $professionalIds)
             ->getQuery()
             ->getResult();
@@ -903,12 +917,12 @@ class AgendaController extends AbstractController
         
         try {
             $user = $this->getUser();
-            $location = $user->getOwnedLocations()->first();
+            $company = $user->getCompany();
             
-            if (!$location) {
+            if (!$company) {
                 return new JsonResponse([
                     'available' => false,
-                    'message' => 'No se encontró el local'
+                    'message' => 'No se encontró la empresa'
                 ], 404);
             }
             
@@ -922,8 +936,8 @@ class AgendaController extends AbstractController
                 ], 404);
             }
             
-            // Verificar que el profesional pertenece al local
-            if ($professional->getLocation() !== $location) {
+            // Verificar que el profesional pertenece a la empresa
+            if ($professional->getCompany() !== $company) {
                 return new JsonResponse([
                     'available' => false,
                     'message' => 'Profesional no válido'
@@ -962,14 +976,14 @@ class AgendaController extends AbstractController
         \DateTime $scheduledAt,
         \DateTime $endTime,
         Professional $professional,
-        Location $location,
+        Company $company,
         int $appointmentId
     ): void {
         // Validar disponibilidad del profesional
         $this->validateProfessionalAvailabilityForUpdate($scheduledAt, $endTime, $professional);
         
         // Validar conflictos de horarios excluyendo el turno actual
-        $this->validateTimeConflictsForUpdate($scheduledAt, $endTime, $professional, $location, $appointmentId);
+        $this->validateTimeConflictsForUpdate($scheduledAt, $endTime, $professional, $company, $appointmentId);
     }
 
     /**
@@ -1009,14 +1023,14 @@ class AgendaController extends AbstractController
         \DateTime $scheduledAt,
         \DateTime $endTime,
         Professional $professional,
-        Location $location,
+        Company $company,
         int $appointmentId
     ): void {
         $conflictCount = $this->entityManager->createQueryBuilder()
             ->select('COUNT(a.id)')
             ->from(Appointment::class, 'a')
             ->where('a.professional = :professional')
-            ->andWhere('a.location = :location')
+            ->andWhere('a.company = :company')
             ->andWhere('a.id != :appointmentId') // Excluir el turno actual
             ->andWhere('a.status NOT IN (:cancelledStatus)')
             ->andWhere(
@@ -1024,7 +1038,7 @@ class AgendaController extends AbstractController
                 'DATE_ADD(a.scheduledAt, a.durationMinutes, \'MINUTE\') > :startTime)'
             )
             ->setParameter('professional', $professional)
-            ->setParameter('location', $location)
+            ->setParameter('company', $company)
             ->setParameter('appointmentId', $appointmentId)
             ->setParameter('cancelledStatus', [StatusEnum::CANCELLED])
             ->setParameter('startTime', $scheduledAt)

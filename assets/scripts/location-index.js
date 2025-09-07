@@ -46,3 +46,30 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Manejar reactivación de locales
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.reactivate-btn')) {
+        e.preventDefault();
+        const button = e.target.closest('.reactivate-btn');
+        const locationName = button.dataset.locationName;
+        const reactivateUrl = button.dataset.reactivateUrl;
+        const csrfToken = button.dataset.csrfToken;
+        
+        if (confirm(`¿Estás seguro de que deseas reactivar el local "${locationName}"?`)) {
+            // Crear formulario para envío POST
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = reactivateUrl;
+            
+            const tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '_token';
+            tokenInput.value = csrfToken;
+            
+            form.appendChild(tokenInput);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+});

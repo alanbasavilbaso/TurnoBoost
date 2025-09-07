@@ -6,7 +6,7 @@ class ProfessionalModal {
         this.createUrl = options.createUrl;
         this.editUrl = options.editUrl;
         
-        this.modal = $('#' + this.modalId); // jQuery object
+        this.modal = document.getElementById(this.modalId);
         this.formContainer = document.getElementById(this.formContainerId);
         this.modalTitle = document.getElementById('modalTitle');
         
@@ -90,7 +90,7 @@ class ProfessionalModal {
     }
     
     clearModal() {
-        this.modal.find('.modal-body').empty();
+        // this.modal.find('.modal-body').empty();
         
         // Resetear flags de inicialización cuando se cierra el modal
         if (typeof resetFormInitialization === 'function') {
