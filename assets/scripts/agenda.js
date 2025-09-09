@@ -7,6 +7,7 @@ class AgendaManager {
         this.calendarEl = null;
         this.miniCalendar = null;
         this.allAppointments = [];
+        this.allBlocks = [];
         this.selectedProfessionals = [];
         this.allProfessionals = []; // Agregar esta línea
         this.currentDate = new Date();
@@ -18,6 +19,8 @@ class AgendaManager {
             service: '',
             view: 'timeGridWeek'
         };
+        this.businessHoursCache = null;
+        this.lastBusinessHoursUpdate = null;
     }
 
     async init() {
@@ -32,7 +35,7 @@ class AgendaManager {
         await this.loadAppointments();
         this.updateCurrentDateDisplay();
         // Aplicar la preferencia de timeInterval guardada
-        this.applyTimeInterval();
+        // this.applyTimeInterval();
         this.updateTimeIntervalUI();
     }
 
@@ -62,67 +65,13 @@ class AgendaManager {
             return this.allProfessionals;
         }
     }
-    async initializeCalendar() {
-        const calendarEl = document.getElementById('calendar');
-        
-        // Cargar configuración de horarios de negocio
-        const businessHoursConfig = await this.loadBusinessHours();
-        
-        this.calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'timeGridWeek',
-            locale: 'es',
-            timeZone: 'UTC',
-            headerToolbar: false, // Ocultar header por defecto
-            height: 'auto',
-            selectable: true,
-            selectMirror: true,
-            
-            // Configuración específica por vista
-            views: {
-                dayGridMonth: {
-                    dayMaxEvents: false,
-                    moreLinkClick: false,
-                    selectable: false
-                },
-                timeGridWeek: {
-                    dayMaxEvents: false,
-                    slotEventOverlap: true,
-                    eventOverlap: true,
-                    selectable: true
-                },
-                timeGridDay: {
-                    dayMaxEvents: false,
-                    slotEventOverlap: true,
-                    eventOverlap: true,
-                    selectable: true
-                }
-            },
-            
-            weekends: true,
-            editable: true,
-            allDaySlot: false,
-            eventConstraint: 'businessHours',
-            
-            // Eventos
-            select: (info) => this.handleDateSelect(info),
-            eventClick: (info) => this.handleEventClick(info),
-            eventDrop: (info) => this.handleEventDrop(info),
-            eventResize: (info) => this.handleEventResize(info),
-            
-            // Configurar horarios de negocio
-            slotMinTime: businessHoursConfig.slotMinTime,
-            slotMaxTime: businessHoursConfig.slotMaxTime,
-            slotDuration: businessHoursConfig.slotDuration || '00:15:00',
-            businessHours: {
-                daysOfWeek: businessHoursConfig.daysOfWeek,
-                startTime: businessHoursConfig.startTime,
-                endTime: businessHoursConfig.endTime
-            }
-        });
-        
-        this.calendar.render();
+    
+    getCurrentSelectedService() {
+        // Obtener el servicio seleccionado actualmente (único)
+        const serviceSelect = document.querySelector('[name="service_id"]');
+        return serviceSelect ? serviceSelect.value : null;
     }
-
+    
     initializeMiniCalendar() {
         const miniCalendarEl = document.getElementById('miniCalendar');
         this.renderMiniCalendar(miniCalendarEl, this.currentDate);
@@ -394,7 +343,7 @@ class AgendaManager {
         
         // Si estamos en vista de columnas profesionales, re-renderizar
         if (document.getElementById('professionalsColumns').style.display !== 'none') {
-            this.renderProfessionalColumns(this.currentDate);
+            this.renderProfessionalColumns(this.currentDate, this.allAppointments, this.allBlocks);
         }
     }
 
@@ -437,11 +386,26 @@ class AgendaManager {
             weekends: true,
             editable: true,
             allDaySlot: false,
-            eventConstraint: 'businessHours',
+            // eventConstraint: 'businessHours',
             
             // Eventos
             select: (info) => this.handleDateSelect(info),
-            eventClick: (info) => this.handleEventClick(info),
+            eventClick: (info) => {
+                // Manejar click en bloques no laborables
+                if (info.event.extendedProps && info.event.extendedProps.type === 'non-working') {
+                    console.log('Bloque no laborable clickeado:', {
+                        profesional: info.event.extendedProps.professionalName,
+                        profesionalId: info.event.extendedProps.professionalId,
+                        fecha: info.event.start.toISOString().split('T')[0],
+                        horaInicio: info.event.start.toTimeString().split(' ')[0],
+                        horaFin: info.event.end.toTimeString().split(' ')[0],
+                        razon: info.event.extendedProps.reason
+                    });
+                    return; // No abrir modal para bloques no laborables
+                }
+                
+                this.handleEventClick(info);
+            },
             eventDrop: (info) => this.handleEventDrop(info),
             eventResize: (info) => this.handleEventResize(info),
             
@@ -459,7 +423,7 @@ class AgendaManager {
         this.calendar.render();
     }
 
-    async renderProfessionalColumns(date) {
+    async renderProfessionalColumns(date, appointments = null, blocks = null) {
         // Cerrar cualquier tooltip existente antes de re-renderizar
         this.removeExistingTooltip();
         
@@ -486,6 +450,9 @@ class AgendaManager {
         const endTime = this.parseTime(businessHours.endTime);
         const slotDuration = this.timeInterval || 30; // Usar timeInterval dinámico
         
+        // Usar los appointments proporcionados o los almacenados en la instancia
+        const appointmentsToRender = appointments || this.allAppointments;
+        
         for (let time = startTime; time < endTime; time += slotDuration) {
             const timeSlot = document.createElement('div');
             timeSlot.className = 'time-slot';
@@ -505,7 +472,7 @@ class AgendaManager {
                 profSlot.dataset.date = date.toISOString().split('T')[0];
                 
                 // Buscar citas en este slot
-                const appointments = this.getAppointmentsForSlot(date, time, prof.id);
+                const appointments = this.getAppointmentsForSlot(date, time, prof.id, appointmentsToRender);
                 appointments.forEach(apt => {
                     const aptBlock = document.createElement('div');
                     aptBlock.className = 'appointment-block';
@@ -564,6 +531,8 @@ class AgendaManager {
                     profSlot.appendChild(aptBlock);
                 });
                 
+                // Ya no buscamos bloques en cada slot, se renderizan por profesional
+                
                 // Altura del slot proporcional al intervalo de tiempo
                 const slotHeight = 35;
                 profSlot.style.position = 'relative';
@@ -586,6 +555,19 @@ class AgendaManager {
             
             timeSlots.appendChild(timeSlot);
         }
+
+        // Usar los blocks proporcionados o un array vacío si no hay
+        const blocksToRender = blocks || this.allBlocks;
+        
+        // NUEVA LÓGICA: Renderizar bloques una sola vez por profesional
+        professionals.forEach(prof => {
+            // Obtener todos los bloques del profesional para esta fecha
+            const professionalBlocks = this.getBlocksForProfessional(date, prof.id, blocksToRender);
+            
+            professionalBlocks.forEach(block => {
+                this.renderSingleBlock(block, prof.id, startTime, slotDuration, timeSlots, endTime);
+            });
+        });
     }
 
     updateCurrentDateDisplay() {
@@ -624,7 +606,11 @@ class AgendaManager {
 
     // Funciones auxiliares
     hasAppointmentsOnDate(date) {
-        const dateStr = date.toISOString().split('T')[0];
+        // const dateStr = date.toISOString().split('T')[0];
+        const dateStr = date.getFullYear() + '-' + 
+        String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(date.getDate()).padStart(2, '0');
+    
         return this.allAppointments.some(apt => {
             const aptDate = new Date(apt.start).toISOString().split('T')[0];
             return aptDate === dateStr;
@@ -632,7 +618,11 @@ class AgendaManager {
     }
 
     getAppointmentsForSlot(date, time, professionalId) {
-        const dateStr = date.toISOString().split('T')[0];
+        // const dateStr = date.toISOString().split('T')[0];
+        const dateStr = date.getFullYear() + '-' + 
+        String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(date.getDate()).padStart(2, '0');
+    
         const slotStartMinutes = time;
         const slotDuration = this.timeInterval || 30;
         
@@ -653,6 +643,136 @@ class AgendaManager {
                    apt.extendedProps.professionalId == professionalId;
         });
     }
+    
+    getBlocksForSlot(date, time, professionalId, blocksToRender) {
+        // const dateStr = date.toISOString().split('T')[0];
+        const dateStr = date.getFullYear() + '-' + 
+        String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(date.getDate()).padStart(2, '0');
+    
+        const slotStartMinutes = time;
+        const slotDuration = this.timeInterval || 30;
+        
+        return blocksToRender.filter(block => {
+            const blockDate = new Date(block.start).toISOString().split('T')[0];
+            const blockStart = new Date(block.start);
+            const blockStartMinutes = blockStart.getHours() * 60 + blockStart.getMinutes();
+            
+            // Solo mostrar el bloque en el slot donde COMIENZA
+            // El bloque debe comenzar dentro de este slot específico
+            const blockStartsInThisSlot = (
+                blockStartMinutes <= slotStartMinutes && 
+                blockStartMinutes < slotStartMinutes + slotDuration
+            );
+            
+            return blockDate === dateStr && 
+                   blockStartsInThisSlot && 
+                   block.extendedProps.professionalId == professionalId;
+        });
+    }
+    
+    // Nueva función para obtener bloques por profesional
+    getBlocksForProfessional(date, professionalId, blocksToRender) {
+        const dateStr = date.getFullYear() + '-' + 
+            String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(date.getDate()).padStart(2, '0');
+        
+        return blocksToRender.filter(block => {
+            const blockDate = new Date(block.start).toISOString().split('T')[0];
+            return blockDate === dateStr && 
+                   block.extendedProps.professionalId == professionalId;
+        });
+    }
+    
+    // Nueva función para renderizar un bloque completo
+    renderSingleBlock(block, professionalId, businessStartTime, slotDuration, timeSlots, businessEndTime) {
+        const blockStart = new Date(block.start);
+        const blockEnd = new Date(block.end);
+        const blockStartMinutes = blockStart.getHours() * 60 + blockStart.getMinutes();
+        const blockEndMinutes = blockEnd.getHours() * 60 + blockEnd.getMinutes();
+        
+        
+        // NUEVA LÓGICA: Recortar el bloque al rango visible
+        const visibleStartMinutes = Math.max(blockStartMinutes, businessStartTime);
+        const visibleEndMinutes = Math.min(blockEndMinutes, businessEndTime);
+        
+        // Si el bloque está completamente fuera del rango visible, no renderizar
+        if (visibleStartMinutes >= visibleEndMinutes || visibleEndMinutes <= businessStartTime || visibleStartMinutes >= businessEndTime) {
+            return;
+        }
+        
+        // Calcular posición y altura basándose en la parte visible
+        const offsetFromBusinessStart = visibleStartMinutes - businessStartTime;
+        const visibleDurationMinutes = visibleEndMinutes - visibleStartMinutes;
+        
+        const topPosition = (offsetFromBusinessStart / slotDuration) * 36; // 35px por slot
+        const height = Math.max(((visibleDurationMinutes / slotDuration) ) * 36 - 2, 15); // Mínimo 15px de altura
+    
+        // Crear elemento del bloque
+        const blockElement = document.createElement('div');
+        blockElement.className = block.className ?? 'block-element professional-block-event';
+        blockElement.dataset.id = block.id;
+        blockElement.style.backgroundColor = block.backgroundColor || '#f8d7da';
+        
+        // Contenido del bloque - mostrar horario original, no el recortado
+        blockElement.innerHTML = `
+            <div class="block-time">${new Date(block.start).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})} - ${new Date(block.end).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</div>
+            <div class="block-title">${block.title}</div>
+        `;
+        
+        if (block.extendedProps.type !== 'non-working') {
+            blockElement.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const blockData = {
+                    id: block.id,
+                    title: block.title,
+                    start: blockStart,
+                    end: blockEnd,
+                    reason: block.extendedProps?.reason || 'Sin motivo especificado',
+                    professionalName: block.extendedProps?.professionalName,
+                    blockType: block.extendedProps?.blockType,
+                    blockId: block.extendedProps?.blockId,
+                    professionalId: block.extendedProps?.professionalId,
+                    extendedProps: block.extendedProps
+                };
+                this.showBlockDetails(blockData, event);
+            });
+        }
+        
+        
+        // Aplicar estilos - posicionamiento relativo a timeSlots
+        blockElement.style.position = 'absolute';
+        blockElement.style.top = `${topPosition}px`;
+        blockElement.style.height = `${height}px`;
+        blockElement.style.minHeight = '15px';
+        blockElement.style.zIndex = '5';
+        blockElement.style.borderRadius = '4px';
+        blockElement.style.padding = '2px 4px';
+        blockElement.style.fontSize = '0.75rem';
+        blockElement.style.overflow = 'hidden';
+        blockElement.style.pointerEvents = 'auto';
+        
+        // Calcular la posición horizontal dentro de timeSlots
+        const professionals = this.getFilteredProfessionals();
+        const professionalIndex = professionals.findIndex(p => p.id == professionalId);
+        
+        // Calcular el ancho y posición de la columna del profesional
+        const timeLabelWidth = 80; // Ancho de la columna de tiempo
+        const availableWidth = timeSlots.offsetWidth - timeLabelWidth;
+        const columnWidth = availableWidth / professionals.length;
+        const leftOffset = timeLabelWidth + (columnWidth * professionalIndex);
+        
+        blockElement.style.left = `${leftOffset + 2}px`; // +2px margen
+        blockElement.style.width = `calc(${columnWidth}px - 10%)`; // -4px para márgenes
+        
+        // Asegurar que timeSlots tenga position relative
+        if (getComputedStyle(timeSlots).position === 'static') {
+            timeSlots.style.position = 'relative';
+        }
+        
+        // Agregar directamente al contenedor timeSlots
+        timeSlots.appendChild(blockElement);
+    }
 
     parseTime(timeStr) {
         const [hours, minutes] = timeStr.split(':').map(Number);
@@ -665,16 +785,62 @@ class AgendaManager {
         return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
     }
 
-    async loadBusinessHours() {
-        // Configuración por defecto de horarios de negocio
-        return {
-            slotMinTime: '08:00:00',
-            slotMaxTime: '20:00:00',
-            slotDuration: '00:30:00',
-            daysOfWeek: [1, 2, 3, 4, 5, 6], // Lunes a Sábado
-            startTime: '08:00',
-            endTime: '20:00'
-        };
+    async loadBusinessHours(forceReload = false) {
+        // Si tenemos cache y no se fuerza la recarga, usar cache
+        if (this.businessHoursCache && !forceReload) {
+            return this.businessHoursCache;
+        }
+
+        const selectedLocationId = document.getElementById('locationFilter').value;
+        const selectedProfessionals = this.getSelectedProfessionals();
+        
+        try {
+            // Construir URL con parámetros de consulta
+            const params = new URLSearchParams();
+            if (selectedLocationId) {
+                params.append('locationId', selectedLocationId);
+            }
+            if (selectedProfessionals.length > 0) {
+                selectedProfessionals.forEach(id => {
+                    params.append('professionalIds[]', id);
+                });
+            }
+            
+            const url = `/agenda/business-hours?${params.toString()}`;
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Error al cargar horarios de negocio');
+            }
+            
+            const data = await response.json();
+            
+            // Guardar en cache
+            this.businessHoursCache = data;
+            this.lastBusinessHoursUpdate = Date.now();
+            
+            return data;
+        } catch (error) {
+            console.error('Error loading business hours:', error);
+            
+            // Retornar valores por defecto
+            const defaultHours = {
+                startTime: '08:00',
+                endTime: '18:00',
+                slotMinTime: '08:00:00',
+                slotMaxTime: '18:00:00',
+                slotDuration: '00:15:00',
+                daysOfWeek: [1, 2, 3, 4, 5]
+            };
+            this.businessHoursCache = defaultHours;
+            return defaultHours;
+        }
     }
 
     bindEvents() {
@@ -898,9 +1064,74 @@ class AgendaManager {
         }
         return true;
     }
-
+    
+    async loadAppointmentsData() {
+        const params = new URLSearchParams();
+        
+        // Determinar el tipo de vista actual
+        const viewType = this.determineAutoView();
+        
+        // Agregar filtro de ubicación
+        const selectedLocationId = document.getElementById('locationFilter').value;
+        if (selectedLocationId) {
+            params.append('location', selectedLocationId);
+        }
+        
+        // Agregar filtro de fecha según la vista
+        if (this.currentDate) {
+            if (viewType === 'week') {
+                const currentDate = new Date(this.currentDate);
+                const dayOfWeek = currentDate.getDay();
+                const startOfWeek = new Date(currentDate);
+                startOfWeek.setDate(currentDate.getDate() - dayOfWeek - 1);
+                const endOfWeek = new Date(startOfWeek);
+                endOfWeek.setDate(startOfWeek.getDate() + 6);
+                
+                const startStr = startOfWeek.toISOString().split('T')[0];
+                const endStr = endOfWeek.toISOString().split('T')[0];
+                
+                params.append('start', startStr);
+                params.append('end', endStr);
+            } else {
+                // Formatear fecha local sin conversión UTC
+                const dateStr = this.currentDate.getFullYear() + '-' + 
+                    String(this.currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                    String(this.currentDate.getDate()).padStart(2, '0');
+                params.append('date', dateStr);
+            }
+        }
+        
+        // Obtener profesionales seleccionados
+        const selectedProfessionals = this.getSelectedProfessionals();
+        if (selectedProfessionals.length > 0) {
+            selectedProfessionals.forEach(profId => {
+                params.append('professionals[]', profId);
+            });
+        } else {
+            this.allProfessionals.forEach(prof => {
+                params.append('professionals[]', prof.id);
+            });
+        }
+        
+        if (this.currentFilters.service) {
+            params.append('service', this.currentFilters.service);
+        }
+        
+        const response = await fetch(`/agenda/appointments?${params.toString()}`);
+        return await response.json();
+    }
 
     async loadAppointments() {
+        try {
+            // Usar el método coordinador que carga ambos
+            await this.loadAppointmentsAndBlocks();
+        } catch (error) {
+            console.error('Error loading appointments:', error);
+            this.allAppointments = [];
+        }
+    }
+
+    async loadBlocks() {
         try {
             const params = new URLSearchParams();
             
@@ -920,9 +1151,9 @@ class AgendaManager {
                     const currentDate = new Date(this.currentDate);
                     
                     // Calcular el domingo de la semana actual
-                    const dayOfWeek = currentDate.getDay(); // 0 = domingo, 1 = lunes, etc.
+                    const dayOfWeek = currentDate.getDay() // 0 = domingo, 1 = lunes, etc.
                     const startOfWeek = new Date(currentDate);
-                    startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
+                    startOfWeek.setDate(currentDate.getDate() - dayOfWeek - 1);
                     
                     // Calcular el sábado de la semana actual
                     const endOfWeek = new Date(startOfWeek);
@@ -936,11 +1167,12 @@ class AgendaManager {
                     params.append('end', endStr);
                 } else {
                     // Vista diaria: enviar solo date (o start/end con la misma fecha)
-                    const dateStr = this.currentDate.toISOString().split('T')[0];
-                    params.append('date', dateStr);
-                    // Alternativamente, puedes usar start/end con la misma fecha:
-                    // params.append('start', dateStr);
-                    // params.append('end', dateStr);
+                    // Formatear fecha local sin conversión UTC
+                    const dateStr = this.currentDate.getFullYear() + '-' + 
+                        String(this.currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                        String(this.currentDate.getDate()).padStart(2, '0');
+                    params.append('start', dateStr);
+                    params.append('end', dateStr);
                 }
             }
             
@@ -958,31 +1190,91 @@ class AgendaManager {
                 });
             }
             
-            if (this.currentFilters.service) {
-                params.append('service', this.currentFilters.service);
-            }
+            const response = await fetch(`/agenda/blocks?${params.toString()}`);
+            const blocks = await response.json();
             
-            const response = await fetch(`/agenda/appointments?${params.toString()}`);
-            const appointments = await response.json();
-            
-            this.allAppointments = appointments;
-            
-            // Solo actualizar FullCalendar si está visible
-            if (this.calendar && document.getElementById('calendar').style.display !== 'none') {
-                this.calendar.removeAllEvents();
-                this.calendar.addEventSource(appointments);
-            }
-            
-            // Si estamos en vista de columnas, re-renderizar
-            if (document.getElementById('professionalsColumns').style.display !== 'none') {
-                this.renderProfessionalColumns(this.currentDate);
-            }
+            return blocks;
         } catch (error) {
-            console.error('Error loading appointments:', error);
-            this.allAppointments = [];
+            console.error('Error loading blocks:', error);
+            return [];
         }
     }
 
+    async loadNonWorkingBlocks() {
+        const selectedProfessionals = this.getSelectedProfessionals();
+        
+        // Solo cargar si hay múltiples profesionales seleccionados o ninguno (todos)
+        if (selectedProfessionals.length === 1) {
+            return [];
+        }
+        
+        try {
+            const locationId = document.getElementById('location-filter')?.value || '';
+            const params = new URLSearchParams({
+                include_non_working: 'true',
+                start: this.calendar ? this.calendar.view.activeStart.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                end: this.calendar ? this.calendar.view.activeEnd.toISOString().split('T')[0] : new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]
+            });
+            
+            // Agregar profesionales seleccionados
+            const professionalsToLoad = selectedProfessionals.length > 0 ? selectedProfessionals : this.allProfessionals.map(p => p.id.toString());
+            professionalsToLoad.forEach(id => {
+                params.append('professionals[]', id);
+            });
+            
+            if (locationId) {
+                params.append('location_id', locationId);
+            }
+            
+            const response = await fetch(`/agenda/blocks?${params.toString()}`);
+            const events = await response.json();
+            
+            // Filtrar solo los bloques no laborables
+            return events.filter(event => 
+                event.extendedProps && event.extendedProps.type === 'non-working'
+            );
+        } catch (error) {
+            console.error('Error cargando bloques no laborables:', error);
+            return [];
+        }
+    }
+
+    async loadAppointmentsAndBlocks() {
+        try {
+            // Cargar appointments y blocks (que ya incluye non-working) en paralelo
+            const [appointments, blocks] = await Promise.all([
+                this.loadAppointmentsData(), // Método auxiliar que solo obtiene datos
+                this.loadBlocks() // Ya incluye todos los tipos de bloques
+            ]);
+            
+            // Combinar para FullCalendar
+            const allEvents = [...appointments, ...blocks];
+            
+            // Guardar appointments por separado
+            this.allAppointments = appointments;
+            // Guardar blocks por separado
+            this.allBlocks = blocks;
+            
+            // Actualizar vista según el modo actual
+            if (this.calendar && document.getElementById('calendar').style.display !== 'none') {
+                // Vista semanal (FullCalendar) - un profesional
+                this.calendar.removeAllEvents();
+                this.calendar.addEventSource(allEvents);
+            }
+            
+            if (document.getElementById('professionalsColumns').style.display !== 'none') {
+                // Vista diaria (Columnas) - múltiples profesionales
+                this.renderProfessionalColumns(this.currentDate, appointments, blocks);
+            }
+            
+            return { appointments, blocks, allEvents };
+        } catch (error) {
+            console.error('Error loading appointments and blocks:', error);
+            this.allAppointments = [];
+            return { appointments: [], blocks: [], allEvents: [] };
+        }
+    }
+    
     handleDateSelect(info) {
         // Manejar selección de fecha para crear nueva cita
         const startTime = info.start;
@@ -1015,25 +1307,42 @@ class AgendaManager {
 
     handleEventClick(info) {
         console.log('Event clicked:', info.event);
-
-        const eventData = {
-            id: info.event.id,
-            title: info.event.title,
-            start: this.toUTC(info.event.start),
-            end: this.toUTC(info.event.end),
-            professionalId: info.event.extendedProps?.professionalId,
-            serviceId: info.event.extendedProps?.serviceId,
-            status: info.event.extendedProps?.status,
-            notes: info.event.extendedProps?.notes,
-            patientId: info.event.extendedProps?.patientId,
-            patientName: info.event.extendedProps?.patientName,
-            patientEmail: info.event.extendedProps?.patientEmail,
-            patientPhone: info.event.extendedProps?.patientPhone,
-            professionalName: info.event.extendedProps?.professionalName,
-            serviceName: info.event.extendedProps?.serviceName
-        };
-        
-        this.showAppointmentDetails(eventData, info.jsEvent);
+        if (info.event.extendedProps?.type === 'block') {
+            // Si es un bloque, mostrar detalles
+            const blockData = {
+                id: info.event.id,
+                title: info.event.title,
+                start: this.toUTC(info.event.start),
+                end: this.toUTC(info.event.end),
+                reason: info.event.extendedProps?.reason || 'Sin motivo especificado',
+                professionalName: info.event.extendedProps?.professionalName,
+                blockType: info.event.extendedProps?.blockType,
+                blockId: info.event.extendedProps?.blockId,
+                professionalId: info.event.extendedProps?.professionalId,
+                extendedProps: info.event.extendedProps  
+            };
+            
+            this.showBlockDetails(blockData, info.jsEvent);
+        } else {
+            const eventData = {
+                id: info.event.id,
+                title: info.event.title,
+                start: this.toUTC(info.event.start),
+                end: this.toUTC(info.event.end),
+                professionalId: info.event.extendedProps?.professionalId,
+                serviceId: info.event.extendedProps?.serviceId,
+                status: info.event.extendedProps?.status,
+                notes: info.event.extendedProps?.notes,
+                patientId: info.event.extendedProps?.patientId,
+                patientName: info.event.extendedProps?.patientName,
+                patientEmail: info.event.extendedProps?.patientEmail,
+                patientPhone: info.event.extendedProps?.patientPhone,
+                professionalName: info.event.extendedProps?.professionalName,
+                serviceName: info.event.extendedProps?.serviceName
+            };
+            
+            this.showAppointmentDetails(eventData, info.jsEvent);
+        }
     }
 
     showAppointmentDetails(eventData, clickEvent) {
@@ -1078,7 +1387,7 @@ class AgendaManager {
             tooltip.classList.add('show');
         }, 10);
         // Configurar eventos de cierre
-        this.setupTooltipCloseEvents(tooltip);
+        this.setupTooltipCloseEventsOfAppointment(tooltip);
     }
 
     createAppointmentTooltip(data) {
@@ -1182,6 +1491,206 @@ class AgendaManager {
         return tooltip;
     }
 
+    showBlockDetails(blockData, clickEvent) {
+        console.log('showBlockDetails', blockData);
+        
+        // Remover tooltip existente
+        this.removeExistingTooltip();
+        
+        // Formatear datos para el tooltip
+        const formattedData = {
+            reason: blockData.reason,
+            professionalName: blockData.professionalName,
+            startDate: blockData.start,
+            endDate: blockData.end,
+            
+            day: blockData.start.toLocaleDateString('es-ES', {
+                day: 'numeric' // "1", "15", "31"
+            }),
+            time: `${blockData.start.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})} - ${blockData.end.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}`,
+            blockType: blockData.blockType,
+            blockData: blockData
+        };
+        
+        // Crear y mostrar tooltip
+        const tooltip = this.createBlockTooltip(formattedData);
+        document.body.appendChild(tooltip);
+        
+        // Posicionar tooltip
+        this.positionTooltip(tooltip, clickEvent);
+        
+        // Configurar eventos
+        this.setupTooltipCloseEventsOfBlock(tooltip);
+        // this.setupBlockActions(tooltip, blockData);
+    }
+    
+    createBlockTooltip(data) {
+        // Obtener el template del tooltip de bloques
+        const template = document.getElementById('block-tooltip-template');
+        
+        if (!template) {
+            console.error('Template del tooltip de bloques no encontrado');
+            return null;
+        }
+        
+        // Clonar el contenido del template
+        const tooltip = template.content.cloneNode(true).firstElementChild;
+        
+        // Obtener información extendida del bloque
+        const blockData = data.blockData;
+        const extendedProps = blockData.extendedProps || {};
+        
+        // Determinar si mostrar opciones de serie
+        const isMultiDay = data.blockType === 'monthly_recurring' || data.blockType === 'date_range' || data.blockType === 'weekdays_pattern';
+        
+        // Mostrar/ocultar botones según el tipo de bloqueo
+        const singleButtons = tooltip.querySelector('[data-multi-day="false"]');
+        const multiButtons = tooltip.querySelector('[data-multi-day="true"]');
+        
+        if (isMultiDay) {
+            singleButtons.style.display = 'none';
+            multiButtons.style.display = 'flex';
+        } else {
+            singleButtons.style.display = 'flex';
+            multiButtons.style.display = 'none';
+        }
+        
+        // Llenar datos básicos
+        tooltip.querySelector('[data-field="reason"]').textContent = data.reason;
+        tooltip.querySelector('[data-field="professionalName"]').textContent = data.professionalName;
+        tooltip.querySelectorAll('[data-field="professionalName"]').forEach(el => {
+            el.textContent = data.professionalName;
+        });
+        // tooltip.querySelector('[data-field="date"]').textContent = data.date;
+        // tooltip.querySelector('[data-field="time"]').textContent = data.time;
+        
+        // Generar descripción detallada del tipo de bloque
+        const blockTypeInfo = this.getBlockTypeDescription(data.blockType, extendedProps);
+        tooltip.querySelector('[data-field="blockTypeDescription"]').textContent = blockTypeInfo.description;
+        
+        // Mostrar información específica según el tipo
+        this.populateBlockSpecificInfo(tooltip, data.blockType, extendedProps, data);
+        
+        // Guardar datos del bloque en el tooltip para las acciones
+        tooltip._blockData = data.blockData;
+        
+        // Agregar la clase show para hacerlo visible
+        setTimeout(() => {
+            tooltip.classList.add('show');
+        }, 10);
+        
+        return tooltip;
+    }
+
+    getBlockTypeDescription(blockType, extendedProps) {
+        switch(blockType) {
+            case 'single_day':
+                return {
+                    description: 'Un solo día',
+                    icon: '📅'
+                };
+            case 'date_range':
+                return {
+                    description: 'Rango de fechas (todos los días)',
+                    icon: '📆'
+                };
+            case 'weekdays_pattern':
+                return {
+                    description: 'Patrón de días específicos',
+                    icon: '🗓️'
+                };
+            case 'monthly_recurring':
+                return {
+                    description: 'Repetición mensual',
+                    icon: '🔄'
+                };
+            default:
+                return {
+                    description: 'Bloqueo único',
+                    icon: '🚫'
+                };
+        }
+    }
+
+    populateBlockSpecificInfo(tooltip, blockType, extendedProps, data) {
+        // Ocultar todas las filas opcionales primero
+        const optionalRows = ['dateRange', 'weekdays', 'recurrence'];
+        optionalRows.forEach(field => {
+            const container = tooltip.querySelector(`[data-field-container="${field}"]`);
+            if (container) container.style.display = 'none';
+        });
+        
+        // Mostrar horario
+        const scheduleElement = tooltip.querySelector('[data-field="schedule"]');
+        if (scheduleElement) {
+            if (extendedProps.allDay) {
+                scheduleElement.textContent = 'Todo el día';
+            } else {
+                scheduleElement.textContent = data.time;
+            }
+        }
+        
+        // Información específica según el tipo
+        switch(blockType) {
+            case 'single_day':
+                // Para un solo día, la fecha ya se muestra en el campo date
+                break;
+                
+            case 'date_range':
+                const dateRangeContainer = tooltip.querySelector('[data-field-container="dateRange"]');
+                const dateRangeElement = tooltip.querySelector('[data-field="dateRange"]');
+                if (dateRangeContainer && dateRangeElement) {
+                    dateRangeContainer.style.display = 'flex';
+                    const startDate = extendedProps.startDate;
+                    const endDate = extendedProps.endDate;
+                    dateRangeElement.textContent = `${startDate} - ${endDate}`;
+                }
+                break;
+                
+            case 'weekdays_pattern':
+                const weekdaysContainer = tooltip.querySelector('[data-field-container="weekdays"]');
+                const weekdaysElement = tooltip.querySelector('[data-field="weekdays"]');
+                const dateRangeContainer2 = tooltip.querySelector('[data-field-container="dateRange"]');
+                const dateRangeElement2 = tooltip.querySelector('[data-field="dateRange"]');
+                
+                if (weekdaysContainer && weekdaysElement) {
+                    weekdaysContainer.style.display = 'flex';
+                    const weekdayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                    const selectedDays = extendedProps.weekdaysPattern ? 
+                        extendedProps.weekdaysPattern.split(',').map(d => weekdayNames[parseInt(d)]) : [];
+                    weekdaysElement.textContent = selectedDays.join(', ');
+                }
+                
+                if (dateRangeContainer2 && dateRangeElement2) {
+                    dateRangeContainer2.style.display = 'flex';
+                    const startDate = extendedProps.startDate;
+                    const endDate = extendedProps.endDate;
+                    dateRangeElement2.textContent = `${startDate} - ${endDate}`;
+                }
+                break;
+                
+            case 'monthly_recurring':
+                const recurrenceContainer = tooltip.querySelector('[data-field-container="recurrence"]');
+                const recurrenceElement = tooltip.querySelector('[data-field="recurrence"]');
+                
+                if (recurrenceContainer && recurrenceElement) {
+                    recurrenceContainer.style.display = 'flex';
+                    const dayOfMonth = extendedProps.monthlyDayOfMonth || data.day;
+                    let recurrenceText = `Día ${dayOfMonth} de cada mes`;
+                    
+                    if (extendedProps.endDate) {
+                        const endDate = new Date(extendedProps.endDate).toLocaleDateString('es-ES');
+                        recurrenceText += ` hasta ${endDate}`;
+                    } else {
+                        recurrenceText += ' (indefinidamente)';
+                    }
+                    
+                    recurrenceElement.textContent = recurrenceText;
+                }
+                break;
+        }
+    }
+
     positionTooltip(tooltip, clickEvent) {
         if (!clickEvent) {
             tooltip.style.left = '50%';
@@ -1217,8 +1726,7 @@ class AgendaManager {
         tooltip.style.transform = 'none';
     }
 
-
-    setupTooltipCloseEvents(tooltip) {
+    setupTooltipCloseEventsOfAppointment(tooltip) {
         // Cerrar al hacer clic en el botón de cerrar
         const closeBtn = tooltip.querySelector('[data-action="close"]');
         closeBtn.addEventListener('click', () => {
@@ -1227,23 +1735,29 @@ class AgendaManager {
         // Configurar botones de acción
         const editBtn = tooltip.querySelector('[data-action="edit"]');
         const deleteBtn = tooltip.querySelector('[data-action="delete"]');
-        editBtn.addEventListener('click', () => {
-            this.removeTooltip(tooltip);
-            this.openAppointmentModal(tooltip._appointmentData);
-        });
-        deleteBtn.addEventListener('click', () => {
-            this.removeTooltip(tooltip);
-            this.showConfirmationModal(
-                '¿Eliminar este turno?',
-                'Esta acción no se puede deshacer.',
-                'fas fa-trash',
-                'btn-danger',
-                () => {
-                    this.updateAppointmentStatus(tooltip._appointmentData.id, 'cancelled');
-                    this.loadAppointments();
-                }
-            );
-        });
+        if(editBtn) {
+            editBtn.addEventListener('click', () => {
+                this.removeTooltip(tooltip);
+                this.openAppointmentModal(tooltip._appointmentData);
+            });
+        }
+            
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+                this.removeTooltip(tooltip);
+                this.showConfirmationModal(
+                    '¿Eliminar este turno?',
+                    'Esta acción no se puede deshacer.',
+                    'fas fa-trash',
+                    'btn-danger',
+                    () => {
+                        this.updateAppointmentStatus(tooltip._appointmentData.id, 'cancelled');
+                        this.loadAppointments();
+                    }
+                );
+            });
+        }
+            
         // Configurar selectores de estado
         const statusOptions = tooltip.querySelectorAll('.status-option');
         statusOptions.forEach(option => {
@@ -1282,6 +1796,115 @@ class AgendaManager {
         }, { once: true });
     }
 
+    setupTooltipCloseEventsOfBlock(tooltip) {
+        // Cerrar al hacer clic en el botón de cerrar
+        const closeBtn = tooltip.querySelector('[data-action="close"]');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                this.removeTooltip(tooltip);
+            });
+        }
+        
+        // Configurar botones de eliminación de bloque
+        const deleteButtons = tooltip.querySelectorAll('.tooltip-btn');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const action = button.dataset.action;
+                if (action === 'close') return;
+                this.removeTooltip(tooltip);
+                this.handleBlockDelete(tooltip._blockData, action);
+            });
+        });
+        
+        // Cerrar al hacer clic fuera del tooltip
+        setTimeout(() => {
+            document.addEventListener('click', (e) => {
+                if (!tooltip.contains(e.target)) {
+                    this.removeTooltip(tooltip);
+                }
+            }, { once: true });
+        }, 100);
+        
+        // Cerrar con ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.removeTooltip(tooltip);
+            }
+        }, { once: true });
+    }
+    
+    // Método para ocultar tooltip
+    hideBlockTooltip() {
+        const tooltip = document.querySelector('.block-tooltip');
+        if (tooltip) {
+            tooltip.classList.remove('show');
+            setTimeout(() => {
+                tooltip.remove();
+            }, 200); // Esperar a que termine la animación
+        }
+    }
+
+    handleBlockDelete(blockData, action) {
+        let message, subtext;
+        
+        switch (action) {
+            case 'delete':
+                message = '¿Está seguro de eliminar este bloqueo?';
+                subtext = 'Esta acción no se puede deshacer.';
+                break;
+            case 'delete-single':
+                message = '¿Eliminar solo este bloqueo?';
+                subtext = 'Se eliminará únicamente este día del bloqueo.';
+                break;
+            case 'delete-series':
+                message = '¿Eliminar toda la serie de bloqueos?';
+                subtext = 'Se eliminarán todos los bloqueos relacionados.';
+                break;
+        }
+
+        this.showConfirmationModal(
+            message,
+            subtext,
+            'fas fa-trash text-danger',
+            'btn-danger',
+            async () => {
+                await this.deleteBlock(blockData.blockId);
+                // Cerrar tooltip
+                const tooltip = document.querySelector('.block-tooltip');
+                if (tooltip) {
+                    this.removeTooltip(tooltip);
+                }
+                // Recargar eventos
+                await this.loadAppointmentsAndBlocks();
+            }
+        );
+    }
+
+    async deleteBlock(blockId) {
+        try {
+            const response = await fetch(`/agenda/blocks/${blockId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.showAlert('Bloqueo eliminado correctamente', 'success');
+            } else {
+                this.showAlert(result.message || 'Error al eliminar el bloqueo', 'error');
+            }
+        } catch (error) {
+            console.error('Error al eliminar bloqueo:', error);
+            this.showAlert('Error al eliminar el bloqueo', 'error');
+        }
+    }
+
     removeTooltip(tooltip) {
         if (tooltip && tooltip.parentNode) {
             tooltip.classList.remove('show');
@@ -1294,10 +1917,14 @@ class AgendaManager {
     }
 
     removeExistingTooltip() {
-        const existingTooltip = document.querySelector('.appointment-tooltip');
-        if (existingTooltip) {
-            this.removeTooltip(existingTooltip);
+        const existingAppointmentTooltip = document.querySelector('.appointment-tooltip');
+        if (existingAppointmentTooltip) {
+            this.removeTooltip(existingAppointmentTooltip);
         }
+        const existingBlockTooltips = document.querySelectorAll('.block-tooltip:not([data-testid="block-tooltip-container"])');
+        existingBlockTooltips.forEach(tooltip => {
+            this.removeTooltip(tooltip);
+        });
     }
 
     setupAppointmentActions(appointmentData) {
@@ -1975,6 +2602,8 @@ class AgendaManager {
                 // Verificar si es un error de disponibilidad
                 if (result.error_type === 'availability') {
                     this.showAvailabilityAlert(result.error, appointmentData);
+                } else if (result.error_type === 'block') {
+                    this.showBlockAlert(result.error, appointmentData);
                 } else {
                     const errorMessage = isEditing ? 'Error al actualizar la cita' : 'Error al crear la cita';
                     this.showAlert(result.error || errorMessage, 'error');
@@ -1986,6 +2615,40 @@ class AgendaManager {
             const errorMessage = isEditing ? 'Error de conexión al actualizar la cita' : 'Error de conexión al guardar la cita';
             this.showAlert(errorMessage, 'error');
         }
+    }
+
+    showBlockAlert(message, appointmentData, appointmentId = null) {
+        const modal = document.getElementById('blockAlertModal');
+        const messageContainer = document.getElementById('blockAlertMessage');
+        const forceButton = document.getElementById('forceCreateBlockedAppointment');
+        
+        // Configurar el mensaje
+        messageContainer.innerHTML = `
+            <p class="text-muted mb-3">${message}</p>
+        `;
+        
+        // Limpiar event listeners previos
+        const newForceButton = forceButton.cloneNode(true);
+        forceButton.parentNode.replaceChild(newForceButton, forceButton);
+        
+        // Agregar nuevo event listener
+        newForceButton.addEventListener('click', () => {
+            // Verificar si es edición o creación
+            const isEditing = appointmentId || (appointmentData.id && appointmentData.id.trim() !== '');
+            
+            if (isEditing) {
+                const id = appointmentId || appointmentData.id;
+                this.forceUpdateAppointment(id, appointmentData);
+            } else {
+                this.forceCreateAppointment(appointmentData);
+            }
+            
+            bootstrap.Modal.getInstance(modal).hide();
+        });
+        
+        // Mostrar el modal
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
     }
 
 
@@ -2237,7 +2900,7 @@ class AgendaManager {
     }
     
     // Cambia la vista según la lógica automática
-    changeView() {
+    async changeView() {
         console.log('*******');
         const viewType = this.determineAutoView();
         
@@ -2247,6 +2910,16 @@ class AgendaManager {
             document.getElementById('professionalsColumns').style.display = 'none';
             
             if (this.calendar) {
+                // Actualizar horarios de negocio en FullCalendar
+                const businessHours = await this.loadBusinessHours();
+                this.calendar.setOption('slotMinTime', businessHours.slotMinTime);
+                this.calendar.setOption('slotMaxTime', businessHours.slotMaxTime);
+                this.calendar.setOption('slotDuration', businessHours.slotDuration);
+                this.calendar.setOption('businessHours', {
+                    daysOfWeek: businessHours.daysOfWeek,
+                    startTime: businessHours.startTime,
+                    endTime: businessHours.endTime
+                });
                 this.calendar.changeView('timeGridWeek');
             }
         } else {
@@ -2357,8 +3030,16 @@ class AgendaManager {
     
     // Actualizar filtro y vista
     updateProfessionalFilter() {
+        // Limpiar cache antes de cambiar vista
+        this.clearBusinessHoursCache();
         this.changeView(); // Recalcular vista automáticamente
         this.loadAppointments();
+    }
+    
+    // Limpiar cache cuando cambian los filtros
+    clearBusinessHoursCache() {
+        this.businessHoursCache = null;
+        this.lastBusinessHoursUpdate = null;
     }
 }
 
@@ -2369,12 +3050,11 @@ document.getElementById('locationFilter').addEventListener('change', function() 
     // Sincronizar con el campo hidden del modal
     document.getElementById('appointment-location-id').value = selectedLocationId;
     
-    // Actualizar la grilla de la agenda
-    if (agendaManager) {
-        // Actualizar profesionales y servicios según la ubicación seleccionada
-        agendaManager.updateFiltersForLocation(selectedLocationId);
-        // Recargar las citas
-        agendaManager.loadAppointments();
+    // Limpiar cache y actualizar la grilla de la agenda
+    if (window.agendaManager) {
+        window.agendaManager.clearBusinessHoursCache();
+        window.agendaManager.changeView();
+        window.agendaManager.loadAppointments();
     }
 });
 
@@ -2441,95 +3121,195 @@ function initFloatingActionButton() {
     }
 }
 
-// Funcionalidad del modal de bloqueo de horario
-function initBlockModal() {
-    const blockTypeSelect = document.getElementById('blockType');
-    const singleDayGroup = document.getElementById('singleDayGroup');
-    const dateRangeGroup = document.getElementById('dateRangeGroup');
-    const weekdaysPatternGroup = document.getElementById('patternGroup');
-    const monthlyRecurringGroup = document.getElementById('monthlyRecurringGroup');
-    const monthlyPreview = document.getElementById('monthlyPreview');
+function toggleBlockTypeFields(blockType) {
+    // Ocultar todos los grupos
+    document.getElementById('singleDayGroup').style.display = 'none';
+    document.getElementById('dateRangeGroup').style.display = 'none';
+    document.getElementById('patternGroup').style.display = 'none';
+    document.getElementById('monthlyRecurringGroup').style.display = 'none';
     
-    if (!blockTypeSelect) return;
+    // Mostrar el grupo correspondiente
+    switch(blockType) {
+        case 'single_day':
+            document.getElementById('singleDayGroup').style.display = 'block';
+            break;
+        case 'date_range':
+            document.getElementById('dateRangeGroup').style.display = 'block';
+            break;
+        case 'weekdays_pattern':
+            document.getElementById('patternGroup').style.display = 'block';
+            break;
+        case 'monthly_recurring':
+            document.getElementById('monthlyRecurringGroup').style.display = 'block';
+            break;
+    }
+}
+
+function updateExampleText(blockType) {
+    const exampleDiv = document.getElementById('exampleText');
+    const exampleContent = document.getElementById('exampleContent');
     
-    // Función para mostrar/ocultar grupos según el tipo seleccionado
-    function toggleBlockGroups() {
-        const selectedType = blockTypeSelect.value;
-        
-        // Ocultar todos los grupos primero
-        singleDayGroup.style.display = 'none';
-        dateRangeGroup.style.display = 'none';
-        weekdaysPatternGroup.style.display = 'none';
-        monthlyRecurringGroup.style.display = 'none';
-        
-        // Mostrar el grupo correspondiente
-        switch(selectedType) {
-            case 'single_day':
-                singleDayGroup.style.display = 'block';
-                break;
-            case 'date_range':
-                dateRangeGroup.style.display = 'block';
-                break;
-            case 'pattern':
-                weekdaysPatternGroup.style.display = 'block';
-                break;
-            case 'monthly_recurring':
-                monthlyRecurringGroup.style.display = 'block';
-                break;
-        }
+    let example = '';
+    switch(blockType) {
+        case 'single_day':
+            example = 'Bloquea solo el día seleccionado';
+            break;
+        case 'date_range':
+            example = 'Bloquea todos los días en el rango seleccionado';
+            break;
+        case 'weekdays_pattern':
+            example = 'Bloquea solo los días de la semana seleccionados en el período';
+            break;
+        case 'monthly_recurring':
+            example = 'Bloquea el mismo día de cada mes automáticamente';
+            break;
     }
     
-    // Event listener para cambio de tipo de bloqueo
-    blockTypeSelect.addEventListener('change', toggleBlockGroups);
+    if (example) {
+        exampleContent.textContent = example;
+        exampleDiv.style.display = 'block';
+    } else {
+        exampleDiv.style.display = 'none';
+    }
+}
+
+function updateMonthlyPreview() {
+    const showPreview = document.getElementById('showMonthlyPreview').checked;
+    const startDate = document.getElementById('monthlyStartDate').value;
+    const previewDiv = document.getElementById('monthlyPreview');
+    const previewList = document.getElementById('monthlyPreviewList');
     
-    // Función para generar vista previa de repetición mensual
-    function generateMonthlyPreview() {
-        const startDate = document.getElementById('monthlyStartDate')?.value;
-        const endDate = document.getElementById('monthlyEndDate')?.value;
+    if (!showPreview || !startDate) {
+        previewDiv.style.display = 'none';
+        return;
+    }
+    
+    const date = new Date(startDate);
+    const dayOfMonth = date.getDate();
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    
+    let previewHtml = '';
+    for (let i = 0; i < 6; i++) {
+        const previewDate = new Date(date.getFullYear(), date.getMonth() + i, dayOfMonth);
+        const monthName = monthNames[previewDate.getMonth()];
+        const year = previewDate.getFullYear();
+        previewHtml += `<li>${dayOfMonth} de ${monthName} ${year}</li>`;
+    }
+    
+    previewList.innerHTML = previewHtml;
+    previewDiv.style.display = 'block';
+}
+
+function saveBlock() {
+    const form = document.getElementById('blockForm');
+    const formData = new FormData(form);
+    
+    // Recopilar datos del formulario
+    const blockData = {
+        professional_id: document.getElementById('blockProfessional').value,
+        block_type: document.getElementById('blockType').value,
+        reason: document.getElementById('blockReason').value,
+        all_day: document.getElementById('allDay').checked
+    };
+    
+    // Agregar campos específicos según el tipo
+    switch(blockData.block_type) {
+        case 'single_day':
+            blockData.block_date = document.getElementById('blockDate').value;
+            break;
+        case 'date_range':
+            blockData.start_date = document.getElementById('startDate').value;
+            blockData.end_date = document.getElementById('endDate').value;
+            break;
+        case 'weekdays_pattern':
+            blockData.pattern_start_date = document.getElementById('patternStartDate').value;
+            blockData.pattern_end_date = document.getElementById('patternEndDate').value;
+            
+            // Recopilar días seleccionados
+            const weekdays = [];
+            ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].forEach((day, index) => {
+                const checkbox = document.getElementById(day);
+                if (checkbox && checkbox.checked) {
+                    weekdays.push(index); // 0=Domingo, 1=Lunes, etc.
+                }
+            });
+            blockData.weekdays = weekdays;
+            break;
+        case 'monthly_recurring':
+            blockData.monthly_start_date = document.getElementById('monthlyStartDate').value;
+            const monthlyEndDate = document.getElementById('monthlyEndDate').value;
+            if (monthlyEndDate) {
+                blockData.monthly_end_date = monthlyEndDate;
+            }
+            break;
+    }
+    
+    // Agregar horarios si no es todo el día
+    if (!blockData.all_day) {
+        const startHour = document.getElementById('startTime-hour').value;
+        const startMinute = document.getElementById('startTime-minute').value;
+        const endHour = document.getElementById('endTime-hour').value;
+        const endMinute = document.getElementById('endTime-minute').value;
         
-        if (!startDate) {
-            monthlyPreview.innerHTML = '<small class="text-muted">Selecciona una fecha de inicio para ver la vista previa</small>';
+        // Validar que se hayan seleccionado hora y minuto
+        if (startHour && startMinute) {
+            blockData.start_time = startHour + ':' + startMinute;
+        }
+        
+        if (endHour && endMinute) {
+            blockData.end_time = endHour + ':' + endMinute;
+        }
+        
+        // Validar que se hayan proporcionado ambos tiempos si no es todo el día
+        if (!blockData.start_time || !blockData.end_time) {
+            showNotification('Por favor seleccione hora de inicio y fin', 'error');
             return;
         }
-        
-        const start = new Date(startDate);
-        const end = endDate ? new Date(endDate) : new Date(start.getFullYear() + 1, start.getMonth(), start.getDate());
-        const dayOfMonth = start.getDate();
-        
-        const dates = [];
-        const current = new Date(start.getFullYear(), start.getMonth(), dayOfMonth);
-        
-        while (current <= end && dates.length < 12) { // Limitar a 12 meses para la vista previa
-            if (current.getDate() === dayOfMonth) { // Verificar que el día existe en el mes
-                dates.push(new Date(current));
-            }
-            current.setMonth(current.getMonth() + 1);
-        }
-        
-        if (dates.length > 0) {
-            const dateStrings = dates.map(date => 
-                date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-            );
-            
-            let previewText = `<strong>Fechas a bloquear:</strong><br>`;
-            previewText += dateStrings.slice(0, 6).join(', ');
-            
-            if (dates.length > 6) {
-                previewText += ` y ${dates.length - 6} fechas más...`;
-            }
-            
-            monthlyPreview.innerHTML = previewText;
-        } else {
-            monthlyPreview.innerHTML = '<small class="text-warning">No se encontraron fechas válidas en el rango especificado</small>';
-        }
     }
     
-    // Event listeners para vista previa mensual
-    document.getElementById('monthlyStartDate')?.addEventListener('change', generateMonthlyPreview);
-    document.getElementById('monthlyEndDate')?.addEventListener('change', generateMonthlyPreview);
+    // Validar datos requeridos
+    if (!blockData.professional_id || !blockData.reason) {
+        showNotification('Por favor complete todos los campos requeridos', 'error');
+        return;
+    }
     
-    // Inicializar estado del modal
-    toggleBlockGroups();
+    // Enviar datos al servidor
+    fetch('/agenda/blocks', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(blockData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('blockModal'));
+            modal.hide();
+            
+            // Limpiar formulario
+            document.getElementById('blockForm').reset();
+            
+            // Recargar calendario
+            if (agendaManager && agendaManager.calendar) {
+                agendaManager.calendar.refetchEvents();
+            }
+            
+            // Mostrar notificación de éxito en lugar de alert
+            showNotification('Bloqueo creado exitosamente', 'success');
+        } else {
+            // Mostrar notificación de error en lugar de alert
+            showNotification(data.message || data.error || 'Error al crear el bloqueo', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Mostrar notificación de error en lugar de alert
+        showNotification('Error de conexión. Por favor, inténtalo de nuevo.', 'error');
+    });
 }
 
 // Inicializar cuando el DOM esté listo
@@ -2555,6 +3335,85 @@ document.addEventListener('DOMContentLoaded', async function() {
         };
         
         exampleText.textContent = examples[repeatType] || examples['daily'];
+    }
+
+    function loadProfessionalsForBlock() {
+        const blockProfessionalSelect = document.getElementById('blockProfessional');
+        if (!blockProfessionalSelect) return;
+        
+        // Limpiar opciones existentes
+        blockProfessionalSelect.innerHTML = '<option value="">Seleccionar profesional...</option>';
+        
+        // Obtener profesionales desde el array global o desde los checkboxes
+        let professionals = [];
+        
+        // Si existe la instancia de agenda, usar sus profesionales
+        if (window.agenda && window.agenda.allProfessionals) {
+            professionals = window.agenda.allProfessionals;
+        } else {
+            // Fallback: obtener desde los checkboxes del filtro
+            const professionalCheckboxes = document.querySelectorAll('input[name="professionals[]"][value]:not([value="all"])');
+            professionals = Array.from(professionalCheckboxes).map(checkbox => ({
+                id: checkbox.value,
+                name: checkbox.nextElementSibling.textContent.trim()
+            }));
+        }
+        
+        // Agregar opciones al select
+        professionals.forEach(professional => {
+            const option = document.createElement('option');
+            option.value = professional.id;
+            option.textContent = professional.name;
+            blockProfessionalSelect.appendChild(option);
+        });
+    }
+    
+    function initBlockModal() {
+        const blockModal = document.getElementById('blockModal');
+        const blockForm = document.getElementById('blockForm');
+        const blockTypeSelect = document.getElementById('blockType');
+        const saveBlockBtn = document.getElementById('saveBlock');
+        const allDayCheckbox = document.getElementById('allDay');
+        const timeRangeDiv = document.getElementById('timeRange');
+        
+        if (!blockModal || !blockForm) {
+            console.log('Block modal elements not found');
+            return;
+        }
+        
+        // Manejar cambios en el tipo de bloqueo
+        if (blockTypeSelect) {
+            blockTypeSelect.addEventListener('change', function() {
+                toggleBlockTypeFields(this.value);
+                updateExampleText(this.value);
+            });
+        }
+        
+        // Manejar checkbox de todo el día
+        if (allDayCheckbox && timeRangeDiv) {
+            allDayCheckbox.addEventListener('change', function() {
+                timeRangeDiv.style.display = this.checked ? 'none' : 'block';
+            });
+        }
+        
+        // Manejar vista previa mensual
+        const showMonthlyPreview = document.getElementById('showMonthlyPreview');
+        const monthlyStartDate = document.getElementById('monthlyStartDate');
+        
+        if (showMonthlyPreview && monthlyStartDate) {
+            showMonthlyPreview.addEventListener('change', updateMonthlyPreview);
+            monthlyStartDate.addEventListener('change', updateMonthlyPreview);
+        }
+        
+        // Guardar bloqueo
+        if (saveBlockBtn) {
+            saveBlockBtn.addEventListener('click', function() {
+                saveBlock();
+            });
+        }
+        
+        // Cargar profesionales en el select
+        loadProfessionalsForBlock();
     }
 
     // Event listener para cambio de tipo de repetición

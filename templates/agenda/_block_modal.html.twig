@@ -33,7 +33,7 @@
                         <select class="form-control" id="blockType">
                             <option value="single_day">Un solo día</option>
                             <option value="date_range">Rango de fechas (todos los días)</option>
-                            <option value="pattern">Patrón de días específicos</option>
+                            <option value="weekdays_pattern">Patrón de días específicos</option>
                             <option value="monthly_recurring">Repetición mensual</option>
                         </select>
                     </div>
@@ -108,10 +108,6 @@
 
                     <!-- Repetición mensual -->
                     <div class="form-group mb-3" id="monthlyRecurringGroup" style="display:none;">
-                        <div class="alert alert-info mb-3">
-                            <strong>Repetición mensual:</strong> El mismo día de cada mes se bloqueará automáticamente.
-                        </div>
-                        
                         <div class="row mb-3">
                             <div class="col-6">
                                 <label for="monthlyStartDate" class="form-label">Fecha de inicio</label>
@@ -123,17 +119,6 @@
                                 <input type="date" class="form-control" id="monthlyEndDate">
                                 <small class="form-text text-muted">Dejar vacío para repetir indefinidamente</small>
                             </div>
-                        </div>
-                        
-                        <!-- Vista previa mensual -->
-                        <div class="form-check mb-3">
-                            <input type="checkbox" class="form-check-input" id="showMonthlyPreview">
-                            <label class="form-check-label" for="showMonthlyPreview">Mostrar vista previa</label>
-                        </div>
-                        
-                        <div id="monthlyPreview" class="alert alert-light" style="display:none;">
-                            <strong>Vista previa (primeros 6 meses):</strong>
-                            <ul id="monthlyPreviewList" class="mb-0 mt-2"></ul>
                         </div>
                     </div>
 
@@ -149,11 +134,45 @@
                             <div class="row">
                                 <div class="col-6">
                                     <label for="startTime" class="form-label">Hora inicio</label>
-                                    <input type="time" class="form-control" id="startTime">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <select class="form-select" id="startTime-hour" name="hour_from">
+                                                <option value="">Hora</option>
+                                                {% for hour in 0..23 %}
+                                                    <option value="{{ '%02d'|format(hour) }}" {% if hour == 9 %}selected{% endif %}>{{ '%02d'|format(hour) }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <select class="form-select" id="startTime-minute" name="minute_from">
+                                                <option value="">Min</option>
+                                                {% for minute in 0..59 %}
+                                                    <option value="{{ '%02d'|format(minute) }}" {% if minute == 0 %}selected{% endif %}>{{ '%02d'|format(minute) }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="col-6">
                                     <label for="endTime" class="form-label">Hora fin</label>
-                                    <input type="time" class="form-control" id="endTime">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <select class="form-select" id="endTime-hour" name="hour_to">
+                                                <option value="">Hora</option>
+                                                {% for hour in 0..23 %}
+                                                    <option value="{{ '%02d'|format(hour) }}" {% if hour == 18 %}selected{% endif %}>{{ '%02d'|format(hour) }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <select class="form-select" id="endTime-minute" name="minute_to">
+                                                <option value="">Min</option>
+                                                {% for minute in 0..59 %}
+                                                    <option value="{{ '%02d'|format(minute) }}" {% if minute == 0 %}selected{% endif %}>{{ '%02d'|format(minute) }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

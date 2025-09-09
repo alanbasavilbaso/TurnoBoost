@@ -6,6 +6,7 @@ use App\Entity\Appointment;
 use App\Entity\Patient;
 use App\Entity\Professional;
 use App\Entity\ProfessionalService;
+use App\Entity\ProfessionalBlock;
 use App\Entity\Company;
 use App\Entity\Service;
 use App\Entity\StatusEnum;
@@ -196,85 +197,96 @@ class AgendaController extends AbstractController
         }
 
         // Obtener parámetros de filtro
-        $professionalId = $request->query->get('professional');
-        $serviceId = $request->query->get('service');
-    
-        // Construir consulta base para horarios de disponibilidad
+        $professionalIds = $request->query->all('professionalIds');
+        $serviceId = $request->query->get('service_id');
+        $locationId = $request->query->get('location_id');
+
+        // CONSULTA SIMPLIFICADA - sin subconsultas problemáticas
         $queryBuilder = $this->entityManager->createQueryBuilder()
-            ->select('pa.weekday', 'MIN(pa.startTime) as minStartTime', 'MAX(pa.endTime) as maxEndTime')
+            ->select([
+                'pa.weekday',
+                'MIN(pa.startTime) as minStartTime',
+                'MAX(pa.endTime) as maxEndTime'
+            ])
             ->from('App\Entity\ProfessionalAvailability', 'pa')
             ->join('pa.professional', 'p')
             ->where('p.company = :company')
             ->andWhere('p.active = true')
             ->setParameter('company', $company);
-    
-        // Filtrar por profesional si se especifica
-        if ($professionalId) {
-            $queryBuilder->andWhere('p.id = :professionalId')
-                        ->setParameter('professionalId', $professionalId);
+
+        // Aplicar filtros
+        if (!empty($professionalIds)) {
+            $queryBuilder->andWhere('p.id IN (:professionalIds)')
+                        ->setParameter('professionalIds', $professionalIds);
         }
-    
-        // Filtrar por servicio si se especifica (profesionales que ofrecen ese servicio)
+
         if ($serviceId) {
             $queryBuilder->join('p.professionalServices', 'ps')
                         ->join('ps.service', 's')
                         ->andWhere('s.id = :serviceId')
                         ->setParameter('serviceId', $serviceId);
         }
-    
+        
+        if ($locationId) {
+            $queryBuilder->join('p.locations', 'l')
+                        ->andWhere('l.id = :locationId')
+                        ->setParameter('locationId', $locationId);
+        }
+
         $queryBuilder->groupBy('pa.weekday')
                     ->orderBy('pa.weekday', 'ASC');
-    
-        $availabilities = $queryBuilder->getQuery()->getResult();
+
+        $results = $queryBuilder->getQuery()->getResult();
         
-        // Construir consulta para horarios globales con los mismos filtros
-        $globalQuery = $this->entityManager->createQueryBuilder()
-            ->select('MIN(pa.startTime) as globalMinStart', 'MAX(pa.endTime) as globalMaxEnd')
-            ->from('App\Entity\ProfessionalAvailability', 'pa')
-            ->join('pa.professional', 'p')
-            ->where('p.company = :company')
-            ->andWhere('p.active = true')
-            ->setParameter('company', $company);
-    
-        // Aplicar los mismos filtros a la consulta global
-        if ($professionalId) {
-            $globalQuery->andWhere('p.id = :professionalId')
-                       ->setParameter('professionalId', $professionalId);
+        // Calcular valores globales a partir de los resultados filtrados
+        $workingDays = [];
+        $allStartTimes = [];
+        $allEndTimes = [];
+        
+        foreach ($results as $result) {
+            $workingDays[] = $result['weekday'];
+            $allStartTimes[] = $result['minStartTime'];
+            $allEndTimes[] = $result['maxEndTime'];
         }
-    
-        if ($serviceId) {
-            $globalQuery->join('p.professionalServices', 'ps')
-                       ->join('ps.service', 's')
-                       ->andWhere('s.id = :serviceId')
-                       ->setParameter('serviceId', $serviceId);
-        }
-    
-        $globalTimes = $globalQuery->getQuery()->getSingleResult();
-    
-        // Procesar días de la semana disponibles
-        $daysOfWeek = [];
-        foreach ($availabilities as $availability) {
-            // Convertir de 0-6 (Lun-Dom) a 1-7 (Lun-Dom) para FullCalendar
-            $daysOfWeek[] = $availability['weekday'] + 1;
-        }
-    
+        
+        // Calcular los valores globales reales
+        $globalMinStart = !empty($allStartTimes) ? min($allStartTimes) : null;
+        $globalMaxEnd = !empty($allEndTimes) ? max($allEndTimes) : null;
+        
+        // Calcular días que NO trabajan
+        $allDays = [0, 1, 2, 3, 4, 5, 6]; // 0=Lunes, 1=Martes, ..., 6=Domingo (BD format)
+        $nonWorkingDays = array_diff($allDays, $workingDays);
+        
+        // Convertir días de trabajo a formato FullCalendar (0=Domingo, 1=Lunes, ..., 6=Sábado)
+        $daysOfWeek = array_map(function($day) {
+            // Convertir de BD format (0=Lunes) a FullCalendar format (0=Domingo)
+            return ($day + 1) % 7; // 0->1, 1->2, ..., 5->6, 6->0
+        }, $workingDays);
+        
+        // Convertir días NO laborables a formato FullCalendar
+        $nonWorkingDaysFormatted = array_map(function($day) {
+            // Convertir de BD format (0=Lunes) a FullCalendar format (0=Domingo)
+            return ($day + 1) % 7; // 0->1, 1->2, ..., 5->6, 6->0
+        }, array_values($nonWorkingDays));
+
         // Si no hay días disponibles, usar configuración por defecto
         if (empty($daysOfWeek)) {
-            $daysOfWeek = [1, 2, 3, 4, 5, 6]; // Lunes a Sábado por defecto
+            $daysOfWeek = [1, 2, 3, 4, 5, 6]; // Lunes a Sábado en formato FullCalendar
+            $nonWorkingDaysFormatted = [0]; // Solo domingo no laborable en formato FullCalendar
         }
-    
-        // Formatear horarios globales - las funciones MIN/MAX devuelven strings, no DateTime
-        $startTime = $globalTimes['globalMinStart'] ? 
-            substr($globalTimes['globalMinStart'], 0, 5) : '08:00'; // Extraer HH:MM del string
-        $endTime = $globalTimes['globalMaxEnd'] ? 
-            substr($globalTimes['globalMaxEnd'], 0, 5) : '18:00'; // Extraer HH:MM del string
-    
+
+        // Formatear horarios - usar el rango COMPLETO (mínimo y máximo)
+        $startTime = $globalMinStart ? substr($globalMinStart, 0, 5) : '08:00';
+        $endTime = $globalMaxEnd ? substr($globalMaxEnd, 0, 5) : '18:00';
+
         return new JsonResponse([
             'daysOfWeek' => array_unique($daysOfWeek),
+            'nonWorkingDays' => array_unique($nonWorkingDaysFormatted),
             'startTime' => $startTime,
             'endTime' => $endTime,
             'slotMinTime' => $startTime . ':00',
-            'slotMaxTime' => $endTime . ':00'
+            'slotMaxTime' => $endTime . ':00',
+            'slotDuration' => '00:15:00'
         ]);
     }
 
@@ -382,18 +394,25 @@ class AgendaController extends AbstractController
                                  str_contains($e->getMessage(), 'superpone') ||
                                  str_contains($e->getMessage(), 'ocupado');
             
+            // Detectar errores de bloqueo para el modal de confirmación
+            $isBlockError = str_contains($e->getMessage(), 'bloqueo de agenda');
+            
+            $errorType = 'validation';
+            if ($isAvailabilityError) {
+                $errorType = 'availability';
+            } elseif ($isBlockError) {
+                $errorType = 'block';
+            }
+            
             return new JsonResponse([
                 'success' => false,
                 'error' => $e->getMessage(),
-                'error_type' => $isAvailabilityError ? 'availability' : 'validation'
+                'error_type' => $errorType
             ], 400);
-        } catch (\Throwable $e) {
-            var_dump($e->getMessage());exit;
-            error_log('Error creating appointment: ' . $e->getMessage());
+        } catch (\Exception $e) {
             return new JsonResponse([
                 'success' => false,
-                'error' => 'Ha ocurrido un error interno. Por favor, inténtelo nuevamente.',
-                'error_type' => 'server'
+                'error' => 'Error interno del servidor: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -1051,5 +1070,578 @@ class AgendaController extends AbstractController
                 'El horario seleccionado se superpone con una cita existente. Por favor, seleccione otro horario.'
             );
         }
+    }
+
+    /**
+     * Crear un nuevo bloqueo de horario
+     */
+    #[Route('/blocks', name: 'app_agenda_create_block', methods: ['POST'])]
+    public function createBlock(Request $request, AuditService $auditService): JsonResponse
+    {
+        $user = $this->getUser();
+        $company = $user->getCompany();
+        
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        
+        // Validar datos requeridos
+        if (!isset($data['professional_id'], $data['block_type'], $data['reason'])) {
+            return new JsonResponse(['error' => 'Datos requeridos faltantes'], 400);
+        }
+
+        $professional = $this->professionalRepository->find($data['professional_id']);
+        if (!$professional || $professional->getCompany() !== $company) {
+            return new JsonResponse(['error' => 'Profesional no encontrado'], 404);
+        }
+
+        try {
+            $block = new ProfessionalBlock();
+            $block->setCompany($company);
+            $block->setProfessional($professional);
+            $block->setBlockType($data['block_type']);
+            $block->setReason($data['reason']);
+
+            // Procesar fechas según el tipo de bloqueo
+            switch ($data['block_type']) {
+                case 'single_day':
+                    $block->setStartDate(new \DateTime($data['block_date']));
+                    break;
+                    
+                case 'date_range':
+                    $block->setStartDate(new \DateTime($data['start_date']));
+                    $block->setEndDate(new \DateTime($data['end_date']));
+                    break;
+                    
+                case 'weekdays_pattern':
+                    $block->setStartDate(new \DateTime($data['pattern_start_date']));
+                    $block->setEndDate(new \DateTime($data['pattern_end_date']));
+                    
+                    // Procesar días de la semana (convertir array a string)
+                    if (isset($data['weekdays']) && is_array($data['weekdays'])) {
+                        $weekdays = array_map('intval', $data['weekdays']);
+                        $block->setWeekdaysPattern(implode(',', $weekdays));
+                    }
+                    break;
+                    
+                case 'monthly_recurring':
+                    $block->setStartDate(new \DateTime($data['monthly_start_date']));
+                    if (!empty($data['monthly_end_date'])) {
+                        $block->setEndDate(new \DateTime($data['monthly_end_date']));
+                    }
+                    break;
+            }
+
+            // Procesar horarios si no es todo el día
+            if (!isset($data['all_day']) || !$data['all_day']) {
+                if (isset($data['start_time'])) {
+                    $block->setStartTime(new \DateTime($data['start_time']));
+                }
+                if (isset($data['end_time'])) {
+                    $block->setEndTime(new \DateTime($data['end_time']));
+                }
+            }
+
+            $this->entityManager->persist($block);
+            $this->entityManager->flush();
+
+            // Registrar en auditoría
+            $auditService->logChange(
+                'professional_block',
+                $block->getId(),
+                'create',
+                [],
+                [
+                    'professional_id' => $professional->getId(),
+                    'block_type' => $block->getBlockType(),
+                    'reason' => $block->getReason()
+                ]
+            );
+
+            return new JsonResponse([
+                'success' => true,
+                'message' => 'Bloqueo creado exitosamente',
+                'block' => [
+                    'id' => $block->getId(),
+                    'professional_name' => $professional->getName(),
+                    'reason' => $block->getReason(),
+                    'block_type' => $block->getBlockType()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            var_dump($e->getMessage());exit;
+            return new JsonResponse([
+                'error' => 'Error al crear el bloqueo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener bloqueos de horario para mostrar en el calendario
+     */
+    #[Route('/blocks', name: 'app_agenda_get_blocks', methods: ['GET'])]
+    public function getBlocks(Request $request): JsonResponse
+    {
+        $user = $this->getUser();
+        $company = $user->getCompany();
+        
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
+        }
+
+        $startDate = new \DateTime($request->query->get('start', 'now'));
+        $endDate = new \DateTime($request->query->get('end', '+1 month'));
+        $professionalIds = $request->query->all('professionals');
+
+        // Obtener bloques manuales existentes
+        $queryBuilder = $this->entityManager->createQueryBuilder()
+            ->select('b', 'p')
+            ->from(ProfessionalBlock::class, 'b')
+            ->leftJoin('b.professional', 'p')
+            ->where('b.company = :company')
+            ->andWhere('p.active = true')
+            ->andWhere('b.active = true')
+            ->andWhere('b.startDate <= :endDate')
+            ->andWhere('(b.endDate IS NULL OR b.endDate >= :startDate)')
+            ->setParameter('company', $company)
+            ->setParameter('startDate', $startDate)
+            ->setParameter('endDate', $endDate)
+            ->orderBy('b.startDate', 'ASC');
+
+        // Filtrar por profesionales si se especifican
+        if (!empty($professionalIds)) {
+            $queryBuilder->andWhere('p.id IN (:professionalIds)')
+                        ->setParameter('professionalIds', $professionalIds);
+        }
+
+        $blocks = $queryBuilder->getQuery()->getResult();
+        $events = [];
+
+        // Generar eventos de bloques manuales
+        foreach ($blocks as $block) {
+            $events = array_merge($events, $this->generateBlockEvents($block, $startDate, $endDate));
+        }
+
+        // Agregar bloques no laborables si se solicitan y hay múltiples profesionales
+        $nonWorkingBlocks = $this->generateNonWorkingBlocks($professionalIds, $startDate, $endDate, $company);
+        $events = array_merge($events, $nonWorkingBlocks);
+
+        return new JsonResponse($events);
+    }
+
+    /**
+     * Eliminar un bloqueo de horario
+     */
+    #[Route('/blocks/{id}', name: 'app_agenda_delete_block', methods: ['DELETE'])]
+    public function deleteBlock(int $id, AuditService $auditService): JsonResponse
+    {
+        $user = $this->getUser();
+        $company = $user->getCompany();
+        
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
+        }
+
+        $block = $this->entityManager->getRepository(ProfessionalBlock::class)->find($id);
+        
+        if (!$block || $block->getCompany() !== $company) {
+            return new JsonResponse(['error' => 'Bloqueo no encontrado'], 404);
+        }
+
+        try {
+            // Registrar en auditoría antes de eliminar
+            $auditService->logChange(
+                'professional_block',
+                $block->getId(),
+                'delete',
+                [
+                    'professional_id' => $block->getProfessional()->getId(),
+                    'block_type' => $block->getBlockType(),
+                    'reason' => $block->getReason()
+                ],
+                []
+            );
+
+            $this->entityManager->remove($block);
+            $this->entityManager->flush();
+
+            return new JsonResponse([
+                'success' => true,
+                'message' => 'Bloqueo eliminado exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'error' => 'Error al eliminar el bloqueo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generar eventos de calendario para un bloqueo específico
+     */
+    private function generateBlockEvents(ProfessionalBlock $block, \DateTime $rangeStart, \DateTime $rangeEnd): array
+    {
+        $events = [];
+        $blockStart = $block->getStartDate();
+        $blockEnd = $block->getEndDate() ?? $rangeEnd;
+        
+        // Asegurar que estamos dentro del rango solicitado
+        $effectiveStart = max($blockStart, $rangeStart);
+        $effectiveEnd = min($blockEnd, $rangeEnd);
+        
+        if ($effectiveStart > $effectiveEnd) {
+            return [];
+        }
+        
+        switch ($block->getBlockType()) {
+            case 'single_day':
+                $events[] = $this->createBlockEvent($block, $blockStart);
+                break;
+                
+            case 'date_range':
+                $current = clone $effectiveStart;
+                while ($current <= $effectiveEnd) {
+                    $events[] = $this->createBlockEvent($block, $current);
+                    $current->modify('+1 day');
+                }
+                break;
+                
+            case 'weekdays_pattern':
+                if ($block->getWeekdaysPattern()) {
+                    $weekdays = $block->getWeekdaysAsArray();
+                    $current = clone $effectiveStart;
+                    
+                    while ($current <= $effectiveEnd) {
+                        $dayOfWeek = (int)$current->format('N') % 7; // 0=Domingo, 1=Lunes, ..., 6=Sábado
+                        if (in_array($dayOfWeek, $weekdays)) {
+                            $events[] = $this->createBlockEvent($block, $current);
+                        }
+                        $current->modify('+1 day');
+                    }
+                }
+                break;
+                
+            case 'monthly_recurring':
+                $dayOfMonth = (int)$blockStart->format('d');
+                $current = clone $effectiveStart;
+                
+                // Ajustar al día correcto del mes
+                $current->setDate(
+                    (int)$current->format('Y'),
+                    (int)$current->format('m'),
+                    min($dayOfMonth, (int)$current->format('t')) // Último día del mes si el día no existe
+                );
+                
+                while ($current <= $effectiveEnd) {
+                    if ($current >= $effectiveStart) {
+                        $events[] = $this->createBlockEvent($block, $current);
+                    }
+                    
+                    // Avanzar al siguiente mes
+                    $current->modify('first day of next month');
+                    $current->setDate(
+                        (int)$current->format('Y'),
+                        (int)$current->format('m'),
+                        min($dayOfMonth, (int)$current->format('t'))
+                    );
+                }
+                break;
+        }
+
+        return $events;
+    }
+
+    /**
+     * Crear un evento de calendario para un bloqueo en una fecha específica
+     */
+    private function createBlockEvent(ProfessionalBlock $block, \DateTime $date): array
+    {
+        $startTime = $block->getStartTime();
+        $endTime = $block->getEndTime();
+        
+        if ($startTime && $endTime) {
+            // Bloqueo con horario específico
+            $start = clone $date;
+            $start->setTime(
+                (int)$startTime->format('H'),
+                (int)$startTime->format('i'),
+                (int)$startTime->format('s')
+            );
+            
+            $end = clone $date;
+            $end->setTime(
+                (int)$endTime->format('H'),
+                (int)$endTime->format('i'),
+                (int)$endTime->format('s')
+            );
+            
+            return [
+                'id' => 'block_' . $block->getId() . '_' . $date->format('Y-m-d'),
+                'title' => '🚫 ' . $block->getReason(),
+                'start' => $start->format('Y-m-d\TH:i:s'),
+                'end' => $end->format('Y-m-d\TH:i:s'),
+                'backgroundColor' => '#dc3545',
+                'className' => 'professional-block-event',
+                'borderColor' => '#1f2937',
+                'textColor' => 'white',
+                'display' => 'block',
+                'extendedProps' => [
+                    'type' => 'block',
+                    'blockId' => $block->getId(),
+                    'professionalId' => $block->getProfessional()->getId(),
+                    'professionalName' => $block->getProfessional()->getName(),
+                    'reason' => $block->getReason(),
+                    'blockType' => $block->getBlockType(),
+                    // Agregar información adicional
+                    'startDate' => $block->getStartDate()->format('Y-m-d'),
+                    'endDate' => $block->getEndDate() ? $block->getEndDate()->format('Y-m-d') : null,
+                    'allDay' => !$startTime || !$endTime,
+                    'weekdaysPattern' => $block->getWeekdaysPattern(),
+                    'monthlyDayOfMonth' => $block->getMonthlyDayOfMonth(),
+                    'monthlyEndDate' => $block->getMonthlyEndDate() ? $block->getMonthlyEndDate()->format('Y-m-d') : null
+                ]
+            ];
+        } else {
+            // En lugar de 00:00 a 23:59, usar horario de negocio
+            $start = clone $date;
+            $start->setTime(0, 0); // Hora de inicio de negocio
+            
+            $end = clone $date;
+            $end->setTime(23, 59); // Hora de fin de negocio
+            
+            return [
+                'id' => 'block_' . $block->getId() . '_' . $date->format('Y-m-d'),
+                'title' => '🚫 ' . $block->getReason(),
+                'start' => $start->format('Y-m-d\TH:i:s'),
+                'end' => $end->format('Y-m-d\TH:i:s'),
+                'backgroundColor' => '#dc3545',
+                'borderColor' => '#dc3545',
+                'className' => 'professional-block-event',
+                'textColor' => '#ffffff',
+                'display' => 'block', // Cambiar de 'background' a 'block'
+                'extendedProps' => [
+                    'type' => 'block',
+                    'blockId' => $block->getId(),
+                    'professionalId' => $block->getProfessional()->getId(),
+                    'professionalName' => $block->getProfessional()->getName(),
+                    'reason' => $block->getReason(),
+                    'blockType' => $block->getBlockType(),
+                    // Agregar información adicional
+                    'startDate' => $block->getStartDate()->format('Y-m-d'),
+                    'endDate' => $block->getEndDate() ? $block->getEndDate()->format('Y-m-d') : null,
+                    'allDay' => !$startTime || !$endTime,
+                    'weekdaysPattern' => $block->getWeekdaysPattern(),
+                    'monthlyDayOfMonth' => $block->getMonthlyDayOfMonth(),
+                    'monthlyEndDate' => $block->getMonthlyEndDate() ? $block->getMonthlyEndDate()->format('Y-m-d') : null
+                ]
+            ];
+        }
+    }
+    
+    /**
+     * Generar bloques no laborables para profesionales
+     */
+    private function generateNonWorkingBlocks(array $professionalIds, \DateTime $startDate, \DateTime $endDate, $company): array
+    {
+        $events = [];
+        
+        // Si no se especifican profesionales, no generar bloques no laborables
+        if (empty($professionalIds)) {
+            return $events;
+        }
+        
+        // Obtener horarios de los profesionales especificados
+        $queryBuilder = $this->entityManager->createQueryBuilder()
+            ->select('pa.weekday', 'pa.startTime', 'pa.endTime', 'p.id as professionalId', 'p.name as professionalName')
+            ->from('App\Entity\ProfessionalAvailability', 'pa')
+            ->join('pa.professional', 'p')
+            ->where('p.company = :company')
+            ->andWhere('p.active = true')
+            ->andWhere('p.id IN (:professionalIds)')
+            ->setParameter('company', $company)
+            ->setParameter('professionalIds', $professionalIds)
+            ->orderBy('p.id', 'ASC')
+            ->addOrderBy('pa.weekday', 'ASC')
+            ->addOrderBy('pa.startTime', 'ASC');
+
+        $availabilities = $queryBuilder->getQuery()->getResult();
+        
+        // Agrupar por profesional y día
+        $professionalSchedules = [];
+        foreach ($availabilities as $availability) {
+            $profId = $availability['professionalId'];
+            $weekday = $availability['weekday'];
+            
+            if (!isset($professionalSchedules[$profId])) {
+                $professionalSchedules[$profId] = [
+                    'name' => $availability['professionalName'],
+                    'schedule' => []
+                ];
+            }
+            
+            if (!isset($professionalSchedules[$profId]['schedule'][$weekday])) {
+                $professionalSchedules[$profId]['schedule'][$weekday] = [];
+            }
+            
+            $professionalSchedules[$profId]['schedule'][$weekday][] = [
+                'start' => $availability['startTime'],
+                'end' => $availability['endTime']
+            ];
+        }
+        
+        // Determinar rango global de horarios
+        $globalMinTime = null;
+        $globalMaxTime = null;
+        
+        foreach ($availabilities as $availability) {
+            $startTime = $availability['startTime'];
+            $endTime = $availability['endTime'];
+            
+            if ($globalMinTime === null || $startTime < $globalMinTime) {
+                $globalMinTime = $startTime;
+            }
+            if ($globalMaxTime === null || $endTime > $globalMaxTime) {
+                $globalMaxTime = $endTime;
+            }
+        }
+        
+        // Convertir a string solo después de encontrar los valores mínimo y máximo
+        $globalMinTimeStr = $globalMinTime ? $globalMinTime->format('H:i:s') : '08:00:00';
+        $globalMaxTimeStr = $globalMaxTime ? $globalMaxTime->format('H:i:s') : '20:00:00';
+        
+        // Generar bloques no laborables para cada día en el rango
+        $current = clone $startDate;
+        while ($current <= $endDate) {
+            // Convertir formato PHP (0=Domingo) a formato BD (0=Lunes)
+            $phpDayOfWeek = (int)$current->format('w'); // 0=Domingo, 6=Sábado
+            $dbDayOfWeek = ($phpDayOfWeek + 6) % 7; // Convertir a 0=Lunes, 6=Domingo
+            
+            foreach ($professionalSchedules as $profId => $profData) {
+                $daySchedule = $profData['schedule'][$dbDayOfWeek] ?? [];
+                
+                if (empty($daySchedule)) {
+                    // Profesional no trabaja este día - crear bloque completo
+                    $events[] = $this->createNonWorkingBlockEvent(
+                        $profId,
+                        $profData['name'],
+                        $current,
+                        $globalMinTimeStr,
+                        $globalMaxTimeStr,
+                        'Día no laborable'
+                    );
+                } else {
+                    // Crear bloques para horas no laborables
+                    $events = array_merge($events, $this->createNonWorkingHoursForDay(
+                        $profId,
+                        $profData['name'],
+                        $current,
+                        $daySchedule,
+                        $globalMinTimeStr,
+                        $globalMaxTimeStr
+                    ));
+                }
+            }
+            
+            $current->modify('+1 day');
+        }
+        
+        return $events;
+    }
+
+    /**
+     * Crear bloques no laborables para horas específicas de un día
+     */
+    private function createNonWorkingHoursForDay(int $profId, string $profName, \DateTime $date, array $daySchedule, string $globalMin, string $globalMax): array
+    {
+        $events = [];
+        
+        // Ordenar horarios por hora de inicio
+        usort($daySchedule, function($a, $b) {
+            return strcmp($a['start'], $b['start']);
+        });
+        
+        $globalMinTime = new \DateTime($globalMin);
+        $globalMaxTime = new \DateTime($globalMax);
+        
+        // Bloque antes del primer horario laboral
+        $firstStart = $daySchedule[0]['start']; // Ya es DateTime
+        if ($firstStart > $globalMinTime) {
+            $events[] = $this->createNonWorkingBlockEvent(
+                $profId,
+                $profName,
+                $date,
+                $globalMin,
+                $daySchedule[0]['start']->format('H:i:s'), // Convertir a string aquí
+                'Fuera de horario'
+            );
+        }
+        
+        // Bloques entre horarios laborales (si hay gaps)
+        for ($i = 0; $i < count($daySchedule) - 1; $i++) {
+            $currentEnd = $daySchedule[$i]['end'];
+            $nextStart = $daySchedule[$i + 1]['start'];
+            
+            if ($currentEnd < $nextStart) {
+                $events[] = $this->createNonWorkingBlockEvent(
+                    $profId,
+                    $profName,
+                    $date,
+                    $currentEnd,
+                    $nextStart,
+                    'Descanso'
+                );
+            }
+        }
+        
+        // Bloque después del último horario laboral
+        $lastEnd = $daySchedule[count($daySchedule) - 1]['end']; // Ya es DateTime
+        if ($lastEnd < $globalMaxTime) {
+            $events[] = $this->createNonWorkingBlockEvent(
+                $profId,
+                $profName,
+                $date,
+                $daySchedule[count($daySchedule) - 1]['end']->format('H:i:s'), // Convertir a string aquí
+                $globalMax,
+                'Fuera de horario'
+            );
+        }
+        
+        return $events;
+    }
+
+    /**
+     * Crear un evento de bloque no laborable
+     */
+    private function createNonWorkingBlockEvent(int $profId, string $profName, \DateTime $date, string $startTime, string $endTime, string $reason): array
+    {
+        $start = clone $date;
+        $startTimeParts = explode(':', $startTime);
+        $start->setTime((int)$startTimeParts[0], (int)$startTimeParts[1], (int)($startTimeParts[2] ?? 0));
+        
+        $end = clone $date;
+        $endTimeParts = explode(':', $endTime);
+        $end->setTime((int)$endTimeParts[0], (int)$endTimeParts[1], (int)($endTimeParts[2] ?? 0));
+        
+        return [
+            'id' => 'non-working-' . $profId . '-' . $date->format('Y-m-d') . '-' . str_replace(':', '', $startTime),
+            'title' => $profName . ' - ' . $reason,
+            'start' => $start->format('Y-m-d\TH:i:s'),
+            'end' => $end->format('Y-m-d\TH:i:s'),
+            'backgroundColor' => '#f0f0f0', // Gris claro
+            'borderColor' => '#d0d0d0',
+            'textColor' => '#666666',
+            'display' => 'background',
+            'className' => 'block-element',
+            'extendedProps' => [
+                'type' => 'non-working',
+                'professionalId' => $profId,
+                'professionalName' => $profName,
+                'reason' => $reason
+            ]
+        ];
     }
 }

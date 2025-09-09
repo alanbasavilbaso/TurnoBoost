@@ -11,7 +11,9 @@ use App\Entity\StatusEnum;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use App\Entity\Location; // Agregar esta línea
+use App\Entity\Location;
+use App\Entity\ProfessionalBlock;
+use phpDocumentor\Reflection\DocBlock\Tags\Var_;
 
 class AppointmentService
 {
@@ -58,7 +60,10 @@ class AppointmentService
                 $location // Ahora $location está definida
             );
         }
-        
+        // var_dump($force);
+        // var_dump($appointmentData['scheduledAt']);
+        // var_dump($endTime);
+        // exit;
         // Crear o buscar paciente
         $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $company);
         
@@ -182,18 +187,125 @@ class AppointmentService
         Professional $professional,
         Location $location
     ): void {
-        // Validar que no sea una fecha pasada
-        // if ($scheduledAt < new \DateTime()) {
-        //     throw new \InvalidArgumentException(
-        //         'No se pueden crear citas en fechas pasadas.'
-        //     );
-        // }
-        
+    
         // Validar disponibilidad del profesional
         $this->validateProfessionalAvailability($scheduledAt, $endTime, $professional);
         
-        // Validar conflictos de horarios - CORREGIR: pasar company en lugar de location
+        // Validar conflictos de horarios
         $this->validateTimeConflicts($scheduledAt, $endTime, $professional, $professional->getCompany());
+
+        // Verificar bloqueos
+        $this->validateBlockConflicts($scheduledAt, $endTime, $professional);
+    }
+
+    /**
+     * Valida que no haya bloqueos que interfieran con la cita
+     */
+    // Corregir el método validateBlockConflicts (líneas 205-246)
+    private function validateBlockConflicts(
+        \DateTime $scheduledAt,
+        \DateTime $endTime,
+        Professional $professional
+    ): void {
+        $appointmentDate = $scheduledAt->format('Y-m-d');
+        $appointmentStartTime = $scheduledAt->format('H:i:s');
+        $appointmentEndTime = $endTime->format('H:i:s');
+        $dayOfWeek = (int)$scheduledAt->format('N') - 1; // 0=Lunes, 6=Domingo
+        
+        // Buscar bloqueos que puedan interferir
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('pb')
+            ->from(ProfessionalBlock::class, 'pb')
+            ->where('pb.professional = :professional')
+            ->andWhere('pb.active = true')
+            ->setParameter('professional', $professional);
+        
+        // Filtrar por tipo de bloque
+        $qb->andWhere(
+            $qb->expr()->orX(
+                // Bloque de día único - CORREGIDO: usar comparación directa de fechas
+                $qb->expr()->andX(
+                    $qb->expr()->eq('pb.blockType', ':singleDay'),
+                    $qb->expr()->eq('pb.startDate', ':appointmentDateObj')
+                ),
+                // Bloque de rango de fechas
+                $qb->expr()->andX(
+                    $qb->expr()->eq('pb.blockType', ':dateRange'),
+                    $qb->expr()->lte('pb.startDate', ':appointmentDateObj'),
+                    $qb->expr()->gte('pb.endDate', ':appointmentDateObj')
+                ),
+                // Bloque de patrón semanal
+                $qb->expr()->andX(
+                    $qb->expr()->eq('pb.blockType', ':weekdaysPattern'),
+                    $qb->expr()->like('pb.weekdaysPattern', ':dayOfWeekPattern')
+                )
+            )
+        )
+        ->setParameter('singleDay', 'single_day')
+        ->setParameter('dateRange', 'date_range')
+        ->setParameter('weekdaysPattern', 'weekdays_pattern')
+        ->setParameter('appointmentDateObj', (clone $scheduledAt)->setTime(0, 0, 0)) // Fecha sin hora
+        ->setParameter('dayOfWeekPattern', '%' . $dayOfWeek . '%');
+        
+        $blocks = $qb->getQuery()->getResult();
+        
+        foreach ($blocks as $block) {
+            $blockAffectsAppointment = false;
+            
+            // Verificar si el bloque afecta la cita según su tipo
+            switch ($block->getBlockType()) {
+                case 'single_day':
+                    $blockAffectsAppointment = $this->checkTimeOverlap(
+                        $appointmentStartTime, $appointmentEndTime,
+                        $block->getStartTime(), $block->getEndTime()
+                    );
+                    break;
+                    
+                case 'date_range':
+                    $blockAffectsAppointment = $this->checkTimeOverlap(
+                        $appointmentStartTime, $appointmentEndTime,
+                        $block->getStartTime(), $block->getEndTime()
+                    );
+                    break;
+                    
+                case 'weekdays_pattern':
+                    // Verificar si el día de la semana está en el patrón
+                    $weekdays = explode(',', $block->getWeekdaysPattern());
+                    if (in_array((string)$dayOfWeek, $weekdays)) {
+                        $blockAffectsAppointment = $this->checkTimeOverlap(
+                            $appointmentStartTime, $appointmentEndTime,
+                            $block->getStartTime(), $block->getEndTime()
+                        );
+                    }
+                    break;
+            }
+            
+            if ($blockAffectsAppointment) {
+                throw new \InvalidArgumentException(
+                    'Hay un bloqueo de agenda para el horario elegido, con el motivo: ' . $block->getReason()
+                );
+            }
+        }
+    }
+
+
+    /**
+     * Verifica si dos rangos de tiempo se superponen
+     */
+    private function checkTimeOverlap(
+        string $start1, string $end1,
+        ?\DateTimeInterface $start2, ?\DateTimeInterface $end2
+    ): bool {
+        // Si el bloque no tiene horarios específicos (todo el día), siempre hay conflicto
+        if ($start2 === null || $end2 === null) {
+            return true;
+        }
+        
+        $blockStartTime = $start2->format('H:i:s');
+        $blockEndTime = $end2->format('H:i:s');
+        
+        // Verificar superposición: (start1 < blockEnd) && (end1 > blockStart)
+        return ($start1 < $blockEndTime) && ($end1 > $blockStartTime);
     }
 
     /**
