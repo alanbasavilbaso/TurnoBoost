@@ -30,7 +30,7 @@
 
 .professional-row:hover {
     background-color: #f8f9fa;
-    transform: translateY(-1px);
+    transform: none !important;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 /* Header mejorado */
@@ -62,9 +62,12 @@
     margin-bottom: 1.5rem;
 }
 
+.table-card {
+    overflow: visible;
+}
 .table-responsive {
     border-radius: 0.5rem;
-    overflow: hidden;
+    overflow: visible;
 }
 
 /* Responsive adjustments */
@@ -100,4 +103,170 @@
 .professional-info {
     display: flex;
     align-items: center;
+}
+
+
+/* Estilos para el hover de horarios */
+.schedule-hover-container {
+    position: relative;
+    display: inline-block;
+}
+
+.schedule-trigger {
+    color: #6c757d;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    pointer-events: none; /* No clickeable */
+}
+
+.schedule-trigger:hover {
+    background-color: #f8f9fa;
+    color: #495057;
+}
+
+.schedule-tooltip {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    padding: 12px;
+    min-width: 200px;
+    max-width: 250px;
+    z-index: 9999; /* Z-index muy alto para evitar superposiciones */
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    margin-top: 8px;
+    white-space: nowrap;
+}
+
+/* Posicionamiento inteligente para evitar superposiciones */
+.schedule-hover-container:hover .schedule-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Ocultar otros tooltips cuando uno está activo */
+.schedule-hover-container:hover ~ .schedule-hover-container .schedule-tooltip,
+.schedule-hover-container:hover + * .schedule-hover-container .schedule-tooltip {
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* Ajustar posición si está cerca del borde derecho */
+.schedule-hover-container:nth-last-child(-n+2) .schedule-tooltip {
+    left: auto;
+    right: 0;
+    transform: none;
+}
+
+/* Ajustar posición si está cerca del borde izquierdo */
+.schedule-hover-container:nth-child(-n+2) .schedule-tooltip {
+    left: 0;
+    transform: none;
+}
+
+.schedule-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid #dee2e6;
+    z-index: 10000;
+}
+
+.schedule-tooltip::after {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid white;
+    z-index: 10001;
+}
+
+/* Ajustar flechas para tooltips posicionados a la derecha */
+.schedule-hover-container:nth-last-child(-n+2) .schedule-tooltip::before {
+    left: auto;
+    right: 20px;
+    transform: none;
+}
+
+.schedule-hover-container:nth-last-child(-n+2) .schedule-tooltip::after {
+    left: auto;
+    right: 21px;
+    transform: none;
+}
+
+/* Ajustar flechas para tooltips posicionados a la izquierda */
+.schedule-hover-container:nth-child(-n+2) .schedule-tooltip::before {
+    left: 20px;
+    transform: none;
+}
+
+.schedule-hover-container:nth-child(-n+2) .schedule-tooltip::after {
+    left: 21px;
+    transform: none;
+}
+
+.schedule-day {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid #f1f3f4;
+    white-space: nowrap;
+}
+
+.schedule-day:last-child {
+    border-bottom: none;
+}
+
+.schedule-day-name {
+    font-weight: 500;
+    color: #495057;
+    font-size: 0.875rem;
+    min-width: 60px;
+}
+
+.schedule-day-time {
+    color: #6c757d;
+    font-size: 0.8rem;
+    text-align: right;
+}
+
+.schedule-empty {
+    text-align: center;
+    color: #6c757d;
+    font-size: 0.875rem;
+    font-style: italic;
+    white-space: normal;
+}
+
+/* Agregar un delay para evitar parpadeos */
+.schedule-hover-container {
+    transition-delay: 0.1s;
+}
+
+.schedule-hover-container:hover {
+    transition-delay: 0s;
 }

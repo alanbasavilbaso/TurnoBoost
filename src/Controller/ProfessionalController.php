@@ -45,9 +45,38 @@ class ProfessionalController extends AbstractController
             'company' => $company,
             'active' => true
         ]);
+        
+        // Preparar horarios para cada profesional
+        $professionalsWithSchedules = [];
+        $dayNames = ['Lun', 'Mar', 'Mier', 'Jue', 'Vier', 'Sab', 'Dom'];
+        
+        foreach ($professionals as $professional) {
+            $schedule = [];
+            
+            for ($day = 0; $day <= 6; $day++) {
+                $availabilities = $professional->getAvailabilitiesForWeekday($day);
+                
+                if (!empty($availabilities)) {
+                    $ranges = [];
+                    foreach ($availabilities as $availability) {
+                        $ranges[] = $availability->getStartTime()->format('H:i') . ' - ' . $availability->getEndTime()->format('H:i');
+                    }
+                    
+                    $schedule[] = [
+                        'day' => $dayNames[$day],
+                        'times' => implode(', ', $ranges)
+                    ];
+                }
+            }
+            
+            $professionalsWithSchedules[] = [
+                'professional' => $professional,
+                'schedule' => $schedule
+            ];
+        }
     
         return $this->render('professional/index.html.twig', [
-            'professionals' => $professionals,
+            'professionals' => $professionalsWithSchedules,
             'company' => $company
         ]);
     }

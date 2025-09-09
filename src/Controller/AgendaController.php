@@ -398,10 +398,14 @@ class AgendaController extends AbstractController
             $isBlockError = str_contains($e->getMessage(), 'bloqueo de agenda');
             
             $errorType = 'validation';
-            if ($isAvailabilityError) {
-                $errorType = 'availability';
-            } elseif ($isBlockError) {
-                $errorType = 'block';
+            if ($e->getCode() == 1) {
+                $errorType = 'not_force';
+            } else {
+                if ($isAvailabilityError) {
+                    $errorType = 'availability';
+                } elseif ($isBlockError) {
+                    $errorType = 'block';
+                }
             }
             
             return new JsonResponse([
@@ -1030,7 +1034,8 @@ class AgendaController extends AbstractController
         
         if (!$isWithinAvailability) {
             throw new \InvalidArgumentException(
-                'El horario seleccionado está fuera de la disponibilidad del profesional.'
+                'El horario seleccionado está fuera de la disponibilidad del profesional.',
+                1
             );
         }
     }

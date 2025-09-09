@@ -763,8 +763,9 @@ class AgendaManager {
         const leftOffset = timeLabelWidth + (columnWidth * professionalIndex);
         
         blockElement.style.left = `${leftOffset + 2}px`; // +2px margen
-        blockElement.style.width = `calc(${columnWidth}px - 10%)`; // -4px para márgenes
-        
+        // blockElement.style.width = `calc(${columnWidth}px - 10%)`; // -4px para márgenes
+        blockElement.style.width = `${columnWidth}px`;
+
         // Asegurar que timeSlots tenga position relative
         if (getComputedStyle(timeSlots).position === 'static') {
             timeSlots.style.position = 'relative';

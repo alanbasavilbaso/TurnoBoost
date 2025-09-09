@@ -80,23 +80,24 @@
                             <table class="table table-modern">
                                 <thead>
                                     <tr>
-                                        <th style="width: 30%;">Profesional</th>
-                                        {# <th style="width: 20%;">Especialidad</th> #}
+                                        <th style="width: 20%;">Profesional</th>
                                         <th class="hide-md" style="width: 25%;">Contacto</th>
                                         <th style="width: 10%;">Estado</th>
-                                        <th class="hide-lg">Servicios</th>
+                                        <th class="hide-sm" style="width: 10%;">Horarios</th>
                                         <th style="width: 5%;">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody id="professionalsTableBody">
-                                    {% for professional in professionals %}
+                                    {% for item in professionals %}
+                                        {% set professional = item.professional %}
+                                        {% set schedule = item.schedule %}
                                         <tr class="professional-row" 
                                             data-name="{{ professional.name|lower }}" 
                                             data-specialty="{{ professional.specialty|default('')|lower }}"
                                             data-email="{{ professional.email|default('')|lower }}"
                                             data-status="{{ professional.active ? 'active' : 'inactive' }}"
-                                            data-services="{{ professional.professionalServices|length }}"
-                                            data-created="{{ professional.createdAt ? professional.createdAt|date('Y-m-d') : '' }}">
+                                            data-created="{{ professional.createdAt ? professional.createdAt|date('Y-m-d') : '' }}"
+                                            data-schedule='{{ schedule|json_encode|e('html_attr') }}'>
                                             <td>
                                                 <div class="professional-info">
                                                     <div class="professional-avatar">
@@ -107,16 +108,6 @@
                                                     </div>
                                                 </div>
                                             </td>
-                                            {# <td>
-                                                {% if professional.specialty %}
-                                                    <span class="specialty-badge">
-                                                        <i class="fas fa-stethoscope"></i>
-                                                        {{ professional.specialty }}
-                                                    </span>
-                                                {% else %}
-                                                    <span class="text-muted">Sin especialidad</span>
-                                                {% endif %}
-                                            </td> #}
                                             <td class="hide-md">
                                                 <div class="contact-info">
                                                     {% if professional.email %}
@@ -143,11 +134,25 @@
                                                     <span class="badge bg-secondary status-badge">⏸️ Inactivo</span>
                                                 {% endif %}
                                             </td>
-                                            <td class="hide-lg">
-                                                <span class="services-count">
-                                                    <i class="fas fa-briefcase-medical"></i>
-                                                    {{ professional.professionalServices|length }}
-                                                </span>
+                                            <td class="hide-sm">
+                                                <div class="schedule-hover-container">
+                                                    <span class="schedule-trigger">
+                                                        <i class="fas fa-clock"></i>
+                                                        Ver horario
+                                                    </span>
+                                                    <div class="schedule-tooltip">
+                                                        {% if schedule is empty %}
+                                                            <div class="schedule-empty">Sin horarios configurados</div>
+                                                        {% else %}
+                                                            {% for day in schedule %}
+                                                                <div class="schedule-day">
+                                                                    <span class="schedule-day-name">{{ day.day }}</span>
+                                                                    <span class="schedule-day-time">{{ day.times }}</span>
+                                                                </div>
+                                                            {% endfor %}
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td>
                                                 <div class="action-buttons">

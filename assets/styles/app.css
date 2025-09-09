@@ -422,7 +422,11 @@ body {
         display: none !important;
     }
 }
-
+@media (max-width: 576px) {
+    .hide-sm {
+        display: none !important;
+    }
+}
 @media (max-width: 460px) {
     .action-buttons {
         flex-direction: column;

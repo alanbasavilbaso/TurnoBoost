@@ -333,7 +333,8 @@ class AppointmentService
         
         if (!$isWithinAvailability) {
             throw new \InvalidArgumentException(
-                'El horario seleccionado está fuera de la disponibilidad del profesional.'
+                'El horario seleccionado está fuera de la disponibilidad del profesional.',
+                1
             );
         }
     }
