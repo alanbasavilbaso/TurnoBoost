@@ -452,6 +452,18 @@ class AgendaManager {
         
         // Usar los appointments proporcionados o los almacenados en la instancia
         const appointmentsToRender = appointments || this.allAppointments;
+        // Usar los blocks proporcionados o un array vacío si no hay
+        const blocksToRender = blocks || this.allBlocks;
+        
+        // NUEVA LÓGICA: Renderizar bloques una sola vez por profesional
+        professionals.forEach(prof => {
+            // Obtener todos los bloques del profesional para esta fecha
+            const professionalBlocks = this.getBlocksForProfessional(date, prof.id, blocksToRender);
+            
+            professionalBlocks.forEach(block => {
+                this.renderSingleBlock(block, prof.id, startTime, slotDuration, timeSlots, endTime);
+            });
+        });
         
         for (let time = startTime; time < endTime; time += slotDuration) {
             const timeSlot = document.createElement('div');
@@ -555,19 +567,6 @@ class AgendaManager {
             
             timeSlots.appendChild(timeSlot);
         }
-
-        // Usar los blocks proporcionados o un array vacío si no hay
-        const blocksToRender = blocks || this.allBlocks;
-        
-        // NUEVA LÓGICA: Renderizar bloques una sola vez por profesional
-        professionals.forEach(prof => {
-            // Obtener todos los bloques del profesional para esta fecha
-            const professionalBlocks = this.getBlocksForProfessional(date, prof.id, blocksToRender);
-            
-            professionalBlocks.forEach(block => {
-                this.renderSingleBlock(block, prof.id, startTime, slotDuration, timeSlots, endTime);
-            });
-        });
     }
 
     updateCurrentDateDisplay() {
@@ -705,9 +704,9 @@ class AgendaManager {
         const offsetFromBusinessStart = visibleStartMinutes - businessStartTime;
         const visibleDurationMinutes = visibleEndMinutes - visibleStartMinutes;
         
-        const topPosition = (offsetFromBusinessStart / slotDuration) * 36; // 35px por slot
-        const height = Math.max(((visibleDurationMinutes / slotDuration) ) * 36 - 2, 15); // Mínimo 15px de altura
-    
+        const topPosition = (offsetFromBusinessStart / slotDuration) * 35; // 35px por slot
+        const height = Math.max((visibleDurationMinutes / slotDuration) * 35, 15); // Mínimo 15px de altura
+        
         // Crear elemento del bloque
         const blockElement = document.createElement('div');
         blockElement.className = block.className ?? 'block-element professional-block-event';
@@ -732,8 +731,7 @@ class AgendaManager {
                     professionalName: block.extendedProps?.professionalName,
                     blockType: block.extendedProps?.blockType,
                     blockId: block.extendedProps?.blockId,
-                    professionalId: block.extendedProps?.professionalId,
-                    extendedProps: block.extendedProps
+                    professionalId: block.extendedProps?.professionalId
                 };
                 this.showBlockDetails(blockData, event);
             });
@@ -763,9 +761,8 @@ class AgendaManager {
         const leftOffset = timeLabelWidth + (columnWidth * professionalIndex);
         
         blockElement.style.left = `${leftOffset + 2}px`; // +2px margen
-        // blockElement.style.width = `calc(${columnWidth}px - 10%)`; // -4px para márgenes
-        blockElement.style.width = `${columnWidth}px`;
-
+        blockElement.style.width = `${columnWidth - 4}px`; // -4px para márgenes
+        
         // Asegurar que timeSlots tenga position relative
         if (getComputedStyle(timeSlots).position === 'static') {
             timeSlots.style.position = 'relative';
@@ -1319,8 +1316,7 @@ class AgendaManager {
                 professionalName: info.event.extendedProps?.professionalName,
                 blockType: info.event.extendedProps?.blockType,
                 blockId: info.event.extendedProps?.blockId,
-                professionalId: info.event.extendedProps?.professionalId,
-                extendedProps: info.event.extendedProps  
+                professionalId: info.event.extendedProps?.professionalId
             };
             
             this.showBlockDetails(blockData, info.jsEvent);
@@ -1502,11 +1498,11 @@ class AgendaManager {
         const formattedData = {
             reason: blockData.reason,
             professionalName: blockData.professionalName,
-            startDate: blockData.start,
-            endDate: blockData.end,
-            
-            day: blockData.start.toLocaleDateString('es-ES', {
-                day: 'numeric' // "1", "15", "31"
+            date: blockData.start.toLocaleDateString('es-ES', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
             }),
             time: `${blockData.start.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})} - ${blockData.end.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}`,
             blockType: blockData.blockType,
@@ -1562,12 +1558,12 @@ class AgendaManager {
         tooltip.querySelectorAll('[data-field="professionalName"]').forEach(el => {
             el.textContent = data.professionalName;
         });
-        // tooltip.querySelector('[data-field="date"]').textContent = data.date;
-        // tooltip.querySelector('[data-field="time"]').textContent = data.time;
+        tooltip.querySelector('[data-field="date"]').textContent = data.date;
+        tooltip.querySelector('[data-field="time"]').textContent = data.time;
         
         // Generar descripción detallada del tipo de bloque
         const blockTypeInfo = this.getBlockTypeDescription(data.blockType, extendedProps);
-        tooltip.querySelector('[data-field="blockTypeDescription"]').textContent = blockTypeInfo.description;
+        tooltip.querySelector('[data-field="blockType"]').textContent = blockTypeInfo.description;
         
         // Mostrar información específica según el tipo
         this.populateBlockSpecificInfo(tooltip, data.blockType, extendedProps, data);
@@ -1642,8 +1638,8 @@ class AgendaManager {
                 const dateRangeElement = tooltip.querySelector('[data-field="dateRange"]');
                 if (dateRangeContainer && dateRangeElement) {
                     dateRangeContainer.style.display = 'flex';
-                    const startDate = extendedProps.startDate;
-                    const endDate = extendedProps.endDate;
+                    const startDate = new Date(extendedProps.startDate).toLocaleDateString('es-ES');
+                    const endDate = new Date(extendedProps.endDate).toLocaleDateString('es-ES');
                     dateRangeElement.textContent = `${startDate} - ${endDate}`;
                 }
                 break;
@@ -1664,8 +1660,8 @@ class AgendaManager {
                 
                 if (dateRangeContainer2 && dateRangeElement2) {
                     dateRangeContainer2.style.display = 'flex';
-                    const startDate = extendedProps.startDate;
-                    const endDate = extendedProps.endDate;
+                    const startDate = new Date(extendedProps.startDate).toLocaleDateString('es-ES');
+                    const endDate = new Date(extendedProps.endDate).toLocaleDateString('es-ES');
                     dateRangeElement2.textContent = `${startDate} - ${endDate}`;
                 }
                 break;
@@ -1676,11 +1672,11 @@ class AgendaManager {
                 
                 if (recurrenceContainer && recurrenceElement) {
                     recurrenceContainer.style.display = 'flex';
-                    const dayOfMonth = extendedProps.monthlyDayOfMonth || data.day;
+                    const dayOfMonth = extendedProps.monthlyDayOfMonth || new Date(extendedProps.startDate).getDate();
                     let recurrenceText = `Día ${dayOfMonth} de cada mes`;
                     
-                    if (extendedProps.endDate) {
-                        const endDate = new Date(extendedProps.endDate).toLocaleDateString('es-ES');
+                    if (extendedProps.monthlyEndDate) {
+                        const endDate = new Date(extendedProps.monthlyEndDate).toLocaleDateString('es-ES');
                         recurrenceText += ` hasta ${endDate}`;
                     } else {
                         recurrenceText += ' (indefinidamente)';
@@ -1848,6 +1844,7 @@ class AgendaManager {
     }
 
     handleBlockDelete(blockData, action) {
+        debugger;
         let message, subtext;
         
         switch (action) {
@@ -2606,6 +2603,7 @@ class AgendaManager {
                 } else if (result.error_type === 'block') {
                     this.showBlockAlert(result.error, appointmentData);
                 } else {
+                    debugger;
                     const errorMessage = isEditing ? 'Error al actualizar la cita' : 'Error al crear la cita';
                     this.showAlert(result.error || errorMessage, 'error');
                 }
@@ -2714,6 +2712,7 @@ class AgendaManager {
                 bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
                 this.loadAppointments();
             } else {
+                debugger;
                 this.showAlert(result.error || 'Error al crear la cita', 'error');
             }
             

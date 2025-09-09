@@ -64,6 +64,7 @@
 
 .table-card {
     overflow: visible;
+    border-radius: unset;
 }
 .table-responsive {
     border-radius: 0.5rem;

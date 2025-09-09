@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Professional;
 use App\Entity\ProfessionalAvailability;
+use App\Entity\SpecialSchedule;
 use App\Form\ProfessionalType;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
@@ -435,6 +436,74 @@ class ProfessionalController extends AbstractController
         ]);
     }
 
+    #[Route('/{id}/special-schedules', name: 'app_professional_special_schedules', methods: ['GET'])]
+    public function specialSchedules(Professional $professional, EntityManagerInterface $entityManager): Response
+    {
+        if (!$this->canAccess($professional)) {
+            return new Response('No tiene permisos para ver este profesional.', 403);
+        }
+
+        // CORREGIR: Eliminar filtro por company ya que no existe en SpecialSchedule
+        $specialSchedules = $entityManager->getRepository(SpecialSchedule::class)
+            ->findBy(['professional' => $professional], ['fecha' => 'ASC']);
+    
+        return $this->render('professional/special_schedules_modal.html.twig', [
+            'professional' => $professional,
+            'specialSchedules' => $specialSchedules
+        ]);
+    }
+
+    #[Route('/{id}/special-schedules', name: 'app_professional_special_schedules_create', methods: ['POST'])]
+    public function createSpecialSchedule(Professional $professional, Request $request, EntityManagerInterface $entityManager): Response
+    {
+        if (!$this->canAccess($professional)) {
+            return new Response('No tiene permisos para este profesional.', 403);
+        }
+    
+        $data = json_decode($request->getContent(), true);
+        
+        try {
+            $specialSchedule = new SpecialSchedule();
+            $specialSchedule->setProfessional($professional);
+            $specialSchedule->setFecha(new \DateTime($data['fecha']));
+            $specialSchedule->setHoraDesde(new \DateTime($data['horaDesde']));
+            $specialSchedule->setHoraHasta(new \DateTime($data['horaHasta']));
+            $specialSchedule->setUsuario($this->getUser());
+            
+            $entityManager->persist($specialSchedule);
+            $entityManager->flush();
+            
+            return new Response('Jornada especial creada exitosamente', 200);
+            
+        } catch (\Exception $e) {
+            return new Response('Error al crear la jornada especial: ' . $e->getMessage(), 500);
+        }
+    }
+
+    #[Route('/special-schedules/{id}', name: 'app_special_schedule_delete', methods: ['DELETE'])]
+    public function deleteSpecialSchedule(int $id, EntityManagerInterface $entityManager): Response
+    {
+        $specialSchedule = $entityManager->getRepository(SpecialSchedule::class)->find($id);
+        
+        if (!$specialSchedule) {
+            return new Response('Jornada especial no encontrada', 404);
+        }
+        
+        if (!$this->canAccess($specialSchedule->getProfessional())) {
+            return new Response('No tiene permisos para esta jornada especial.', 403);
+        }
+        
+        try {
+            $entityManager->remove($specialSchedule);
+            $entityManager->flush();
+            
+            return new Response('Jornada especial eliminada exitosamente', 200);
+            
+        } catch (\Exception $e) {
+            return new Response('Error al eliminar la jornada especial: ' . $e->getMessage(), 500);
+        }
+    }
+    
     private function processAvailabilityData(FormInterface $form, Professional $professional, EntityManagerInterface $entityManager): void
     {
         for ($day = 0; $day <= 6; $day++) {

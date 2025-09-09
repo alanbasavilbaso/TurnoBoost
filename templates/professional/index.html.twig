@@ -157,15 +157,25 @@
                                             <td>
                                                 <div class="action-buttons">
                                                     <!-- Botón Ver usando modal genérico -->
-                                                    {# <button type="button" 
-                                                            class="btn btn-sm action-btn view-btn" 
-                                                            data-bs-toggle="modal" 
-                                                            data-bs-target="#entityDetailsModal"
-                                                            data-professional-id="{{ professional.id }}"
-                                                            data-action="view"
-                                                            title="Ver detalles">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button> #}
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                            <i class="fas fa-plus me-1"></i>Opciones
+                                                        </button>
+                                                        <ul class="dropdown-menu">
+                                                            <li>
+                                                                <button type="button" class="dropdown-item special-hours-btn"
+                                                                        data-professional-id="{{ professional.id }}">
+                                                                    <i class="fas fa-list me-2"></i>Ver jornadas especiales
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button type="button" class="dropdown-item enable-special-hours-btn"
+                                                                        data-professional-id="{{ professional.id }}">
+                                                                    <i class="fas fa-calendar-plus me-2"></i>Habilitar jornada especial
+                                                                </button>
+                                                            </li>
+                                                        </ul>
+                                                    </div>
                                                     <!-- Botón Editar usando modal específico -->
                                                     <button type="button" 
                                                             class="btn btn-sm action-btn edit-btn" 
@@ -232,6 +242,7 @@
 
 {% block javascripts %}
     {{ parent() }}
+    <script src="{{ asset('scripts/special-schedules.js') }}"></script>
     <script src="{{ asset('scripts/professional-table.js') }}"></script>
     <script src="{{ asset('scripts/professional-modal.js') }}"></script>
     <script src="{{ asset('scripts/professional-form.js') }}"></script>
