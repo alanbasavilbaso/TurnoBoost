@@ -19,10 +19,17 @@ use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Constraints\Regex;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
-use Doctrine\ORM\EntityRepository;
+use Doctrine\ORM\EntityManagerInterface;
 
 class ProfessionalType extends AbstractType
 {
+    private EntityManagerInterface $entityManager;
+    
+    public function __construct(EntityManagerInterface $entityManager)
+    {
+        $this->entityManager = $entityManager;
+    }
+    
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $company = $options['company'] ?? null;
@@ -107,6 +114,9 @@ class ProfessionalType extends AbstractType
             6 => 'Domingo'
         ];
         
+        // Obtener horarios del location para limitar las opciones (una sola vez)
+        $locationHours = $this->getLocationHours($company);
+        
         foreach ($days as $dayNumber => $dayName) {
             $builder
                 ->add("availability_{$dayNumber}_enabled", CheckboxType::class, [
@@ -122,17 +132,11 @@ class ProfessionalType extends AbstractType
                     ]
                 ]);
                 
-            // Permitir hasta 2 rangos horarios por día con selects de tiempo
+            // Generar opciones de tiempo limitadas por los horarios del location
+            $timeOptions = $this->generateTimeOptions($locationHours['minHour'], $locationHours['maxHour']);
+            
+            // Agregar campos para hasta 2 rangos por día
             for ($range = 1; $range <= 2; $range++) {
-                // Generar opciones de tiempo de 00:00 a 23:45 en intervalos de 15 minutos
-                $timeOptions = [];
-                for ($hour = 0; $hour < 24; $hour++) {
-                    for ($minute = 0; $minute < 60; $minute += 15) {
-                        $timeValue = sprintf('%02d:%02d', $hour, $minute);
-                        $timeOptions[$timeValue] = $timeValue;
-                    }
-                }
-                
                 $builder
                     ->add("availability_{$dayNumber}_range{$range}_start", ChoiceType::class, [
                         'label' => 'Inicio',
@@ -164,7 +168,7 @@ class ProfessionalType extends AbstractType
         if ($company) {
             $builder->add('services', EntityType::class, [
                 'class' => Service::class,
-                'query_builder' => function (EntityRepository $repository) use ($company) {
+                'query_builder' => function (\Doctrine\ORM\EntityRepository $repository) use ($company) {
                     return $repository->createQueryBuilder('s')
                         ->andWhere('s.company = :company')
                         ->andWhere('s.active = :active')
@@ -216,5 +220,76 @@ class ProfessionalType extends AbstractType
         
         $resolver->setAllowedTypes('company', ['null', 'App\Entity\Company']);
         $resolver->setAllowedTypes('is_edit', 'bool');
+    }
+    
+    /**
+     * Obtiene los horarios mínimos y máximos del location activo
+     */
+    private function getLocationHours($company): array
+    {
+        if (!$company) {
+            return ['minHour' => 0, 'maxHour' => 23];
+        }
+        
+        // Obtener el EntityManager desde el contenedor de servicios
+        // Nota: Necesitaremos inyectar el EntityManager en el constructor
+        $entityManager = $this->entityManager;
+        
+        $activeLocation = $entityManager->getRepository('App\\Entity\\Location')
+            ->findOneBy(['company' => $company, 'active' => true]);
+            
+        if (!$activeLocation) {
+            return ['minHour' => 8, 'maxHour' => 20]; // Valores por defecto
+        }
+        
+        $globalMinHour = 23;
+        $globalMaxHour = 0;
+        
+        // Revisar todos los días para obtener el rango global
+        for ($day = 0; $day <= 6; $day++) {
+            $availabilities = $activeLocation->getAvailabilitiesForWeekDay($day);
+            
+            foreach ($availabilities as $availability) {
+                $startHour = (int)$availability->getStartTime()->format('H');
+                $endHour = (int)$availability->getEndTime()->format('H');
+                
+                if ($startHour < $globalMinHour) {
+                    $globalMinHour = $startHour;
+                }
+                
+                if ($endHour > $globalMaxHour) {
+                    $globalMaxHour = $endHour;
+                }
+            }
+        }
+        
+        // Si no se encontraron horarios, usar valores por defecto
+        if ($globalMinHour === 23 && $globalMaxHour === 0) {
+            return ['minHour' => 8, 'maxHour' => 20];
+        }
+        
+        return ['minHour' => $globalMinHour, 'maxHour' => $globalMaxHour];
+    }
+    
+    /**
+     * Genera opciones de tiempo en intervalos de 15 minutos dentro del rango especificado
+     */
+    private function generateTimeOptions(int $minHour, int $maxHour): array
+    {
+        $timeOptions = [];
+        
+        for ($hour = $minHour; $hour <= $maxHour; $hour++) {
+            for ($minute = 0; $minute < 60; $minute += 15) {
+                // Si estamos en la hora máxima, solo incluir 00:00 (no los otros minutos)
+                if ($hour === $maxHour && $minute > 0) {
+                    break;
+                }
+                
+                $timeValue = sprintf('%02d:%02d', $hour, $minute);
+                $timeOptions[$timeValue] = $timeValue;
+            }
+        }
+        
+        return $timeOptions;
     }
 }

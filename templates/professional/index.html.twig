@@ -285,5 +285,12 @@
         });
     });
     </script>
+    <script>
+    // Hacer disponibles los horarios del location para JavaScript
+    window.globalLocationHours = {
+        minHour: {{ locationHours.minHour }},
+        maxHour: {{ locationHours.maxHour }}
+    };
+    </script>
 {% endblock %}
 

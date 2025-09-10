@@ -26,11 +26,16 @@ class ProfessionalController extends AbstractController
 {
     private RequestStack $requestStack;
     private ServiceRepository $serviceRepository;
+    private EntityManagerInterface $entityManager;
     
-    public function __construct(RequestStack $requestStack, ServiceRepository $serviceRepository)
-    {
+    public function __construct(
+        RequestStack $requestStack, 
+        ServiceRepository $serviceRepository,
+        EntityManagerInterface $entityManager
+    ) {
         $this->requestStack = $requestStack;
         $this->serviceRepository = $serviceRepository;
+        $this->entityManager = $entityManager;
     }
 
     #[Route('/', name: 'app_professional_index', methods: ['GET'])]
@@ -123,11 +128,18 @@ class ProfessionalController extends AbstractController
             ];
         }
     
+        // Crear el array locationHours que espera el template
+        $locationHours = [
+            'minHour' => $globalMinHour ?? 8,
+            'maxHour' => $globalMaxHour ?? 20
+        ];
+    
         return $this->render('professional/index.html.twig', [
             'professionals' => $professionalsWithSchedules,
             'company' => $company,
             'globalMinHour' => $globalMinHour,
-            'globalMaxHour' => $globalMaxHour
+            'globalMaxHour' => $globalMaxHour,
+            'locationHours' => $locationHours // Agregar esta variable
         ]);
     }
 
@@ -340,6 +352,38 @@ class ProfessionalController extends AbstractController
             return new Response('Debe tener una empresa asignada antes de agregar profesionales.', 400);
         }
 
+        // Obtener horarios del location para pasar al frontend
+        $activeLocation = $this->entityManager->getRepository(Location::class)
+            ->findOneBy(['company' => $company, 'active' => true]);
+            
+        $locationHours = ['minHour' => 8, 'maxHour' => 20]; // Valores por defecto
+        
+        if ($activeLocation) {
+            $globalMinHour = 23;
+            $globalMaxHour = 0;
+            
+            for ($day = 0; $day <= 6; $day++) {
+                $availabilities = $activeLocation->getAvailabilitiesForWeekDay($day);
+                
+                foreach ($availabilities as $availability) {
+                    $startHour = (int)$availability->getStartTime()->format('H');
+                    $endHour = (int)$availability->getEndTime()->format('H');
+                    
+                    if ($startHour < $globalMinHour) {
+                        $globalMinHour = $startHour;
+                    }
+                    
+                    if ($endHour > $globalMaxHour) {
+                        $globalMaxHour = $endHour;
+                    }
+                }
+            }
+            
+            if ($globalMinHour !== 23 && $globalMaxHour !== 0) {
+                $locationHours = ['minHour' => $globalMinHour, 'maxHour' => $globalMaxHour];
+            }
+        }
+    
         $professional = new Professional();
         $professional->setCompany($company);
         $professional->setCreatedAt(new \DateTime());
