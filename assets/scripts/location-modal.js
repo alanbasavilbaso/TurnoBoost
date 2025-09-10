@@ -9,6 +9,47 @@ class LocationModalManager extends EntityModalManager {
         });
     }
 
+    // Sobrescribir el método initializeForm para manejar la lógica específica de locations
+    initializeForm() {
+        // Llamar al método padre primero
+        super.initializeForm();
+        
+        // Esperar un poco para que el DOM se renderice completamente
+        setTimeout(() => {
+            // Leer los datos del script JSON
+            const dataScript = document.getElementById('location-data');
+            if (dataScript) {
+                try {
+                    const locationData = JSON.parse(dataScript.textContent);
+                    
+                    // Pasar los datos existentes al JavaScript global
+                    if (locationData.existingSchedules && Object.keys(locationData.existingSchedules).length > 0) {
+                        window.locationExistingSchedules = locationData.existingSchedules;
+                    }
+                    
+                    // Inicializar el formulario de location
+                    if (typeof window.initializeLocationForm === 'function') {
+                        console.log('Inicializando formulario de location...');
+                        window.initializeLocationForm();
+                    } else {
+                        console.warn('window.initializeLocationForm no está disponible');
+                    }
+                } catch (error) {
+                    console.error('Error al parsear datos de location:', error);
+                    // Inicializar sin datos existentes
+                    if (typeof window.initializeLocationForm === 'function') {
+                        window.initializeLocationForm();
+                    }
+                }
+            } else {
+                // No hay datos, inicializar formulario vacío
+                if (typeof window.initializeLocationForm === 'function') {
+                    window.initializeLocationForm();
+                }
+            }
+        }, 100);
+    }
+
     // Sobrescribir métodos para usar data-location-id en lugar de data-entity-id
     handleViewClick(button) {
         const locationId = button.dataset.locationId;

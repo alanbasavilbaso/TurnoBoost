@@ -13,6 +13,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use App\Form\LocationType;
 use Symfony\Component\HttpFoundation\RedirectResponse;
+use App\Entity\LocationAvailability;
 
 #[Route('/location')]
 #[IsGranted('ROLE_ADMIN')]
@@ -105,7 +106,7 @@ class LocationController extends AbstractController
             ->getSingleScalarResult();
         
         if ($activeLocationCount > 0) {
-            $this->addFlash('error', 'eee Has llegado al límite de tu plan actual (Para agregar un nuevo local contactanos)');
+            $this->addFlash('error', 'Has llegado al límite de tu plan actual (Para agregar un nuevo local contactanos)');
             return $this->redirectToRoute('location_index');
         }
         
@@ -126,7 +127,10 @@ class LocationController extends AbstractController
                 $location->setCreatedAt(new \DateTime());
                 $location->setUpdatedAt(new \DateTime());
                 $location->setCreatedBy($user);
-                // La empresa ya está asignada arriba
+                
+                // Procesar horarios de disponibilidad
+                $this->processAvailabilityData($form, $location, $entityManager);
+                
                 $entityManager->persist($location);
                 $entityManager->flush();
                 
@@ -144,6 +148,127 @@ class LocationController extends AbstractController
             'location' => $location,
             'is_edit' => false
         ]);
+    }
+
+    #[Route('/{id}/edit', name: 'location_edit', methods: ['GET', 'POST'])]
+    public function edit(Request $request, Location $location, EntityManagerInterface $entityManager): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        // Verificar que $location no sea null
+        if (!$location) {
+            $this->addFlash('error', 'La ubicación no fue encontrada.');
+            return $this->redirectToRoute('location_index');
+        }
+        
+        // Verificar que la location pertenece a la empresa del usuario
+        if ($location->getCompany() !== $user->getCompany()) {
+            $this->addFlash('error', 'No tienes permisos para editar esta ubicación.');
+            return $this->redirectToRoute('location_index');
+        }
+
+        $form = $this->createForm(LocationType::class, $location, ['is_edit' => true]);
+        $form->handleRequest($request);
+    
+        if ($form->isSubmitted()) {
+            if ($form->isValid()) {
+                if ($location->getPhone()) {
+                    $location->setPhone($this->phoneUtility->cleanPhoneNumber($location->getPhone()));
+                }
+                
+                $location->setUpdatedAt(new \DateTime());
+                
+                // Procesar horarios de disponibilidad - agregar validación adicional
+                if ($location && $location->getId()) {
+                    $this->processAvailabilityData($form, $location, $entityManager);
+                }
+                
+                $entityManager->flush();
+                
+                $this->addFlash('success', 'Ubicación actualizada exitosamente.');
+                return $this->redirectToRoute('location_index');
+            } else {
+                foreach ($form->getErrors(true) as $error) {
+                    $this->addFlash('error', $error->getMessage());
+                }
+            }
+        }
+    
+        return $this->render('location/form.html.twig', [
+            'location' => $location,
+            'form' => $form,
+            'is_edit' => true
+        ]);
+    }
+
+    private function processAvailabilityData($form, Location $location, EntityManagerInterface $entityManager): void
+    {
+        // Validar que $location no sea null
+        // Para nuevas ubicaciones, no validamos el ID ya que aún no existe
+        if (!$location) {
+            throw new \InvalidArgumentException('Location object is null');
+        }
+        
+        // Solo limpiar horarios existentes si es una edición (tiene ID)
+        if ($location->getId()) {
+            // Limpiar horarios existentes
+            foreach ($location->getAvailabilities() as $availability) {
+                $location->removeAvailability($availability);
+                $entityManager->remove($availability);
+            }
+        }
+        
+        // Procesar nuevos horarios
+        for ($day = 0; $day <= 6; $day++) {
+            $enabledField = $form->get("day_{$day}_enabled");
+            $startHourField = $form->get("day_{$day}_start_hour");
+            $startMinuteField = $form->get("day_{$day}_start_minute");
+            $endHourField = $form->get("day_{$day}_end_hour");
+            $endMinuteField = $form->get("day_{$day}_end_minute");
+            
+            // Obtener los valores
+            $enabled = $enabledField->getData();
+            $startHour = $startHourField->getData();
+            $startMinute = $startMinuteField->getData();
+            $endHour = $endHourField->getData();
+            $endMinute = $endMinuteField->getData();
+            
+            // Solo procesar si el día está habilitado y tiene al menos las horas
+            if ($enabled && $startHour !== null && $startHour !== '' && $endHour !== null && $endHour !== '') {
+                
+                // Usar 0 como valor por defecto para minutos vacíos
+                $startMinute = ($startMinute === '' || $startMinute === null) ? 0 : (int)$startMinute;
+                $endMinute = ($endMinute === '' || $endMinute === null) ? 0 : (int)$endMinute;
+                
+                try {
+                    // Crear objetos DateTime para start y end
+                    $startTime = new \DateTime();
+                    $startTime->setTime((int)$startHour, $startMinute);
+                    
+                    $endTime = new \DateTime();
+                    $endTime->setTime((int)$endHour, $endMinute);
+                    
+                    // Validar que la hora de fin sea posterior a la de inicio
+                    if ($endTime <= $startTime) {
+                        continue; // Saltar este horario si es inválido
+                    }
+                    
+                    $availability = new LocationAvailability();
+                    $availability->setLocation($location);
+                    $availability->setWeekDay($day);
+                    $availability->setStartTime($startTime);
+                    $availability->setEndTime($endTime);
+                    
+                    $location->addAvailability($availability);
+                    $entityManager->persist($availability);
+                    
+                } catch (\Exception $e) {
+                    // Si hay error al crear el horario, continuar con el siguiente
+                    continue;
+                }
+            }
+        }
     }
 
     #[Route('/new/form', name: 'location_new_form', methods: ['GET'])]
@@ -184,63 +309,6 @@ class LocationController extends AbstractController
         ]);
     }
 
-    #[Route('/{id}', name: 'location_show', methods: ['GET'])]
-    public function show(Location $location): Response
-    {
-        /** @var User $user */
-        $user = $this->getUser();
-        
-        // Verificar que la location pertenece a la empresa del usuario
-        if ($location->getCompany() !== $user->getCompany()) {
-            $this->addFlash('error', 'No tienes permisos para ver esta ubicación.');
-            return $this->redirectToRoute('location_index');
-        }
-
-        return $this->render('location/show.html.twig', [
-            'location' => $location,
-        ]);
-    }
-
-    #[Route('/{id}/edit', name: 'location_edit', methods: ['GET', 'POST'])]
-    public function edit(Request $request, Location $location, EntityManagerInterface $entityManager): Response
-    {
-        /** @var User $user */
-        $user = $this->getUser();
-        
-        // Verificar que la location pertenece a la empresa del usuario
-        if ($location->getCompany() !== $user->getCompany()) {
-            $this->addFlash('error', 'No tienes permisos para editar esta ubicación.');
-            return $this->redirectToRoute('location_index');
-        }
-
-        $form = $this->createForm(LocationType::class, $location, ['is_edit' => true]);
-        $form->handleRequest($request);
-
-        if ($form->isSubmitted()) {
-            if ($form->isValid()) {
-                if ($location->getPhone()) {
-                    $location->setPhone($this->phoneUtility->cleanPhoneNumber($location->getPhone()));
-                }
-                
-                $location->setUpdatedAt(new \DateTime());
-                $entityManager->flush();
-                
-                $this->addFlash('success', 'Ubicación actualizada exitosamente.');
-                return $this->redirectToRoute('location_index');
-            } else {
-                foreach ($form->getErrors(true) as $error) {
-                    $this->addFlash('error', $error->getMessage());
-                }
-            }
-        }
-
-        return $this->render('location/form.html.twig', [
-            'location' => $location,
-            'form' => $form,
-            'is_edit' => true
-        ]);
-    }
-
     #[Route('/{id}/form', name: 'location_edit_form', methods: ['GET'])]
     public function editForm(Location $location): Response
     {
@@ -251,10 +319,10 @@ class LocationController extends AbstractController
         if (!$user->canEdit($user->getCompany())) {
             throw $this->createAccessDeniedException('No tienes permisos para editar esta ubicación.');
         }
-
-        // Crear el formulario usando LocationType
-        $form = $this->createForm(LocationType::class, $location);
-
+    
+        // Crear el formulario usando LocationType con is_edit = true
+        $form = $this->createForm(LocationType::class, $location, ['is_edit' => true]);
+    
         return $this->render('location/form.html.twig', [
             'location' => $location,
             'form' => $form,

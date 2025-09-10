@@ -3,6 +3,7 @@ class SpecialSchedulesManager {
         this.modal = null;
         this.formModal = null;
         this.currentProfessionalId = null;
+        this.locationSchedules = window.locationSchedules || {};
         this.initializeEventListeners();
         this.createFormModal();
     }
@@ -105,11 +106,18 @@ class SpecialSchedulesManager {
         }
     }
 
-    generateHourOptions() {
+    // Modificar el método generateHourOptions para aceptar parámetros de filtro
+    generateHourOptions(minHour = 0, maxHour = 23, includeEmptyOption = true) {
         let options = '';
-        for (let i = 0; i <= 23; i++) {
-            const hour = i.toString().padStart(2, '0');
-            options += `<option value="${hour}">${hour}</option>`;
+        
+        // Solo incluir opción vacía si se especifica y no hay filtros específicos
+        if (includeEmptyOption && minHour === 0 && maxHour === 23) {
+            options = '<option value="">Seleccionar hora</option>';
+        }
+        
+        for (let hour = minHour; hour <= maxHour; hour++) {
+            const hourStr = hour.toString().padStart(2, '0');
+            options += `<option value="${hourStr}">${hourStr}</option>`;
         }
         return options;
     }
@@ -124,10 +132,71 @@ class SpecialSchedulesManager {
         return options;
     }
 
+    // Método para obtener horarios del location para un día específico
+    getLocationHoursForDate(dateString) {
+        const date = new Date(dateString);
+        const dayOfWeek = date.getDay(); // 0 = domingo, 1 = lunes, etc.
+        
+        const schedule = this.locationSchedules[dayOfWeek];
+        if (schedule) {
+            return {
+                minHour: schedule.minStartHour,
+                maxHour: schedule.maxEndHour
+            };
+        }
+        
+        // Si no hay horarios para ese día, usar rango completo
+        return { minHour: 0, maxHour: 23 };
+    }
+
+    // Método simplificado para obtener horarios globales del location
+    getLocationHours() {
+        if (window.globalLocationHours) {
+            return {
+                minHour: window.globalLocationHours.minHour,
+                maxHour: window.globalLocationHours.maxHour
+            };
+        }
+        
+        // Valores por defecto si no hay configuración
+        return { minHour: 8, maxHour: 18 };
+    }
+
+    // Método para actualizar las opciones de horas (simplificado)
+    updateHourOptions() {
+        const locationHours = this.getLocationHours();
+        
+        // Actualizar opciones de hora desde
+        const horaDesdeHour = document.getElementById('horaDesdeHour');
+        if (horaDesdeHour) {
+            horaDesdeHour.innerHTML = this.generateHourOptions(locationHours.minHour, locationHours.maxHour, false);
+            // Seleccionar el primer valor por defecto (minHour)
+            horaDesdeHour.value = locationHours.minHour.toString().padStart(2, '0');
+        }
+        
+        // Actualizar opciones de hora hasta
+        const horaHastaHour = document.getElementById('horaHastaHour');
+        if (horaHastaHour) {
+            horaHastaHour.innerHTML = this.generateHourOptions(locationHours.minHour, locationHours.maxHour, false);
+            // Seleccionar el último valor por defecto (maxHour)
+            horaHastaHour.value = locationHours.maxHour.toString().padStart(2, '0');
+        }
+    }
+
     initializeFormEvents() {
         const form = document.getElementById('specialScheduleFormElement');
         if (form) {
             form.addEventListener('submit', (e) => this.handleFormSubmit(e));
+        }
+
+        // Evento para actualizar horas cuando cambia la fecha (simplificado)
+        const fechaInput = document.getElementById('fecha');
+        if (fechaInput) {
+            fechaInput.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    this.updateHourOptions(); // Ya no necesita la fecha como parámetro
+                }
+            });
         }
 
         // Evento cuando se cierra el modal del formulario
@@ -231,6 +300,8 @@ class SpecialSchedulesManager {
         // Llenar datos si es edición
         if (scheduleData) {
             document.getElementById('fecha').value = scheduleData.fecha;
+            // Actualizar opciones de horas antes de establecer valores
+            this.updateHourOptions();
             document.getElementById('horaDesdeHour').value = scheduleData.horaDesde.split(':')[0];
             document.getElementById('horaDesdeMinute').value = scheduleData.horaDesde.split(':')[1];
             document.getElementById('horaHastaHour').value = scheduleData.horaHasta.split(':')[0];
@@ -239,6 +310,17 @@ class SpecialSchedulesManager {
             // Limpiar formulario
             document.getElementById('specialScheduleFormElement').reset();
             document.getElementById('professionalId').value = this.currentProfessionalId;
+            
+            // Establecer fecha de hoy como predeterminada
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('fecha').value = today;
+            
+            // Actualizar opciones de horas y establecer valores por defecto
+            this.updateHourOptions();
+            
+            // Los minutos también pueden tener valores por defecto
+            document.getElementById('horaDesdeMinute').value = '00';
+            document.getElementById('horaHastaMinute').value = '00';
         }
         
         // Mostrar modal
@@ -316,10 +398,18 @@ class SpecialSchedulesManager {
                 body: JSON.stringify(data)
             });
     
-            if (!response.ok) {
-                throw new Error('Error al guardar la jornada especial');
+            // Procesar la respuesta JSON
+            const result = await response.json();
+            
+            if (!result.success) {
+                // Mostrar el mensaje específico del servidor
+                alert(result.message || 'Error al guardar la jornada especial');
+                return;
             }
     
+            // Mostrar mensaje de éxito
+            alert(result.message || 'Jornada especial guardada exitosamente');
+            
             // Cerrar modal del formulario
             this.formModal.hide();
             
@@ -327,7 +417,7 @@ class SpecialSchedulesManager {
             
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al guardar la jornada especial');
+            alert('Error de conexión al guardar la jornada especial');
         }
     }
 }

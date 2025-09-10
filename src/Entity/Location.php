@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\Common\Collections\ArrayCollection;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'locations')]
@@ -66,10 +68,14 @@ class Location
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $updatedAt;
 
+    #[ORM\OneToMany(mappedBy: 'location', targetEntity: LocationAvailability::class, cascade: ['persist', 'remove'])]
+    private Collection $availabilities;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
+        $this->availabilities = new ArrayCollection();
     }
 
     // Getters y Setters
@@ -182,4 +188,67 @@ class Location
         return $this;
     }
 
+    /**
+     * @return Collection<int, LocationAvailability>
+     */
+    public function getAvailabilities(): Collection
+    {
+        return $this->availabilities;
+    }
+
+    public function addAvailability(LocationAvailability $availability): self
+    {
+        if (!$this->availabilities->contains($availability)) {
+            $this->availabilities->add($availability);
+            $availability->setLocation($this);
+        }
+        return $this;
+    }
+
+    public function removeAvailability(LocationAvailability $availability): self
+    {
+        if ($this->availabilities->removeElement($availability)) {
+            // No llamar a setLocation(null) ya que no acepta null
+            // La relación se manejará automáticamente por Doctrine
+        }
+        return $this;
+    }
+
+    /**
+     * Obtiene las disponibilidades para un día específico
+     */
+    public function getAvailabilitiesForWeekDay(int $weekDay): Collection
+    {
+        return $this->availabilities->filter(
+            fn(LocationAvailability $availability) => $availability->getWeekDay() === $weekDay
+        );
+    }
+
+    /**
+     * Verifica si la ubicación está disponible en un día y hora específicos
+     */
+    public function isAvailableAt(int $weekDay, \DateTimeInterface $time): bool
+    {
+        $dayAvailabilities = $this->getAvailabilitiesForWeekDay($weekDay);
+        
+        foreach ($dayAvailabilities as $availability) {
+            if ($availability->isTimeInRange($time)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Obtiene todos los horarios formateados para mostrar
+     */
+    public function getFormattedSchedules(): array
+    {
+        $schedules = [];
+        foreach ($this->availabilities as $availability) {
+            $schedules[] = $availability->getFormattedSchedule();
+        }
+        return $schedules;
+    }
 }

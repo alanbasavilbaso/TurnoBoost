@@ -351,7 +351,7 @@ class AgendaManager {
         const calendarEl = document.getElementById('calendar');
         
         // Cargar configuración de horarios de negocio
-        const businessHoursConfig = await this.loadBusinessHours();
+        const businessHoursConfig = await this.loadBusinessHours(false, { date: this.currentDate });
         
         this.calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'timeGridWeek',
@@ -445,7 +445,7 @@ class AgendaManager {
         });
         
         // Generar slots de tiempo
-        const businessHours = await this.loadBusinessHours();
+        const businessHours = await this.loadBusinessHours(false, { date: this.currentDate });
         const startTime = this.parseTime(businessHours.startTime);
         const endTime = this.parseTime(businessHours.endTime);
         const slotDuration = this.timeInterval || 30; // Usar timeInterval dinámico
@@ -704,8 +704,8 @@ class AgendaManager {
         const offsetFromBusinessStart = visibleStartMinutes - businessStartTime;
         const visibleDurationMinutes = visibleEndMinutes - visibleStartMinutes;
         
-        const topPosition = (offsetFromBusinessStart / slotDuration) * 35; // 35px por slot
-        const height = Math.max((visibleDurationMinutes / slotDuration) * 35, 15); // Mínimo 15px de altura
+        const topPosition = (offsetFromBusinessStart / slotDuration) * 36; // 35px por slot
+        const height = Math.max((visibleDurationMinutes / slotDuration) * 35 + 2, 15); // Mínimo 15px de altura
         
         // Crear elemento del bloque
         const blockElement = document.createElement('div');
@@ -783,7 +783,7 @@ class AgendaManager {
         return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
     }
 
-    async loadBusinessHours(forceReload = false) {
+    async loadBusinessHours(forceReload = false, dateParams = null) {
         // Si tenemos cache y no se fuerza la recarga, usar cache
         if (this.businessHoursCache && !forceReload) {
             return this.businessHoursCache;
@@ -802,6 +802,32 @@ class AgendaManager {
                 selectedProfessionals.forEach(id => {
                     params.append('professionalIds[]', id);
                 });
+            }
+            
+            // Agregar parámetros de fecha si se proporcionan
+            if (dateParams) {
+                // Formatear fecha a yyyy-mm-dd
+                if (dateParams.date) {
+                    const date = new Date(dateParams.date);
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const year = date.getFullYear();
+                    params.append('date', `${year}-${month}-${day}`);
+                }
+                if (dateParams.startDate) {
+                    const startDate = new Date(dateParams.startDate);
+                    const day = String(startDate.getDate()).padStart(2, '0');
+                    const month = String(startDate.getMonth() + 1).padStart(2, '0');
+                    const year = startDate.getFullYear();
+                    params.append('startDate', `${year}-${month}-${day}`);
+                }
+                if (dateParams.endDate) {
+                    const endDate = new Date(dateParams.endDate);
+                    const day = String(endDate.getDate()).padStart(2, '0');
+                    const month = String(endDate.getMonth() + 1).padStart(2, '0');
+                    const year = endDate.getFullYear();
+                    params.append('endDate', `${year}-${month}-${day}`);
+                }
             }
             
             const url = `/agenda/business-hours?${params.toString()}`;
@@ -2911,7 +2937,7 @@ class AgendaManager {
             
             if (this.calendar) {
                 // Actualizar horarios de negocio en FullCalendar
-                const businessHours = await this.loadBusinessHours();
+                const businessHours = await this.loadBusinessHours(false, { date: this.currentDate });
                 this.calendar.setOption('slotMinTime', businessHours.slotMinTime);
                 this.calendar.setOption('slotMaxTime', businessHours.slotMaxTime);
                 this.calendar.setOption('slotDuration', businessHours.slotDuration);

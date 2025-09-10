@@ -220,18 +220,8 @@ Seguridad:
 
 
 
+cambio de un dia de location, deberia dejar y mostrar un modal.
+title -> El horario de los profesionales se actualizó al nuevo horario del local
+message -> Se ha cerrado un día en el horario del local, lo que ha afectado automáticamente los horarios de los profesionales asociados. Si decides revertir este cambio, recuerda actualizar manualmente los horarios individuales de los profesionales. 
 
-
-    ->add('domain', TextType::class, [
-        'label' => 'Dominio de Reservas',
-        'help' => 'URL única para que tus clientes reserven turnos online. Solo letras minúsculas, números y guiones. Ejemplo: www.turnoboost.com/mi-centro-belleza',
-        'attr' => [
-            'class' => 'form-control',
-            'placeholder' => 'mi-centro-belleza',
-            'pattern' => '[a-z0-9\\-]+',
-            'title' => 'Solo letras minúsculas, números y guiones'
-        ],
-        'help_attr' => [
-            'class' => 'form-text text-muted'
-        ]
-    ])
+y eso deberia aplicar a professional

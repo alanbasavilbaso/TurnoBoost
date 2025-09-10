@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Professional;
 use App\Entity\ProfessionalAvailability;
 use App\Entity\SpecialSchedule;
+use App\Entity\Location;
 use App\Form\ProfessionalType;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
@@ -16,6 +17,8 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\HttpFoundation\JsonResponse;
+
 
 #[Route('/profesionales')]
 #[IsGranted('ROLE_ADMIN')]
@@ -31,7 +34,7 @@ class ProfessionalController extends AbstractController
     }
 
     #[Route('/', name: 'app_professional_index', methods: ['GET'])]
-    public function index(ProfessionalRepository $professionalRepository): Response
+    public function index(ProfessionalRepository $professionalRepository, EntityManagerInterface $entityManager): Response
     {
         $user = $this->getUser();
         $company = $user->getCompany();
@@ -47,6 +50,50 @@ class ProfessionalController extends AbstractController
             'active' => true
         ]);
         
+        // Obtener el location activo de la empresa
+        $activeLocation = $entityManager->getRepository(Location::class)
+            ->findOneBy(['company' => $company, 'active' => true]);
+        
+        // Preparar horarios del location por día
+        $globalMinHour = null;
+        $globalMaxHour = null;
+        
+        if ($activeLocation) {
+            for ($day = 0; $day <= 6; $day++) {
+                $locationAvailabilities = $activeLocation->getAvailabilitiesForWeekDay($day);
+                
+                if (!$locationAvailabilities->isEmpty()) {
+                    $minStartTime = null;
+                    $maxEndTime = null;
+                    
+                    foreach ($locationAvailabilities as $availability) {
+                        $startTime = $availability->getStartTime();
+                        $endTime = $availability->getEndTime();
+                        
+                        if ($minStartTime === null || $startTime < $minStartTime) {
+                            $minStartTime = $startTime;
+                        }
+                        
+                        if ($maxEndTime === null || $endTime > $maxEndTime) {
+                            $maxEndTime = $endTime;
+                        }
+                    }
+                    
+                    $dayMinHour = (int)$minStartTime->format('H');
+                    $dayMaxHour = (int)$maxEndTime->format('H');
+                    
+                    // Actualizar mínimos y máximos globales
+                    if ($globalMinHour === null || $dayMinHour < $globalMinHour) {
+                        $globalMinHour = $dayMinHour;
+                    }
+                    
+                    if ($globalMaxHour === null || $dayMaxHour > $globalMaxHour) {
+                        $globalMaxHour = $dayMaxHour;
+                    }
+                }
+            }
+        }
+    
         // Preparar horarios para cada profesional
         $professionalsWithSchedules = [];
         $dayNames = ['Lun', 'Mar', 'Mier', 'Jue', 'Vier', 'Sab', 'Dom'];
@@ -78,7 +125,9 @@ class ProfessionalController extends AbstractController
     
         return $this->render('professional/index.html.twig', [
             'professionals' => $professionalsWithSchedules,
-            'company' => $company
+            'company' => $company,
+            'globalMinHour' => $globalMinHour,
+            'globalMaxHour' => $globalMaxHour
         ]);
     }
 
@@ -463,20 +512,82 @@ class ProfessionalController extends AbstractController
         $data = json_decode($request->getContent(), true);
         
         try {
+            // Obtener el location activo de la empresa
+            $company = $professional->getCompany();
+            $activeLocation = $entityManager->getRepository(Location::class)
+                ->findOneBy(['company' => $company, 'active' => true]);
+                
+            if (!$activeLocation) {
+                return new Response('No se encontró un local activo para validar los horarios.', 400);
+            }
+            
+            // Crear las fechas/horas para validación
+            $fecha = new \DateTime($data['fecha']);
+            $horaDesde = new \DateTime($data['horaDesde']);
+            $horaHasta = new \DateTime($data['horaHasta']);
+            
+            // Obtener el día de la semana (0=Lunes, 1=Martes, etc.)
+            $weekDay = (int)$fecha->format('N') - 1; // format('N') devuelve 1-7, necesitamos 0-6
+            
+            // Obtener los horarios del location para ese día
+            $locationAvailabilities = $activeLocation->getAvailabilitiesForWeekDay($weekDay);
+            
+            if ($locationAvailabilities->isEmpty()) {
+                return new Response('El local no tiene horarios configurados para el día ' . $fecha->format('l') . '.', 400);
+            }
+            
+            // Calcular el rango mínimo y máximo de horarios del location para ese día
+            $minStartTime = null;
+            $maxEndTime = null;
+            
+            foreach ($locationAvailabilities as $availability) {
+                $startTime = $availability->getStartTime();
+                $endTime = $availability->getEndTime();
+                
+                if ($minStartTime === null || $startTime < $minStartTime) {
+                    $minStartTime = $startTime;
+                }
+                
+                if ($maxEndTime === null || $endTime > $maxEndTime) {
+                    $maxEndTime = $endTime;
+                }
+            }
+            
+            // Validar que el horario especial esté dentro del rango del location
+            $horaDesdeTime = $horaDesde->format('H:i:s');
+            $horaHastaTime = $horaHasta->format('H:i:s');
+            $minStartTimeStr = $minStartTime->format('H:i:s');
+            $maxEndTimeStr = $maxEndTime->format('H:i:s');
+            
+            if ($horaDesdeTime < $minStartTimeStr || $horaHastaTime > $maxEndTimeStr) {
+                $locationSchedule = $minStartTime->format('H:i') . ' - ' . $maxEndTime->format('H:i');
+                return new JsonResponse([
+                    'success' => false,
+                    'message' => "El horario especial debe estar dentro del horario del local: {$locationSchedule}."
+                ], 400);
+            }
+            
+            // Si llegamos aquí, el horario es válido, crear la jornada especial
             $specialSchedule = new SpecialSchedule();
             $specialSchedule->setProfessional($professional);
-            $specialSchedule->setFecha(new \DateTime($data['fecha']));
-            $specialSchedule->setHoraDesde(new \DateTime($data['horaDesde']));
-            $specialSchedule->setHoraHasta(new \DateTime($data['horaHasta']));
+            $specialSchedule->setFecha($fecha);
+            $specialSchedule->setHoraDesde($horaDesde);
+            $specialSchedule->setHoraHasta($horaHasta);
             $specialSchedule->setUsuario($this->getUser());
             
             $entityManager->persist($specialSchedule);
             $entityManager->flush();
             
-            return new Response('Jornada especial creada exitosamente', 200);
+            return new JsonResponse([
+                'success' => true,
+                'message' => 'Jornada especial creada exitosamente'
+            ], 200);
             
         } catch (\Exception $e) {
-            return new Response('Error al crear la jornada especial: ' . $e->getMessage(), 500);
+            return new JsonResponse([
+                'success' => false,
+                'message' => 'Error al crear la jornada especial: ' . $e->getMessage()
+            ], 500);
         }
     }
 

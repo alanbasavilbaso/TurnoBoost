@@ -1,47 +1,67 @@
-<form method="post" action="{{ path(is_edit ? 'location_edit' : 'location_new', is_edit ? {'id': location.id} : {}) }}">
-    {{ form_start(form, {'render_rest': false}) }}
+<div class="location-form">
+    {{ form_start(form, {'attr': {'class': 'needs-validation', 'novalidate': true}}) }}
     
-    {% if form.vars.errors|length > 0 %}
-        <div class="alert alert-danger">
-            <h6><i class="fas fa-exclamation-triangle"></i> Por favor corrige los siguientes errores:</h6>
-            {{ form_errors(form) }}
+    <!-- Campos básicos del formulario -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            {{ form_row(form.name, {'attr': {'class': 'form-control'}}) }}
         </div>
-    {% endif %}
-
-    <div class="mb-3">
-        {{ form_label(form.name, null, {'label_attr': {'class': 'form-label fw-bold'}}) }}
-        {{ form_widget(form.name, {'attr': {'class': 'form-control', 'id': 'location_name'}}) }}
-        {{ form_errors(form.name) }}
+        <div class="col-md-6">
+            {{ form_row(form.phone, {'attr': {'class': 'form-control'}}) }}
+        </div>
     </div>
-
-    <div class="row">
-        <div class="col-md-6 mb-3">
-            {{ form_label(form.phone, null, {'label_attr': {'class': 'form-label fw-bold'}}) }}
-            {{ form_widget(form.phone, {'attr': {'class': 'form-control'}}) }}
-            {{ form_errors(form.phone) }}
+    
+    <div class="row mb-3">
+        <div class="col-md-6">
+            {{ form_row(form.email, {'attr': {'class': 'form-control'}}) }}
         </div>
-        <div class="col-md-6 mb-3">
-            {{ form_label(form.email, null, {'label_attr': {'class': 'form-label fw-bold'}}) }}
-            {{ form_widget(form.email, {'attr': {'class': 'form-control'}}) }}
-            {{ form_errors(form.email) }}
+        <div class="col-md-6">
+            {{ form_row(form.address, {'attr': {'class': 'form-control'}}) }}
         </div>
     </div>
 
-    <div class="mb-3">
-        {{ form_label(form.address, null, {'label_attr': {'class': 'form-label fw-bold'}}) }}
-        {{ form_widget(form.address, {'attr': {'class': 'form-control', 'rows': '3'}}) }}
-        {{ form_errors(form.address) }}
+    <!-- Sección de horarios -->
+    <div class="schedule-container">
+        <h5 class="mb-3">
+            <i class="fas fa-clock me-2"></i>Horarios de Atención
+        </h5>
+        
+        {% set days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] %}
+        
+        {% for dayNumber in 0..6 %}
+            <div class="schedule-row row align-items-center mb-2">
+                <div class="col-md-2">
+                    <div class="form-check">
+                        {{ form_widget(attribute(form, 'day_' ~ dayNumber ~ '_enabled')) }}
+                        {{ form_label(attribute(form, 'day_' ~ dayNumber ~ '_enabled'), days[dayNumber]) }}
+                    </div>
+                </div>
+                
+                <div class="col-md-10">
+                    <div class="time-inputs">
+                        <div class="d-flex align-items-center gap-2">
+                            {{ form_widget(attribute(form, 'day_' ~ dayNumber ~ '_start_hour')) }}
+                            <span>:</span>
+                            {{ form_widget(attribute(form, 'day_' ~ dayNumber ~ '_start_minute')) }}
+                            <span class="time-separator mx-2">a</span>
+                            {{ form_widget(attribute(form, 'day_' ~ dayNumber ~ '_end_hour')) }}
+                            <span>:</span>
+                            {{ form_widget(attribute(form, 'day_' ~ dayNumber ~ '_end_minute')) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
     </div>
 
-    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-        <button type="button" class="btn btn-secondary me-md-2" data-bs-dismiss="modal">
-            <i class="fas fa-times"></i> Cancelar
-        </button>
+    <div class="mt-4">
         <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save"></i> {{ is_edit ? 'Actualizar' : 'Guardar' }} Ubicación
+            <i class="fas fa-save me-2"></i>{{ is_edit ? 'Actualizar' : 'Crear' }} Local
         </button>
+        <a href="{{ path('location_index') }}" class="btn btn-secondary ms-2">
+            <i class="fas fa-times me-2"></i>Cancelar
+        </a>
     </div>
-
-    {{ form_rest(form) }}
-    {{ form_end(form, {'render_rest': false}) }}
-</form>
+    
+    {{ form_end(form) }}
+</div>

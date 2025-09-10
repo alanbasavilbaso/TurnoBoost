@@ -170,7 +170,10 @@
                                                             </li>
                                                             <li>
                                                                 <button type="button" class="dropdown-item enable-special-hours-btn"
-                                                                        data-professional-id="{{ professional.id }}">
+                                                                        data-professional-id="{{ professional.id }}"
+                                                                        title="Habilita una jornada especial, cuando de forma excepcional, quieres abrir un día en el que normalmente no atiende"
+                                                                        data-bs-toggle="tooltip"
+                                                                        data-bs-placement="top">
                                                                     <i class="fas fa-calendar-plus me-2"></i>Habilitar jornada especial
                                                                 </button>
                                                             </li>
@@ -243,6 +246,21 @@
 {% block javascripts %}
     {{ parent() }}
     <script src="{{ asset('scripts/special-schedules.js') }}"></script>
+    <script>
+        // Pasar datos del location al JavaScript
+        window.globalLocationHours = {
+            minHour: {{ globalMinHour }},
+            maxHour: {{ globalMaxHour }}
+        };
+        
+        // Inicializar tooltips
+        document.addEventListener('DOMContentLoaded', function() {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
+    </script>
     <script src="{{ asset('scripts/professional-table.js') }}"></script>
     <script src="{{ asset('scripts/professional-modal.js') }}"></script>
     <script src="{{ asset('scripts/professional-form.js') }}"></script>

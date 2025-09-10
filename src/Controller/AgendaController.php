@@ -199,52 +199,43 @@ class AgendaController extends AbstractController
         // Obtener parámetros de filtro
         $professionalIds = $request->query->all('professionalIds');
         $serviceId = $request->query->get('service_id');
-        $locationId = $request->query->get('location_id');
+        $locationId = $request->query->get('locationId');
 
-        // CONSULTA SIMPLIFICADA - sin subconsultas problemáticas
+        // Verificar que se proporcione un locationId
+        if (!$locationId) {
+            return new JsonResponse(['error' => 'Se requiere un locationId'], 400);
+        }
+
+        // Obtener el location y verificar que pertenezca a la empresa
+        $location = $this->entityManager->getRepository('App\Entity\Location')
+            ->findOneBy(['id' => $locationId, 'company' => $company]);
+        
+        if (!$location) {
+            return new JsonResponse(['error' => 'Location no encontrado o no pertenece a la empresa'], 404);
+        }
+
+        // Obtener los horarios del location desde location_availability
         $queryBuilder = $this->entityManager->createQueryBuilder()
             ->select([
-                'pa.weekday',
-                'MIN(pa.startTime) as minStartTime',
-                'MAX(pa.endTime) as maxEndTime'
+                'la.weekDay',
+                'MIN(la.startTime) as minStartTime',
+                'MAX(la.endTime) as maxEndTime'
             ])
-            ->from('App\Entity\ProfessionalAvailability', 'pa')
-            ->join('pa.professional', 'p')
-            ->where('p.company = :company')
-            ->andWhere('p.active = true')
-            ->setParameter('company', $company);
-
-        // Aplicar filtros
-        if (!empty($professionalIds)) {
-            $queryBuilder->andWhere('p.id IN (:professionalIds)')
-                        ->setParameter('professionalIds', $professionalIds);
-        }
-
-        if ($serviceId) {
-            $queryBuilder->join('p.professionalServices', 'ps')
-                        ->join('ps.service', 's')
-                        ->andWhere('s.id = :serviceId')
-                        ->setParameter('serviceId', $serviceId);
-        }
-        
-        if ($locationId) {
-            $queryBuilder->join('p.locations', 'l')
-                        ->andWhere('l.id = :locationId')
-                        ->setParameter('locationId', $locationId);
-        }
-
-        $queryBuilder->groupBy('pa.weekday')
-                    ->orderBy('pa.weekday', 'ASC');
+            ->from('App\Entity\LocationAvailability', 'la')
+            ->where('la.location = :location')
+            ->setParameter('location', $location)
+            ->groupBy('la.weekDay')
+            ->orderBy('la.weekDay', 'ASC');
 
         $results = $queryBuilder->getQuery()->getResult();
         
-        // Calcular valores globales a partir de los resultados filtrados
+        // Calcular valores globales a partir de los resultados
         $workingDays = [];
         $allStartTimes = [];
         $allEndTimes = [];
         
         foreach ($results as $result) {
-            $workingDays[] = $result['weekday'];
+            $workingDays[] = $result['weekDay'];
             $allStartTimes[] = $result['minStartTime'];
             $allEndTimes[] = $result['maxEndTime'];
         }
@@ -255,7 +246,6 @@ class AgendaController extends AbstractController
         
         // Calcular días que NO trabajan
         $allDays = [0, 1, 2, 3, 4, 5, 6]; // 0=Lunes, 1=Martes, ..., 6=Domingo (BD format)
-        $nonWorkingDays = array_diff($allDays, $workingDays);
         
         // Convertir días de trabajo a formato FullCalendar (0=Domingo, 1=Lunes, ..., 6=Sábado)
         $daysOfWeek = array_map(function($day) {
@@ -263,16 +253,10 @@ class AgendaController extends AbstractController
             return ($day + 1) % 7; // 0->1, 1->2, ..., 5->6, 6->0
         }, $workingDays);
         
-        // Convertir días NO laborables a formato FullCalendar
-        $nonWorkingDaysFormatted = array_map(function($day) {
-            // Convertir de BD format (0=Lunes) a FullCalendar format (0=Domingo)
-            return ($day + 1) % 7; // 0->1, 1->2, ..., 5->6, 6->0
-        }, array_values($nonWorkingDays));
 
         // Si no hay días disponibles, usar configuración por defecto
         if (empty($daysOfWeek)) {
             $daysOfWeek = [1, 2, 3, 4, 5, 6]; // Lunes a Sábado en formato FullCalendar
-            $nonWorkingDaysFormatted = [0]; // Solo domingo no laborable en formato FullCalendar
         }
 
         // Formatear horarios - usar el rango COMPLETO (mínimo y máximo)
@@ -281,7 +265,6 @@ class AgendaController extends AbstractController
 
         return new JsonResponse([
             'daysOfWeek' => array_unique($daysOfWeek),
-            'nonWorkingDays' => array_unique($nonWorkingDaysFormatted),
             'startTime' => $startTime,
             'endTime' => $endTime,
             'slotMinTime' => $startTime . ':00',
@@ -1448,7 +1431,7 @@ class AgendaController extends AbstractController
     }
     
     /**
-     * Generar bloques no laborables para profesionales
+     * Generar bloques no laborables basados en horarios individuales de cada profesional
      */
     private function generateNonWorkingBlocks(array $professionalIds, \DateTime $startDate, \DateTime $endDate, $company): array
     {
@@ -1459,64 +1442,62 @@ class AgendaController extends AbstractController
             return $events;
         }
         
-        // Obtener horarios de los profesionales especificados
-        $queryBuilder = $this->entityManager->createQueryBuilder()
-            ->select('pa.weekday', 'pa.startTime', 'pa.endTime', 'p.id as professionalId', 'p.name as professionalName')
-            ->from('App\Entity\ProfessionalAvailability', 'pa')
-            ->join('pa.professional', 'p')
-            ->where('p.company = :company')
-            ->andWhere('p.active = true')
-            ->andWhere('p.id IN (:professionalIds)')
-            ->setParameter('company', $company)
-            ->setParameter('professionalIds', $professionalIds)
-            ->orderBy('p.id', 'ASC')
-            ->addOrderBy('pa.weekday', 'ASC')
-            ->addOrderBy('pa.startTime', 'ASC');
+        // Obtener el location de la empresa
+        $locationRepository = $this->entityManager->getRepository('App\\Entity\\Location');
+        $location = $locationRepository->findOneBy(['company' => $company, 'active' => true]);
+        
+        if (!$location) {
+            return $events;
+        }
+        
+        // Obtener horarios globales del location para definir el rango total
+        $locationQueryBuilder = $this->entityManager->createQueryBuilder()
+            ->select('MIN(la.startTime) as globalMinStart', 'MAX(la.endTime) as globalMaxEnd')
+            ->from('App\\Entity\\LocationAvailability', 'la')
+            ->where('la.location = :location')
+            ->setParameter('location', $location);
 
-        $availabilities = $queryBuilder->getQuery()->getResult();
+        $globalTimes = $locationQueryBuilder->getQuery()->getSingleResult();
+        $globalMinTimeStr = $globalTimes['globalMinStart'] ? $globalTimes['globalMinStart'] : '09:00:00';
+        $globalMaxTimeStr = $globalTimes['globalMaxEnd'] ? $globalTimes['globalMaxEnd'] : '20:00:00';
         
-        // Agrupar por profesional y día
+        // Obtener horarios individuales de cada profesional
+        $professionalRepository = $this->entityManager->getRepository('App\\Entity\\Professional');
+        $professionalNames = [];
         $professionalSchedules = [];
-        foreach ($availabilities as $availability) {
-            $profId = $availability['professionalId'];
-            $weekday = $availability['weekday'];
-            
-            if (!isset($professionalSchedules[$profId])) {
-                $professionalSchedules[$profId] = [
-                    'name' => $availability['professionalName'],
-                    'schedule' => []
-                ];
-            }
-            
-            if (!isset($professionalSchedules[$profId]['schedule'][$weekday])) {
-                $professionalSchedules[$profId]['schedule'][$weekday] = [];
-            }
-            
-            $professionalSchedules[$profId]['schedule'][$weekday][] = [
-                'start' => $availability['startTime'],
-                'end' => $availability['endTime']
-            ];
-        }
         
-        // Determinar rango global de horarios
-        $globalMinTime = null;
-        $globalMaxTime = null;
-        
-        foreach ($availabilities as $availability) {
-            $startTime = $availability['startTime'];
-            $endTime = $availability['endTime'];
-            
-            if ($globalMinTime === null || $startTime < $globalMinTime) {
-                $globalMinTime = $startTime;
-            }
-            if ($globalMaxTime === null || $endTime > $globalMaxTime) {
-                $globalMaxTime = $endTime;
+        foreach ($professionalIds as $profId) {
+            $professional = $professionalRepository->find($profId);
+            if ($professional && $professional->getCompany() === $company && $professional->isActive()) {
+                $professionalNames[$profId] = $professional->getName();
+                
+                // Obtener horarios del profesional desde professional_availability
+                $profQueryBuilder = $this->entityManager->createQueryBuilder()
+                    ->select('pa.weekday', 'pa.startTime', 'pa.endTime')
+                    ->from('App\\Entity\\ProfessionalAvailability', 'pa')
+                    ->where('pa.professional = :professional')
+                    ->setParameter('professional', $professional)
+                    ->orderBy('pa.weekday', 'ASC')
+                    ->addOrderBy('pa.startTime', 'ASC');
+
+                $availabilities = $profQueryBuilder->getQuery()->getResult();
+                
+                // Agrupar horarios por día de la semana
+                $schedule = [];
+                foreach ($availabilities as $availability) {
+                    $weekDay = $availability['weekday']; // Corregido: weekDay en lugar de weekday
+                    if (!isset($schedule[$weekDay])) {
+                        $schedule[$weekDay] = [];
+                    }
+                    $schedule[$weekDay][] = [
+                        'start' => $availability['startTime'],
+                        'end' => $availability['endTime']
+                    ];
+                }
+                
+                $professionalSchedules[$profId] = $schedule;
             }
         }
-        
-        // Convertir a string solo después de encontrar los valores mínimo y máximo
-        $globalMinTimeStr = $globalMinTime ? $globalMinTime->format('H:i:s') : '08:00:00';
-        $globalMaxTimeStr = $globalMaxTime ? $globalMaxTime->format('H:i:s') : '20:00:00';
         
         // Generar bloques no laborables para cada día en el rango
         $current = clone $startDate;
@@ -1525,24 +1506,27 @@ class AgendaController extends AbstractController
             $phpDayOfWeek = (int)$current->format('w'); // 0=Domingo, 6=Sábado
             $dbDayOfWeek = ($phpDayOfWeek + 6) % 7; // Convertir a 0=Lunes, 6=Domingo
             
-            foreach ($professionalSchedules as $profId => $profData) {
-                $daySchedule = $profData['schedule'][$dbDayOfWeek] ?? [];
+            // Generar bloques para cada profesional seleccionado
+            foreach ($professionalIds as $profId) {
+                $profName = $professionalNames[$profId] ?? 'Profesional ' . $profId;
+                $profSchedule = $professionalSchedules[$profId] ?? [];
+                $daySchedule = $profSchedule[$dbDayOfWeek] ?? [];
                 
                 if (empty($daySchedule)) {
                     // Profesional no trabaja este día - crear bloque completo
                     $events[] = $this->createNonWorkingBlockEvent(
                         $profId,
-                        $profData['name'],
+                        $profName,
                         $current,
                         $globalMinTimeStr,
                         $globalMaxTimeStr,
                         'Día no laborable'
                     );
                 } else {
-                    // Crear bloques para horas no laborables
+                    // Crear bloques para horas no laborables según horarios del profesional
                     $events = array_merge($events, $this->createNonWorkingHoursForDay(
                         $profId,
-                        $profData['name'],
+                        $profName,
                         $current,
                         $daySchedule,
                         $globalMinTimeStr,
@@ -1566,21 +1550,24 @@ class AgendaController extends AbstractController
         
         // Ordenar horarios por hora de inicio
         usort($daySchedule, function($a, $b) {
-            return strcmp($a['start'], $b['start']);
+            return $a['start'] <=> $b['start'];
         });
         
-        $globalMinTime = new \DateTime($globalMin);
-        $globalMaxTime = new \DateTime($globalMax);
+        // Convertir strings a DateTime para comparación
+        $globalMinTime = \DateTime::createFromFormat('H:i:s', $globalMin);
+        $globalMaxTime = \DateTime::createFromFormat('H:i:s', $globalMax);
         
         // Bloque antes del primer horario laboral
-        $firstStart = $daySchedule[0]['start']; // Ya es DateTime
-        if ($firstStart > $globalMinTime) {
+        $firstStart = $daySchedule[0]['start']; // Es un objeto DateTime
+        $firstStartTime = \DateTime::createFromFormat('H:i:s', $firstStart->format('H:i:s'));
+        
+        if ($firstStartTime > $globalMinTime) {
             $events[] = $this->createNonWorkingBlockEvent(
                 $profId,
                 $profName,
                 $date,
                 $globalMin,
-                $daySchedule[0]['start']->format('H:i:s'), // Convertir a string aquí
+                $firstStart->format('H:i:s'),
                 'Fuera de horario'
             );
         }
@@ -1590,26 +1577,31 @@ class AgendaController extends AbstractController
             $currentEnd = $daySchedule[$i]['end'];
             $nextStart = $daySchedule[$i + 1]['start'];
             
-            if ($currentEnd < $nextStart) {
+            $currentEndTime = \DateTime::createFromFormat('H:i:s', $currentEnd->format('H:i:s'));
+            $nextStartTime = \DateTime::createFromFormat('H:i:s', $nextStart->format('H:i:s'));
+            
+            if ($currentEndTime < $nextStartTime) {
                 $events[] = $this->createNonWorkingBlockEvent(
                     $profId,
                     $profName,
                     $date,
-                    $currentEnd,
-                    $nextStart,
+                    $currentEnd->format('H:i:s'),
+                    $nextStart->format('H:i:s'),
                     'Descanso'
                 );
             }
         }
         
         // Bloque después del último horario laboral
-        $lastEnd = $daySchedule[count($daySchedule) - 1]['end']; // Ya es DateTime
-        if ($lastEnd < $globalMaxTime) {
+        $lastEnd = $daySchedule[count($daySchedule) - 1]['end'];
+        $lastEndTime = \DateTime::createFromFormat('H:i:s', $lastEnd->format('H:i:s'));
+        
+        if ($lastEndTime < $globalMaxTime) {
             $events[] = $this->createNonWorkingBlockEvent(
                 $profId,
                 $profName,
                 $date,
-                $daySchedule[count($daySchedule) - 1]['end']->format('H:i:s'), // Convertir a string aquí
+                $lastEnd->format('H:i:s'),
                 $globalMax,
                 'Fuera de horario'
             );

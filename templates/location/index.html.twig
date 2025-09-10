@@ -5,6 +5,7 @@
 {% block stylesheets %}
     {{ parent() }}
     <link href="{{ asset('styles/location.css') }}" rel="stylesheet">
+    <link href="{{ asset('styles/location-form.css') }}" rel="stylesheet">
 {% endblock %}
 
 {% block body %}
@@ -173,4 +174,5 @@
     {{ parent() }}
     <script src="{{ asset('scripts/location-index.js') }}"></script>
     <script src="{{ asset('scripts/location-modal.js') }}"></script>
+    <script src="{{ asset('scripts/location-form.js') }}"></script>
 {% endblock %}
