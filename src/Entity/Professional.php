@@ -276,11 +276,10 @@ class Professional
     public function removeAvailability(ProfessionalAvailability $availability): self
     {
         if ($this->availabilities->removeElement($availability)) {
-            if ($availability->getProfessional() === $this) {
-                $availability->setProfessional(null);
-            }
+            // Solo verificar que la relación existe, no intentar setear null
+            // La relación se rompe automáticamente al remover del collection
         }
-
+    
         return $this;
     }
 

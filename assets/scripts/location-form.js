@@ -93,6 +93,10 @@ class LocationFormManager {
     }
 
     setMondayDefault() {
+        // Obtener el valor de is_edit
+        const isEdit = document.getElementById('is_edit').value === '1';
+        if (isEdit) return;
+        
         // Solo en modo "new" (cuando no hay datos existentes)
         const isNewForm = typeof window.locationExistingSchedules === 'undefined' || Object.keys(window.locationExistingSchedules).length === 0;
         if (isNewForm) {

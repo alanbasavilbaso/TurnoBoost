@@ -123,7 +123,8 @@ class LocationModalManager extends EntityModalManager {
         
         if (entityDeleteWarning) {
             entityDeleteWarning.innerHTML = `
-                Esta acción desactivará el local. Podrás reactivarlo más tarde si es necesario.
+                Esta acción desactivará el local. Podrás reactivarlo más tarde si es necesario.<br/>
+                Pero sin un local activo, no se podrán reservar turnos
             `;
         }
         

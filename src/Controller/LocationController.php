@@ -14,6 +14,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use App\Form\LocationType;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use App\Entity\LocationAvailability;
+use App\Entity\Professional;
+use App\Entity\Company;
 
 #[Route('/location')]
 #[IsGranted('ROLE_ADMIN')]
@@ -205,9 +207,36 @@ class LocationController extends AbstractController
     private function processAvailabilityData($form, Location $location, EntityManagerInterface $entityManager): void
     {
         // Validar que $location no sea null
-        // Para nuevas ubicaciones, no validamos el ID ya que aún no existe
         if (!$location) {
             throw new \InvalidArgumentException('Location object is null');
+        }
+        
+        // Obtener los días que estaban habilitados antes del cambio (solo para edición)
+        $previousEnabledDays = [];
+        if ($location->getId()) {
+            foreach ($location->getAvailabilities() as $availability) {
+                $previousEnabledDays[$availability->getWeekDay()] = true;
+            }
+        }
+        
+        // Obtener los días que están habilitados ahora
+        $currentEnabledDays = [];
+        for ($day = 0; $day <= 6; $day++) {
+            $enabledField = $form->get("day_{$day}_enabled");
+            $enabled = $enabledField->getData();
+            if ($enabled) {
+                $currentEnabledDays[$day] = true;
+            }
+        }
+        
+        // Detectar días que se deshabilitaron
+        $disabledDays = [];
+        if ($location->getId()) {
+            foreach ($previousEnabledDays as $day => $wasEnabled) {
+                if (!isset($currentEnabledDays[$day])) {
+                    $disabledDays[] = $day;
+                }
+            }
         }
         
         // Solo limpiar horarios existentes si es una edición (tiene ID)
@@ -267,6 +296,43 @@ class LocationController extends AbstractController
                     // Si hay error al crear el horario, continuar con el siguiente
                     continue;
                 }
+            }
+        }
+    
+        // Si se deshabilitaron días, actualizar profesionales y mostrar mensaje
+        if (!empty($disabledDays)) {
+            $this->updateProfessionalsForDisabledDays($location->getCompany(), $disabledDays, $entityManager);
+            
+            // Agregar mensaje informativo
+            $this->addFlash('info', 'Se ha cerrado un día en el horario del local, lo que ha afectado automáticamente los horarios de los profesionales asociados. Si decides revertir este cambio, recuerda actualizar manualmente los horarios individuales de los profesionales.');
+        }
+    }
+    
+    /**
+     * Actualiza los horarios de todos los profesionales de la empresa cuando se deshabilitan días en el local
+     */
+    private function updateProfessionalsForDisabledDays(Company $company, array $disabledDays, EntityManagerInterface $entityManager): void
+    {
+        // Obtener todos los profesionales activos de la empresa
+        $professionals = $entityManager->getRepository(Professional::class)
+            ->findBy([
+                'company' => $company,
+                'active' => true
+            ]);
+        
+        foreach ($professionals as $professional) {
+            // Eliminar las disponibilidades de los días deshabilitados
+            $availabilitiesToRemove = [];
+            foreach ($professional->getAvailabilities() as $availability) {
+                if (in_array($availability->getWeekday(), $disabledDays)) {
+                    $availabilitiesToRemove[] = $availability;
+                }
+            }
+            
+            // Remover las disponibilidades
+            foreach ($availabilitiesToRemove as $availability) {
+                $professional->removeAvailability($availability);
+                $entityManager->remove($availability);
             }
         }
     }

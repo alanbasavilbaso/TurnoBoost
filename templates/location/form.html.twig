@@ -1,6 +1,6 @@
 <div class="location-form">
     {{ form_start(form, {'attr': {'class': 'needs-validation', 'novalidate': true}}) }}
-    
+    <input type="hidden" id="is_edit" value="{{ is_edit ? 1 : 0 }}">
     <!-- Campos básicos del formulario -->
     <div class="row mb-3">
         <div class="col-md-6">
