@@ -27,7 +27,7 @@ class ProfessionalService
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2, nullable: true)]
     private ?string $customPrice = null;
 
-    // Campos para días de la semana disponibles (0=Lunes, 6=Domingo)
+    // Campos para días de la semana disponibles (1=Lunes, 0=Domingo)
     #[ORM\Column(type: 'boolean', options: ['default' => true])]
     private bool $availableMonday = true; // 0
 
@@ -237,22 +237,22 @@ class ProfessionalService
     
     /**
      * Verifica si el servicio está disponible en un día específico
-     * @param int $dayOfWeek Día de la semana (0=Lunes, 6=Domingo)
+     * @param int $dayOfWeek Día de la semana (1=Lunes, 0=Domingo)
      */
     public function isAvailableOnDay(int $dayOfWeek): bool
     {
         if ($dayOfWeek < 0 || $dayOfWeek > 6) {
-            throw new \InvalidArgumentException('Weekday must be between 0 (Monday) and 6 (Sunday)');
+            throw new \InvalidArgumentException('Weekday must be between 0 (Sunday) and 6 (Saturday)');
         }
         
         return match($dayOfWeek) {
-            0 => $this->availableMonday,
-            1 => $this->availableTuesday,
-            2 => $this->availableWednesday,
-            3 => $this->availableThursday,
-            4 => $this->availableFriday,
-            5 => $this->availableSaturday,
-            6 => $this->availableSunday,
+            1 => $this->availableMonday,
+            2 => $this->availableTuesday,
+            3 => $this->availableWednesday,
+            4 => $this->availableThursday,
+            5 => $this->availableFriday,
+            6 => $this->availableSaturday,
+            0 => $this->availableSunday,
         };
     }
 
@@ -262,13 +262,13 @@ class ProfessionalService
     public function getAvailableDays(): array
     {
         $days = [];
-        if ($this->availableMonday) $days[] = 0;
-        if ($this->availableTuesday) $days[] = 1;
-        if ($this->availableWednesday) $days[] = 2;
-        if ($this->availableThursday) $days[] = 3;
-        if ($this->availableFriday) $days[] = 4;
-        if ($this->availableSaturday) $days[] = 5;
-        if ($this->availableSunday) $days[] = 6;
+        if ($this->availableMonday) $days[] = 1;
+        if ($this->availableTuesday) $days[] = 2;
+        if ($this->availableWednesday) $days[] = 3;
+        if ($this->availableThursday) $days[] = 4;
+        if ($this->availableFriday) $days[] = 5;
+        if ($this->availableSaturday) $days[] = 6;
+        if ($this->availableSunday) $days[] = 0;
         return $days;
     }
 
@@ -278,13 +278,13 @@ class ProfessionalService
     public function getAvailableDayNames(): array
     {
         $dayNames = [
-            0 => 'Lunes',
-            1 => 'Martes', 
-            2 => 'Miércoles',
-            3 => 'Jueves',
-            4 => 'Viernes',
-            5 => 'Sábado',
-            6 => 'Domingo'
+            0 => 'Domingo',
+            1 => 'Lunes',
+            2 => 'Martes', 
+            3 => 'Miércoles',
+            4 => 'Jueves',
+            5 => 'Viernes',
+            6 => 'Sábado',
         ];
         
         $availableDays = $this->getAvailableDays();
@@ -293,23 +293,23 @@ class ProfessionalService
 
     /**
      * Establece la disponibilidad para un día específico
-     * @param int $dayOfWeek Día de la semana (0=Lunes, 6=Domingo)
+     * @param int $dayOfWeek Día de la semana (1=Lunes, 0=Domingo)
      * @param bool $available Si está disponible o no
      */
     public function setAvailabilityForDay(int $dayOfWeek, bool $available): static
     {
         if ($dayOfWeek < 0 || $dayOfWeek > 6) {
-            throw new \InvalidArgumentException('Weekday must be between 0 (Monday) and 6 (Sunday)');
+            throw new \InvalidArgumentException('Weekday must be between 0 (Sunday) and 6 (Saturday)');
         }
         
         match($dayOfWeek) {
-            0 => $this->availableMonday = $available,
-            1 => $this->availableTuesday = $available,
-            2 => $this->availableWednesday = $available,
-            3 => $this->availableThursday = $available,
-            4 => $this->availableFriday = $available,
-            5 => $this->availableSaturday = $available,
-            6 => $this->availableSunday = $available,
+            1 => $this->availableMonday = $available,
+            2 => $this->availableTuesday = $available,
+            3 => $this->availableWednesday = $available,
+            4 => $this->availableThursday = $available,
+            5 => $this->availableFriday = $available,
+            6 => $this->availableSaturday = $available,
+            0 => $this->availableSunday = $available,
         };
         return $this;
     }

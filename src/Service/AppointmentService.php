@@ -316,7 +316,7 @@ class AppointmentService
         \DateTime $endTime,
         Professional $professional
     ): void {
-        $dayOfWeek = (int)$scheduledAt->format('N') - 1; // 0=Lunes, 6=Domingo
+        $dayOfWeek = (int)$scheduledAt->format('N'); // 0=Domingo, 1=Lunes
         $availabilities = $professional->getAvailabilitiesForWeekday($dayOfWeek);
         
         $isWithinAvailability = false;

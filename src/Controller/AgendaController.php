@@ -1510,9 +1510,15 @@ class AgendaController extends AbstractController
             foreach ($professionalIds as $profId) {
                 $profName = $professionalNames[$profId] ?? 'Profesional ' . $profId;
                 $profSchedule = $professionalSchedules[$profId] ?? [];
-                $daySchedule = $profSchedule[$dbDayOfWeek] ?? [];
                 
-                if (empty($daySchedule)) {
+                // Obtener horarios específicos para esta fecha exacta
+                $daySchedules = $this->professionalRepository->getProfessionalSchedulesForDay(
+                    $this->professionalRepository->find($profId),
+                    $dbDayOfWeek,
+                    $current // Pasar la fecha específica para incluir horarios especiales
+                );
+                
+                if (empty($daySchedules)) {
                     // Profesional no trabaja este día - crear bloque completo
                     $events[] = $this->createNonWorkingBlockEvent(
                         $profId,
@@ -1523,12 +1529,22 @@ class AgendaController extends AbstractController
                         'Día no laborable'
                     );
                 } else {
+                    // Convertir cada horario al formato esperado
+                    $formattedSchedules = [];
+                    foreach ($daySchedules as $schedule) {
+                        $formattedSchedules[] = [
+                            'start' => \DateTime::createFromFormat('H:i:s', $schedule['start_time']),
+                            'end' => \DateTime::createFromFormat('H:i:s', $schedule['end_time']),
+                            'tipo' => $schedule['tipo']
+                        ];
+                    }
+                    
                     // Crear bloques para horas no laborables según horarios del profesional
                     $events = array_merge($events, $this->createNonWorkingHoursForDay(
                         $profId,
                         $profName,
                         $current,
-                        $daySchedule,
+                        $formattedSchedules, // Array de horarios formateados
                         $globalMinTimeStr,
                         $globalMaxTimeStr
                     ));

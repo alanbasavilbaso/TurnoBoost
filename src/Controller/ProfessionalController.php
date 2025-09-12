@@ -101,7 +101,7 @@ class ProfessionalController extends AbstractController
     
         // Preparar horarios para cada profesional
         $professionalsWithSchedules = [];
-        $dayNames = ['Lun', 'Mar', 'Mier', 'Jue', 'Vier', 'Sab', 'Dom'];
+        $dayNames = ['Dom', 'Lun', 'Mar', 'Mier', 'Jue', 'Vier', 'Sab'];
         
         foreach ($professionals as $professional) {
             $schedule = [];
@@ -396,7 +396,7 @@ class ProfessionalController extends AbstractController
         
         // Establecer valores por defecto para nuevo profesional
         for ($day = 0; $day <= 6; $day++) {
-            if ($day !== 6) { // No domingo
+            if ($day !== 0) { // No domingo (ahora es 0)
                 $form->get("availability_{$day}_enabled")->setData(true);
                 $form->get("availability_{$day}_range1_start")->setData('09:00');
                 $form->get("availability_{$day}_range1_end")->setData('18:00');
@@ -538,7 +538,7 @@ class ProfessionalController extends AbstractController
 
         // CORREGIR: Eliminar filtro por company ya que no existe en SpecialSchedule
         $specialSchedules = $entityManager->getRepository(SpecialSchedule::class)
-            ->findBy(['professional' => $professional], ['fecha' => 'ASC']);
+            ->findBy(['professional' => $professional], ['date' => 'ASC', 'startTime' => 'ASC']);
     
         return $this->render('professional/special_schedules_modal.html.twig', [
             'professional' => $professional,
@@ -577,7 +577,11 @@ class ProfessionalController extends AbstractController
             $locationAvailabilities = $activeLocation->getAvailabilitiesForWeekDay($weekDay);
             
             if ($locationAvailabilities->isEmpty()) {
-                return new Response('El local no tiene horarios configurados para el día ' . $fecha->format('l') . '.', 400);
+                $diaEnEspañol = $this->diaEspanol($fecha);
+                 return new JsonResponse([
+                    'success' => false,
+                    'message' => "El local no tiene horarios configurados para el día " . $diaEnEspañol
+                ], 400);
             }
             
             // Calcular el rango mínimo y máximo de horarios del location para ese día
@@ -614,10 +618,10 @@ class ProfessionalController extends AbstractController
             // Si llegamos aquí, el horario es válido, crear la jornada especial
             $specialSchedule = new SpecialSchedule();
             $specialSchedule->setProfessional($professional);
-            $specialSchedule->setFecha($fecha);
-            $specialSchedule->setHoraDesde($horaDesde);
-            $specialSchedule->setHoraHasta($horaHasta);
-            $specialSchedule->setUsuario($this->getUser());
+            $specialSchedule->setDate($fecha);
+            $specialSchedule->setStartTime($horaDesde);
+            $specialSchedule->setEndTime($horaHasta);
+            $specialSchedule->setUser($this->getUser());
             
             $entityManager->persist($specialSchedule);
             $entityManager->flush();
@@ -633,6 +637,10 @@ class ProfessionalController extends AbstractController
                 'message' => 'Error al crear la jornada especial: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    private function diaEspanol($fecha) {
+        return ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][$fecha->format('w')];
     }
 
     #[Route('/special-schedules/{id}', name: 'app_special_schedule_delete', methods: ['DELETE'])]

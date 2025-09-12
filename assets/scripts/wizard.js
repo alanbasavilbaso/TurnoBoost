@@ -348,7 +348,7 @@ class WizardManager {
         const container = document.getElementById('review-schedule');
         if (!container) return;
         
-        const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
         let scheduleHtml = '';
         
         days.forEach((dayName, index) => {

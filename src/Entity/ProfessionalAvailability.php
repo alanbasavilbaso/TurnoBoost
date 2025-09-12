@@ -18,7 +18,7 @@ class ProfessionalAvailability
     private Professional $professional;
 
     #[ORM\Column(type: 'integer')]
-    private int $weekday; // 0=Lunes, 1=Martes, ..., 6=Domingo
+    private int $weekday; // 1=Lunes, 2=Martes, ..., 6=Sábado, 0=Domingo
 
     #[ORM\Column(type: 'time')]
     private \DateTimeInterface $startTime;
@@ -51,7 +51,7 @@ class ProfessionalAvailability
     public function setWeekday(int $weekday): self
     {
         if ($weekday < 0 || $weekday > 6) {
-            throw new \InvalidArgumentException('Weekday must be between 0 (Monday) and 6 (Sunday)');
+            throw new \InvalidArgumentException('Weekday must be between 0 (Sunday) and 6 (Saturday)');
         }
         $this->weekday = $weekday;
         return $this;
@@ -82,7 +82,7 @@ class ProfessionalAvailability
     // Métodos auxiliares
     public function getWeekdayName(): string
     {
-        $days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        $days = [0 => 'Domingo', 1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado'];
         return $days[$this->weekday] ?? 'Desconocido';
     }
 

@@ -21,9 +21,9 @@
                 <tbody>
                     {% for schedule in specialSchedules %}
                         <tr>
-                            <td>{{ schedule.fecha|date('d/m/Y') }}</td>
-                            <td>{{ schedule.horaDesde|date('H:i') }}</td>
-                            <td>{{ schedule.horaHasta|date('H:i') }}</td>
+                            <td>{{ schedule.date|date('d/m/Y') }}</td>
+                            <td>{{ schedule.startTime|date('H:i') }}</td>
+                            <td>{{ schedule.endTime|date('H:i') }}</td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-outline-danger delete-special-schedule"
                                         data-schedule-id="{{ schedule.id }}">

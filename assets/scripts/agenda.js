@@ -424,6 +424,7 @@ class AgendaManager {
     }
 
     async renderProfessionalColumns(date, appointments = null, blocks = null) {
+        console.log('--renderProfessionalColumns--', date, appointments, blocks);
         // Cerrar cualquier tooltip existente antes de re-renderizar
         this.removeExistingTooltip();
         

@@ -6,16 +6,19 @@ use App\Entity\Professional;
 use App\Entity\Service;
 use App\Entity\Appointment;
 use App\Entity\ProfessionalService;
+use App\Repository\AppointmentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 class TimeSlot
 {
     private EntityManagerInterface $entityManager;
+    private AppointmentRepository $appointmentRepository;
     private int $defaultSlotInterval = 30; // minutos
     
-    public function __construct(EntityManagerInterface $entityManager)
+    public function __construct(EntityManagerInterface $entityManager, AppointmentRepository $appointmentRepository)
     {
         $this->entityManager = $entityManager;
+        $this->appointmentRepository = $appointmentRepository;
     }
     
     /**
@@ -307,49 +310,18 @@ class TimeSlot
      */
     public function isSlotAvailableForDateTime(
         Professional $professional,
-        Service $service,
         \DateTime $dateTime,
+        int $durationMinutes,
         ?int $excludeAppointmentId = null
     ): bool {
-        $dayOfWeek = (int)$dateTime->format('N') - 1;
-        
-        // Obtener el ProfessionalService
-        $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
-            ->findOneBy([
-                'professional' => $professional,
-                'service' => $service
-            ]);
-        
-        if (!$professionalService) {
-            return false;
-        }
-        
-        // Verificar si el servicio está disponible para este profesional en este día
-        if (!$professionalService->isAvailableOnDay($dayOfWeek)) {
-            return false;
-        }
-        
-        // Verificar si el profesional está disponible en este horario
-        $time = $dateTime->format('H:i:s');
-        if (!$professional->isAvailableAt($dayOfWeek, $dateTime)) {
-            return false;
-        }
-        
-        // Obtener citas existentes para esta fecha
-        $date = clone $dateTime;
-        $date->setTime(0, 0, 0);
-        $existingAppointments = $this->getExistingAppointments($professional, $date, $excludeAppointmentId);
-        
-        // Calcular el tiempo de fin del slot
-        $slotEndTime = clone $dateTime;
-        $slotEndTime->modify('+' . $professionalService->getEffectiveDuration() . ' minutes');
-        
-        // Verificar disponibilidad del slot
-        return $this->isSlotAvailable(
+        $result = $this->appointmentRepository->validateSlotAvailability(
             $dateTime,
-            $slotEndTime,
-            $existingAppointments
+            $durationMinutes,
+            $professional->getId(),
+            $excludeAppointmentId
         );
+        
+        return $result['available'];
     }
     
     /**

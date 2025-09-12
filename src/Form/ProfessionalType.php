@@ -105,13 +105,13 @@ class ProfessionalType extends AbstractType
             
         // Agregar campos de horarios para cada día de la semana
         $days = [
-            0 => 'Lunes',
-            1 => 'Martes', 
-            2 => 'Miércoles',
-            3 => 'Jueves',
-            4 => 'Viernes',
-            5 => 'Sábado',
-            6 => 'Domingo'
+            0 => 'Domingo',
+            1 => 'Lunes',
+            2 => 'Martes', 
+            3 => 'Miércoles',
+            4 => 'Jueves',
+            5 => 'Viernes',
+            6 => 'Sábado',
         ];
         
         // Obtener horarios del location para limitar las opciones (una sola vez)
@@ -280,11 +280,6 @@ class ProfessionalType extends AbstractType
         
         for ($hour = $minHour; $hour <= $maxHour; $hour++) {
             for ($minute = 0; $minute < 60; $minute += 15) {
-                // Si estamos en la hora máxima, solo incluir 00:00 (no los otros minutos)
-                if ($hour === $maxHour && $minute > 0) {
-                    break;
-                }
-                
                 $timeValue = sprintf('%02d:%02d', $hour, $minute);
                 $timeOptions[$timeValue] = $timeValue;
             }

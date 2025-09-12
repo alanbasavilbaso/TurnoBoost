@@ -18,17 +18,17 @@ class SpecialSchedule
     private Professional $professional;
 
     #[ORM\Column(type: 'date')]
-    private \DateTimeInterface $fecha;
+    private \DateTimeInterface $date;
 
     #[ORM\Column(type: 'time')]
-    private \DateTimeInterface $horaDesde;
+    private \DateTimeInterface $startTime;
 
     #[ORM\Column(type: 'time')]
-    private \DateTimeInterface $horaHasta;
+    private \DateTimeInterface $endTime;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(name: 'user_id', referencedColumnName: 'id', nullable: false)]
-    private User $usuario;
+    private User $user;
 
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $createdAt;
@@ -58,47 +58,47 @@ class SpecialSchedule
         return $this;
     }
 
-    public function getFecha(): \DateTimeInterface
+    public function getDate(): \DateTimeInterface
     {
-        return $this->fecha;
+        return $this->date;
     }
 
-    public function setFecha(\DateTimeInterface $fecha): self
+    public function setDate(\DateTimeInterface $date): self
     {
-        $this->fecha = $fecha;
+        $this->date = $date;
         return $this;
     }
 
-    public function getHoraDesde(): \DateTimeInterface
+    public function getStartTime(): \DateTimeInterface
     {
-        return $this->horaDesde;
+        return $this->startTime;
     }
 
-    public function setHoraDesde(\DateTimeInterface $horaDesde): self
+    public function setStartTime(\DateTimeInterface $startTime): self
     {
-        $this->horaDesde = $horaDesde;
+        $this->startTime = $startTime;
         return $this;
     }
 
-    public function getHoraHasta(): \DateTimeInterface
+    public function getEndTime(): \DateTimeInterface
     {
-        return $this->horaHasta;
+        return $this->endTime;
     }
 
-    public function setHoraHasta(\DateTimeInterface $horaHasta): self
+    public function setEndTime(\DateTimeInterface $endTime): self
     {
-        $this->horaHasta = $horaHasta;
+        $this->endTime = $endTime;
         return $this;
     }
 
-    public function getUsuario(): User
+    public function getUser(): User
     {
-        return $this->usuario;
+        return $this->user;
     }
 
-    public function setUsuario(User $usuario): self
+    public function setUser(User $user): self
     {
-        $this->usuario = $usuario;
+        $this->user = $user;
         return $this;
     }
 

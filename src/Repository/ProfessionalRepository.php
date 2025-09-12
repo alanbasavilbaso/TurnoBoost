@@ -97,4 +97,41 @@ class ProfessionalRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function getProfessionalSchedulesForDay(Professional $professional, int $weekday, \DateTime $date = null): array
+    {
+        $sql = "
+            SELECT 
+                pa.start_time AS start_time, 
+                pa.end_time AS end_time, 
+                'Disponibilidad Regular' AS tipo 
+            FROM professional_availability pa 
+            WHERE pa.professional_id = :professionalId 
+                AND pa.weekday = :weekday 
+            
+            UNION ALL 
+            
+            SELECT 
+                ss.start_time AS start_time, 
+                ss.end_time AS end_time, 
+                'Horario Especial' AS tipo 
+            FROM special_schedules ss 
+            WHERE ss.professional_id = :professionalId 
+                AND EXTRACT(DOW FROM ss.date) = :weekday 
+                " . ($date ? "AND ss.date = :specificDate" : "") . "
+            ORDER BY start_time
+        ";
+        
+        $params = [
+            'professionalId' => $professional->getId(),
+            'weekday' => $weekday
+        ];
+        
+        if ($date) {
+            $params['specificDate'] = $date->format('Y-m-d');
+        }
+        
+        $stmt = $this->getEntityManager()->getConnection()->prepare($sql);
+        return $stmt->executeQuery($params)->fetchAllAssociative();
+    }
 }

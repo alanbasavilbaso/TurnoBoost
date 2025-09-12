@@ -98,13 +98,13 @@
             
             <div class="availability-section">
                 {% set days = {
-                    0: 'Lun',
-                    1: 'Mar',
-                    2: 'Mié', 
-                    3: 'Jue',
-                    4: 'Vie',
-                    5: 'Sáb',
-                    6: 'Dom'
+                    0: 'Dom',
+                    1: 'Lun',
+                    2: 'Mar',
+                    3: 'Mié', 
+                    4: 'Jue',
+                    5: 'Vie',
+                    6: 'Sáb',
                 } %}
                 
                 <!-- Layout en flex para mostrar todos los días en una fila -->
@@ -329,7 +329,7 @@
                 </p>
                 
                 <div class="days-selection">
-                    {% set dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] %}
+                    {% set dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'] %}
                     {% for dayNumber, dayName in dayNames %}
                         <div class="form-check mb-2">
                             <input class="form-check-input service-day-checkbox" type="checkbox" 
