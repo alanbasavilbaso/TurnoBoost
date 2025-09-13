@@ -209,6 +209,10 @@ class AgendaManager {
         document.getElementById('nextBtn').addEventListener('click', () => {
             this.navigateNext();
         });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            this.loadAppointments();
+        });
         
         document.getElementById('todayBtn').addEventListener('click', () => {
             this.navigateToday();
@@ -732,7 +736,8 @@ class AgendaManager {
                     professionalName: block.extendedProps?.professionalName,
                     blockType: block.extendedProps?.blockType,
                     blockId: block.extendedProps?.blockId,
-                    professionalId: block.extendedProps?.professionalId
+                    professionalId: block.extendedProps?.professionalId,
+                    extendedProps: block.extendedProps
                 };
                 this.showBlockDetails(blockData, event);
             });
@@ -1168,17 +1173,16 @@ class AgendaManager {
             if (selectedLocationId) {
                 params.append('location', selectedLocationId);
             }
-            
             // Agregar filtro de fecha según la vista
             if (this.currentDate) {
                 if (viewType === 'week') {
                     // Vista semanal: enviar start y end (domingo a sábado)
-                    const currentDate = new Date(this.currentDate);
+                    const currentDate = this.toUTC(new Date(this.currentDate));
                     
                     // Calcular el domingo de la semana actual
                     const dayOfWeek = currentDate.getDay() // 0 = domingo, 1 = lunes, etc.
                     const startOfWeek = new Date(currentDate);
-                    startOfWeek.setDate(currentDate.getDate() - dayOfWeek - 1);
+                    startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
                     
                     // Calcular el sábado de la semana actual
                     const endOfWeek = new Date(startOfWeek);
@@ -1343,7 +1347,8 @@ class AgendaManager {
                 professionalName: info.event.extendedProps?.professionalName,
                 blockType: info.event.extendedProps?.blockType,
                 blockId: info.event.extendedProps?.blockId,
-                professionalId: info.event.extendedProps?.professionalId
+                professionalId: info.event.extendedProps?.professionalId,
+                extendedProps: info.event.extendedProps
             };
             
             this.showBlockDetails(blockData, info.jsEvent);
@@ -1358,7 +1363,8 @@ class AgendaManager {
                 status: info.event.extendedProps?.status,
                 notes: info.event.extendedProps?.notes,
                 patientId: info.event.extendedProps?.patientId,
-                patientName: info.event.extendedProps?.patientName,
+                patientFirstName: info.event.extendedProps?.patientFirstName,
+                patientLastName: info.event.extendedProps?.patientLastName,
                 patientEmail: info.event.extendedProps?.patientEmail,
                 patientPhone: info.event.extendedProps?.patientPhone,
                 professionalName: info.event.extendedProps?.professionalName,
@@ -1390,9 +1396,12 @@ class AgendaManager {
         const hours = Math.floor(durationMinutes / 60);
         const minutes = durationMinutes % 60;
         const durationText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-        // Crear el tooltip
+        // Crear el tooltip con datos de la cita
         const tooltip = this.createAppointmentTooltip({
-            patientName: eventData.patientName || 'No especificado',
+            patientFirstName: eventData.patientFirstName || 'No especificado',
+            patientLastName: eventData.patientLastName || 'No especificado',
+            patientEmail: eventData.patientEmail || 'No especificado',
+            patientPhone: eventData.patientPhone || 'No especificado',
             serviceName: eventData.serviceName || 'No especificado',
             professionalName: eventData.professionalName || 'No especificado',
             date: formattedDate,
@@ -1441,27 +1450,45 @@ class AgendaManager {
             </div>
             <div class="tooltip-content">
                 <div class="patient-info">
-                    <h3 class="patient-name">${data.patientName}</h3>
+                    <h4 class="patient-first-name">${data.patientFirstName} ${data.patientLastName}</h4>
                     <div class="service-info">
                         <span class="service-name">${data.serviceName}</span>
                     </div>
+                    <h6>${data.date} - ${data.time} (${data.duration})</h6>
                 </div>
                 <div class="appointment-details">
                     <div class="detail-row">
                         <span class="detail-label">Profesional:</span>
                         <span class="detail-value">${data.professionalName}</span>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Fecha:</span>
-                        <span class="detail-value">${data.date}</span>
+                    <div class="detail-row contact-row">
+                        <span class="detail-label">
+                            <i class="fas fa-phone" style="color: #28a745; margin-right: 5px;"></i>
+                            Teléfono: ${data.patientPhone && data.patientPhone !== 'No especificado' ? `${data.patientPhone}`:''}
+                        </span>
+                        <span class="detail-value">
+                            ${data.patientPhone && data.patientPhone !== 'No especificado' ? `
+                            <a href="https://api.whatsapp.com/send?phone=+54${data.patientPhone.replace(/[^0-9]/g, '')}&text=Hola%21%0A%0ATe%20queremos%20recordar%20tu%20cita%20de%20${encodeURIComponent(data.serviceName)}%0A%0A⏰%20¿Cuándo%3F%3A%20${encodeURIComponent(data.date)}%20${encodeURIComponent(data.time)}%0A📌%20¿Dónde%3F%3A%20${encodeURIComponent(data.professionalName)}%0A%0A¡Te%20esperamos%21" 
+                               target="_blank" 
+                               class="whatsapp-link" 
+                               title="Hablar por WhatsApp"
+                               style="margin-left: 10px; color: #25D366; text-decoration: none;">
+                                <i class="fab fa-whatsapp" style="font-size: 16px;"></i>
+                                Hablar por WhatsApp
+                            </a>
+                            ` : ''}
+                        </span>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Hora:</span>
-                        <span class="detail-value">${data.time}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Duración:</span>
-                        <span class="detail-value">${data.duration}</span>
+                    <div class="detail-row contact-row">
+                        <span class="detail-label">
+                            <i class="fas fa-envelope" style="color: #007bff; margin-right: 5px;"></i>
+                            Email:
+                        </span>
+                        <span class="detail-value">
+                            ${data.patientEmail && data.patientEmail !== 'No especificado' ? `
+                            ${data.patientEmail}
+                            ` : ''}
+                        </span>
                     </div>
                     ${data.notes ? `
                     <div class="detail-row notes-row">
@@ -1562,7 +1589,7 @@ class AgendaManager {
         
         // Obtener información extendida del bloque
         const blockData = data.blockData;
-        const extendedProps = blockData.extendedProps || {};
+        const extendedProps =  blockData.extendedProps || blockData || {};
         
         // Determinar si mostrar opciones de serie
         const isMultiDay = data.blockType === 'monthly_recurring' || data.blockType === 'date_range' || data.blockType === 'weekdays_pattern';
@@ -1585,8 +1612,8 @@ class AgendaManager {
         tooltip.querySelectorAll('[data-field="professionalName"]').forEach(el => {
             el.textContent = data.professionalName;
         });
-        tooltip.querySelector('[data-field="date"]').textContent = data.date;
-        tooltip.querySelector('[data-field="time"]').textContent = data.time;
+        // tooltip.querySelector('[data-field="date"]').textContent = data.date;
+        // tooltip.querySelector('[data-field="time"]').textContent = data.time;
         
         // Generar descripción detallada del tipo de bloque
         const blockTypeInfo = this.getBlockTypeDescription(data.blockType, extendedProps);
@@ -1727,7 +1754,7 @@ class AgendaManager {
         
         // Usar directamente las coordenadas del click
         let left = clickEvent.clientX;
-        let top = clickEvent.clientY;
+        let top = clickEvent.clientY - tooltipRect.height/2;
         
         // Ajustar horizontalmente si se sale de la pantalla
         if (left + tooltipRect.width > window.innerWidth) {
@@ -1740,7 +1767,7 @@ class AgendaManager {
         // Ajustar verticalmente si se sale de la pantalla
         if (top + tooltipRect.height > window.innerHeight) {
             top = window.innerHeight - tooltipRect.height - 10; // 10px de margen
-        }
+        } 
         if (top < 0) {
             top = 10;
         }
@@ -1871,7 +1898,6 @@ class AgendaManager {
     }
 
     handleBlockDelete(blockData, action) {
-        debugger;
         let message, subtext;
         
         switch (action) {
@@ -2293,8 +2319,8 @@ class AgendaManager {
         }
         
         // Buscar y seleccionar paciente
-        if (data.patientId && data.patientName) {
-            this.selectPatient(data.patientId, data.patientName, data.patientEmail, data.patientPhone);
+        if (data.patientId && data.patientFirstName && data.patientLastName) {
+            this.selectPatient(data.patientId, data.patientFirstName, data.patientLastName, data.patientEmail, data.patientPhone);
         }
         
         // // Ahora cargar horarios disponibles
@@ -2437,23 +2463,23 @@ class AgendaManager {
         });
     }
 
-    selectPatient(patientId, patientName, patientEmail, patientPhone) {
+    selectPatient(patientId, patientFirstName, patientLastName, patientEmail, patientPhone) {
         document.getElementById('selected-patient-id').value = patientId;
         document.getElementById('patient-search').value = '';
         document.getElementById('patient-results').innerHTML = '';
         document.getElementById('new-patient-form').style.display = 'none';
         
         // Mostrar información del paciente seleccionado usando los datos que ya tenemos
-        this.displaySelectedPatientInfo(patientId, patientName, patientEmail, patientPhone);
+        this.displaySelectedPatientInfo(patientId, patientFirstName, patientLastName, patientEmail, patientPhone);
     }
 
     // Reemplazar displaySelectedPatient con esta nueva función
-    displaySelectedPatientInfo(patientId, patientName, patientEmail, patientPhone) {
+    displaySelectedPatientInfo(patientId, patientFirstName, patientLastName, patientEmail, patientPhone) {
         document.getElementById('selected-patient-info').innerHTML = `
             <div class="alert alert-info d-flex justify-content-between align-items-start">
                 <div>
-                    <strong>Paciente seleccionado:</strong> ${patientName}<br>
-                    <small>${patientEmail} - ${patientPhone}</small>
+                    <strong>Paciente seleccionado:</strong> ${patientFirstName} ${patientLastName}<br>
+                    <small>${patientEmail ?? 'No especificado'} - ${patientPhone ?? 'No especificado'}</small>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-danger" id="remove-selected-patient" title="Remover paciente seleccionado">
                     <i class="fas fa-times"></i>
@@ -2511,20 +2537,23 @@ class AgendaManager {
 
         // Si se está creando un paciente nuevo, validar campos requeridos
         if (isNewPatientVisible) {
-            const patientName = document.getElementById('patient-name').value.trim();
+            const patientFirstName = document.getElementById('patient-first-name').value.trim();
+            const patientLastName = document.getElementById('patient-last-name').value.trim();
+            const patientEmail = document.getElementById('patient-email').value.trim();
             const patientPhone = document.getElementById('patient-phone').value.trim();
             
-            if (!patientName) {
+            if (!patientFirstName) {
                 this.showAlert('El nombre del paciente es requerido', 'error');
-                document.getElementById('patient-name').focus();
+                document.getElementById('patient-first-name').focus();
                 return false;
             }
-            
-            if (!patientPhone) {
-                this.showAlert('El teléfono del paciente es requerido', 'error');
-                document.getElementById('patient-phone').focus();
+
+            if (!patientLastName) {
+                this.showAlert('El apellido del paciente es requerido', 'error');
+                document.getElementById('patient-last-name').focus();
                 return false;
             }
+
         }
 
         return true;
@@ -2568,7 +2597,8 @@ class AgendaManager {
             data.patient_id = selectedPatientId;
         } else if (isNewPatientVisible) {
             // Datos para crear nuevo paciente
-            data.patient_name = document.getElementById('patient-name').value.trim();
+            data.patient_first_name = document.getElementById('patient-first-name').value.trim();
+            data.patient_last_name = document.getElementById('patient-last-name').value.trim();
             data.patient_email = document.getElementById('patient-email').value.trim();
             data.patient_phone = document.getElementById('patient-phone').value.trim();
             data.patient_birth_date = document.getElementById('patient-birth-date').value;
@@ -2630,7 +2660,6 @@ class AgendaManager {
                 } else if (result.error_type === 'block') {
                     this.showBlockAlert(result.error, appointmentData);
                 } else {
-                    debugger;
                     const errorMessage = isEditing ? 'Error al actualizar la cita' : 'Error al crear la cita';
                     this.showAlert(result.error || errorMessage, 'error');
                 }
@@ -2739,7 +2768,6 @@ class AgendaManager {
                 bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
                 this.loadAppointments();
             } else {
-                debugger;
                 this.showAlert(result.error || 'Error al crear la cita', 'error');
             }
             

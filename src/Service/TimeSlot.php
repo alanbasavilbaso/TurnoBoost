@@ -310,6 +310,7 @@ class TimeSlot
      */
     public function isSlotAvailableForDateTime(
         Professional $professional,
+        Service $service,
         \DateTime $dateTime,
         int $durationMinutes,
         ?int $excludeAppointmentId = null
@@ -318,6 +319,7 @@ class TimeSlot
             $dateTime,
             $durationMinutes,
             $professional->getId(),
+            $service->getId(),
             $excludeAppointmentId
         );
         

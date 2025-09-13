@@ -26,7 +26,7 @@ class PersonModalManager extends EntityModalManager {
 
     handleDeleteClick(button) {
         const entityId = button.dataset.patientId; // Usar patientId en lugar de entityId
-        const entityName = button.dataset.patientName; // Usar patientName en lugar de entityName
+        const entityName = button.dataset.patientFirstName + ' ' + button.dataset.patientLastName; // Usar patientName en lugar de entityName
         const csrfToken = button.dataset.csrfToken; // Obtener el token del botón
         if (entityId && entityName) {
             this.showDeleteModal(entityId, entityName, csrfToken);

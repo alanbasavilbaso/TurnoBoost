@@ -173,7 +173,8 @@ class AgendaController extends AbstractController
                     'patientId' => $appointment->getPatient()->getId(), // Agregar esta línea
                     'patientEmail' => $appointment->getPatient()->getEmail(),
                     'patientPhone' => $appointment->getPatient()->getPhone(),
-                    'patientName' => $appointment->getPatient()->getName(),
+                    'patientFirstName' => $appointment->getPatient()->getFirstName(),
+                    'patientLastName' => $appointment->getPatient()->getLastName(),
                     'email' => $appointment->getPatient()->getEmail(), // También agregar email para consistencia
                     'serviceName' => $appointment->getService()?->getName(),
                     'serviceId' => $appointment->getService()?->getId(), // También agregar serviceId
@@ -443,7 +444,8 @@ class AgendaController extends AbstractController
             'serviceId' => $appointment->getService()?->getId(),
             'serviceName' => $appointment->getService()?->getName(),
             'patientId' => $appointment->getPatient()->getId(),
-            'patientName' => $appointment->getPatient()->getName(),
+            'patientFirstName' => $appointment->getPatient()->getFirstName(),
+            'patientLastName' => $appointment->getPatient()->getLastName(),
             'patientEmail' => $appointment->getPatient()->getEmail(),
             'patientPhone' => $appointment->getPatient()->getPhone(),
             // 'patientBirthDate' => $appointment->getPatient()->getBirthDate()?->format('Y-m-d'),
@@ -559,8 +561,11 @@ class AgendaController extends AbstractController
             if (isset($data['patient_id']) && !empty($data['patient_id'])) {
                 $patientData['id'] = $data['patient_id'];
             }
-            if (isset($data['patient_name'])) {
-                $patientData['name'] = $data['patient_name'];
+            if (isset($data['patient_first_name'])) {
+                $patientData['first_name'] = $data['patient_first_name'];
+            }
+            if (isset($data['patient_last_name'])) {
+                $patientData['last_name'] = $data['patient_last_name'];
             }
             if (isset($data['patient_email'])) {
                 $patientData['email'] = $data['patient_email'];
@@ -630,7 +635,8 @@ class AgendaController extends AbstractController
                     'professionalId' => $appointment->getProfessional()->getId(),
                     'professionalName' => $appointment->getProfessional()->getName(),
                     'patientId' => $appointment->getPatient()->getId(),
-                    'patientName' => $appointment->getPatient()->getName(),
+                    'patientFirstName' => $appointment->getPatient()->getFirstName(),
+                    'patientLastName' => $appointment->getPatient()->getLastName(),
                     'patientEmail' => $appointment->getPatient()->getEmail(),
                     'patientPhone' => $appointment->getPatient()->getPhone(),
                     'serviceId' => $appointment->getService()?->getId(),
@@ -660,14 +666,6 @@ class AgendaController extends AbstractController
                 'error_type' => 'server'
             ], 500);
         }
-    }
-    
-    private function getAppointmentTitle(Appointment $appointment): string
-    {
-        $patientName = $appointment->getPatient()?->getName() ?? 'Sin paciente';
-        $serviceName = $appointment->getService()?->getName() ?? 'Sin servicio';
-        
-        return $patientName . ' - ' . $serviceName;
     }
     
     private function getStatusColor(\App\Entity\StatusEnum $status): string
@@ -932,31 +930,26 @@ class AgendaController extends AbstractController
                 ], 404);
             }
             
-            $professional = $this->professionalRepository->find($professionalId);
-            $service = $this->serviceRepository->find($serviceId);
+            $professionalService = $this->entityManager->getRepository(ProfessionalService::class)->findOneBy([
+                'professional' => $professionalId,
+                'service' => $serviceId
+            ]);
             
-            if (!$professional || !$service) {
+            if (!$professionalService) {
                 return new JsonResponse([
                     'available' => false,
                     'message' => 'Profesional o servicio no encontrado'
                 ], 404);
             }
             
-            // Verificar que el profesional pertenece a la empresa
-            if ($professional->getCompany() !== $company) {
-                return new JsonResponse([
-                    'available' => false,
-                    'message' => 'Profesional no válido'
-                ], 403);
-            }
-            
             $dateTime = new \DateTime($date . ' ' . $time);
             
             // Usar el método optimizado para validar el slot específico
             $available = $this->timeSlotService->isSlotAvailableForDateTime(
-                $professional,
-                $service,
+                $professionalService->getProfessional(),
+                $professionalService->getService(),
                 $dateTime,
+                $professionalService->getEffectiveDuration(),
                 $appointmentId ? (int)$appointmentId : null
             );
             
@@ -1212,11 +1205,17 @@ class AgendaController extends AbstractController
         foreach ($blocks as $block) {
             $events = array_merge($events, $this->generateBlockEvents($block, $startDate, $endDate));
         }
-
+        // var_dump($events);
+        // exit;
         // Agregar bloques no laborables si se solicitan y hay múltiples profesionales
         $nonWorkingBlocks = $this->generateNonWorkingBlocks($professionalIds, $startDate, $endDate, $company);
-        $events = array_merge($events, $nonWorkingBlocks);
+        // var_dump('-----------------------------');
+        // var_dump($nonWorkingBlocks);
 
+        // exit;
+        $events = array_merge($events, $nonWorkingBlocks);
+        // var_dump($events);
+        // exit;
         return new JsonResponse($events);
     }
 
@@ -1504,8 +1503,9 @@ class AgendaController extends AbstractController
         while ($current <= $endDate) {
             // Convertir formato PHP (0=Domingo) a formato BD (0=Lunes)
             $phpDayOfWeek = (int)$current->format('w'); // 0=Domingo, 6=Sábado
-            $dbDayOfWeek = ($phpDayOfWeek + 6) % 7; // Convertir a 0=Lunes, 6=Domingo
-            
+            // var_dump($current);
+            // var_dump($phpDayOfWeek);
+            // exit;
             // Generar bloques para cada profesional seleccionado
             foreach ($professionalIds as $profId) {
                 $profName = $professionalNames[$profId] ?? 'Profesional ' . $profId;
@@ -1514,7 +1514,7 @@ class AgendaController extends AbstractController
                 // Obtener horarios específicos para esta fecha exacta
                 $daySchedules = $this->professionalRepository->getProfessionalSchedulesForDay(
                     $this->professionalRepository->find($profId),
-                    $dbDayOfWeek,
+                    $phpDayOfWeek,
                     $current // Pasar la fecha específica para incluir horarios especiales
                 );
                 
@@ -1657,4 +1657,65 @@ class AgendaController extends AbstractController
             ]
         ];
     }
+
+
+    /**
+     * @Route("/profesionales/{professionalId}/special-schedules", name="create_special_schedule", methods={"POST"})
+     */
+    public function createSpecialSchedule(int $professionalId, Request $request): JsonResponse
+    {
+        try {
+            $data = json_decode($request->getContent(), true);
+            
+            $professional = $this->entityManager->getRepository(Professional::class)->find($professionalId);
+            if (!$professional) {
+                return new JsonResponse(['success' => false, 'message' => 'Profesional no encontrado'], 404);
+            }
+            
+            // Verificar que el profesional pertenezca a la empresa del usuario
+            if ($professional->getCompany() !== $this->getUser()->getCompany()) {
+                return new JsonResponse(['success' => false, 'message' => 'Acceso denegado'], 403);
+            }
+            
+            // Validar datos
+            if (!isset($data['fecha'], $data['horaDesde'], $data['horaHasta'])) {
+                return new JsonResponse(['success' => false, 'message' => 'Datos incompletos'], 400);
+            }
+            
+            // Crear jornada especial
+            $specialSchedule = new SpecialSchedule();
+            $specialSchedule->setProfessional($professional);
+            $specialSchedule->setDate(new \DateTime($data['fecha']));
+            $specialSchedule->setStartTime(new \DateTime($data['horaDesde']));
+            $specialSchedule->setEndTime(new \DateTime($data['horaHasta']));
+            
+            // NUEVO: Agregar servicios
+            if (isset($data['services']) && is_array($data['services'])) {
+                foreach ($data['services'] as $serviceId) {
+                    $service = $this->entityManager->getRepository(Service::class)->find($serviceId);
+                    if ($service && $service->getCompany() === $this->getUser()->getCompany()) {
+                        $specialSchedule->addService($service);
+                    }
+                }
+            } else {
+                // Si no se especifican servicios, agregar todos los del profesional
+                foreach ($professional->getProfessionalServices() as $professionalService) {
+                    $specialSchedule->addService($professionalService->getService());
+                }
+            }
+            
+            $this->entityManager->persist($specialSchedule);
+            $this->entityManager->flush();
+            
+            return new JsonResponse([
+                'success' => true, 
+                'message' => 'Jornada especial creada exitosamente',
+                'id' => $specialSchedule->getId()
+            ]);
+            
+        } catch (\Exception $e) {
+            return new JsonResponse(['success' => false, 'message' => 'Error interno del servidor'], 500);
+        }
+    }
+
 }

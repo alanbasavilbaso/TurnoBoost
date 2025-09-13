@@ -1,0 +1,110 @@
+
+<!-- Modal para formulario de jornada especial -->
+<div class="modal fade" id="specialScheduleFormModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-plus me-2"></i>
+                    <span id="formModalTitle">Nueva Jornada Especiallll</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="specialScheduleFormElement">
+                    <input type="hidden" id="professionalId" value="">
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label for="date" class="form-label">Fecha</label>
+                            <input type="date" class="form-control" id="date" name="date" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="startTime" class="form-label">Hora Desde</label>
+                            <div class="row">
+                                <div class="col-6">
+                                    <select class="form-select" id="startTimeHour" name="startTimeHour" required>
+                                        {% for hour in 0..23 %}
+                                            <option value="{{ '%02d'|format(hour) }}">{{ '%02d'|format(hour) }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <select class="form-select" id="startTimeMinute" name="startTimeMinute" required>
+                                        {% for minute in [0, 15, 30, 45] %}
+                                            <option value="{{ '%02d'|format(minute) }}">{{ '%02d'|format(minute) }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="endTime" class="form-label">Hora Hasta</label>
+                            <div class="row">
+                                <div class="col-6">
+                                    <select class="form-select" id="endTimeHour" name="endTimeHour" required>
+                                        {% for hour in 0..23 %}
+                                            <option value="{{ '%02d'|format(hour) }}">{{ '%02d'|format(hour) }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <select class="form-select" id="endTimeMinute" name="endTimeMinute" required>
+                                        {% for minute in [0, 15, 30, 45] %}
+                                            <option value="{{ '%02d'|format(minute) }}">{{ '%02d'|format(minute) }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección de servicios -->
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="toggleAdvancedConfig">
+                        <i class="fas fa-cog me-1"></i>
+                        Configuración Avanzada
+                    </button>
+                    <div class="row mb-3 mt-3 d-none" id="servicesSection">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-cogs me-2"></i>
+                                        Servicios Habilitados
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    
+                                    <!-- Sección de configuración avanzada (oculta por defecto) -->
+                                    <div id="advancedServiceConfig" class="d-none">
+                                        <div class="mb-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="selectAllServices" checked>
+                                                <label class="form-check-label fw-bold" for="selectAllServices">
+                                                    Seleccionar todos los servicios
+                                                </label>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row" id="servicesContainer">
+                                            <!-- Los servicios se cargarán dinámicamente aquí -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" form="specialScheduleFormElement" class="btn btn-success">
+                    <i class="fas fa-save me-2"></i>Guardar
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>

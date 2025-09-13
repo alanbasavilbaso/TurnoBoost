@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'special_schedules')]
@@ -36,10 +38,15 @@ class SpecialSchedule
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $updatedAt;
 
+    #[ORM\ManyToMany(targetEntity: Service::class)]
+    #[ORM\JoinTable(name: 'special_schedule_services')]
+    private Collection $services;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
+        $this->services = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -122,5 +129,34 @@ class SpecialSchedule
     {
         $this->updatedAt = $updatedAt;
         return $this;
+    }
+
+    /**
+     * @return Collection<int, Service>
+     */
+    public function getServices(): Collection
+    {
+        return $this->services;
+    }
+
+    public function addService(Service $service): static
+    {
+        if (!$this->services->contains($service)) {
+            $this->services->add($service);
+        }
+
+        return $this;
+    }
+
+    public function removeService(Service $service): static
+    {
+        $this->services->removeElement($service);
+
+        return $this;
+    }
+    
+    public function hasService(Service $service): bool
+    {
+        return $this->services->contains($service);
     }
 }

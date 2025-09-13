@@ -15,6 +15,7 @@
                         <th>Fecha</th>
                         <th>Hora Desde</th>
                         <th>Hora Hasta</th>
+                        <th>Servicios</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -24,6 +25,21 @@
                             <td>{{ schedule.date|date('d/m/Y') }}</td>
                             <td>{{ schedule.startTime|date('H:i') }}</td>
                             <td>{{ schedule.endTime|date('H:i') }}</td>
+                            <td>
+                                {% if schedule.services|length > 0 %}
+                                    <div class="d-flex flex-wrap gap-1">
+                                        {% for service in schedule.services %}
+                                            <span class="badge bg-info text-truncate" style="max-width: 120px;">
+                                                {{ service.name }}
+                                            </span>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <span class="badge bg-secondary text-truncate" style="max-width: 120px;">
+                                        Sin servicios
+                                    </span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-outline-danger delete-special-schedule"
                                         data-schedule-id="{{ schedule.id }}">
@@ -44,8 +60,8 @@
 </div>
 
 <div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
     <button type="button" class="btn btn-primary" id="addSpecialScheduleBtn">
         <i class="fas fa-plus me-2"></i>Agregar Jornada Especial
     </button>
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
 </div>

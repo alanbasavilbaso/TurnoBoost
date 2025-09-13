@@ -10,6 +10,7 @@ use App\Entity\ProfessionalService;
 use App\Entity\StatusEnum;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
+use App\Repository\AppointmentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\Location;
 use App\Entity\ProfessionalBlock;
@@ -21,17 +22,20 @@ class AppointmentService
     private ProfessionalRepository $professionalRepository;
     private ServiceRepository $serviceRepository;
     private PatientService $patientService;
+    private AppointmentRepository $appointmentRepository;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         ProfessionalRepository $professionalRepository,
         ServiceRepository $serviceRepository,
-        PatientService $patientService
+        PatientService $patientService,
+        AppointmentRepository $appointmentRepository
     ) {
         $this->entityManager = $entityManager;
         $this->professionalRepository = $professionalRepository;
         $this->serviceRepository = $serviceRepository;
         $this->patientService = $patientService;
+        $this->appointmentRepository = $appointmentRepository;
     }
 
     /**
@@ -49,14 +53,14 @@ class AppointmentService
         
         // Calcular duración y hora de finalización
         $duration = $this->calculateDuration($professional, $service);
-        $endTime = (clone $appointmentData['scheduledAt'])->add(new \DateInterval('PT' . $duration . 'M'));
         
         // Ejecutar todas las validaciones (solo si no se fuerza)
         if (!$force) {
             $this->validateAppointment(
                 $appointmentData['scheduledAt'],
-                $endTime,
+                $duration,
                 $professional,
+                $service,
                 $location // Ahora $location está definida
             );
         }
@@ -119,8 +123,11 @@ class AppointmentService
         if (isset($data['patient_id']) && !empty($data['patient_id'])) {
             $patientData['id'] = $data['patient_id'];
         }
-        if (isset($data['patient_name'])) {
-            $patientData['name'] = $data['patient_name'];
+        if (isset($data['patient_first_name'])) {
+            $patientData['first_name'] = $data['patient_first_name'];
+        }
+        if (isset($data['patient_last_name'])) {
+            $patientData['last_name'] = $data['patient_last_name'];
         }
         if (isset($data['patient_email'])) {
             $patientData['email'] = $data['patient_email'];
@@ -183,16 +190,34 @@ class AppointmentService
      */
     private function validateAppointment(
         \DateTime $scheduledAt,
-        \DateTime $endTime,
+        int $durationMinutes, 
         Professional $professional,
+        Service $service,
         Location $location
     ): void {
-    
-        // Validar disponibilidad del profesional
-        $this->validateProfessionalAvailability($scheduledAt, $endTime, $professional);
+        $available = $this->appointmentRepository->validateSlotAvailability(
+            $scheduledAt,
+            $durationMinutes,
+            $professional->getId(),
+            $service->getId(),
+            null
+        );
         
-        // Validar conflictos de horarios
-        $this->validateTimeConflicts($scheduledAt, $endTime, $professional, $professional->getCompany());
+      
+        if (!$available['available']) {
+            if (isset($available['details']['appointments']) && $available['details']['appointments'] > 0) {
+                throw new \InvalidArgumentException(
+                    'El horario seleccionado se superpone con una cita existente'
+                );
+            } else {
+                throw new \InvalidArgumentException(
+                    'El horario seleccionado está fuera de la disponibilidad del profesional.',
+                    1
+                );
+            }
+        }
+
+        $endTime = (clone $scheduledAt)->add(new \DateInterval('PT' . $durationMinutes . 'M'));
 
         // Verificar bloqueos
         $this->validateBlockConflicts($scheduledAt, $endTime, $professional);
@@ -335,41 +360,6 @@ class AppointmentService
             throw new \InvalidArgumentException(
                 'El horario seleccionado está fuera de la disponibilidad del profesional.',
                 1
-            );
-        }
-    }
-
-    /**
-     * Valida que no haya conflictos con otras citas
-     */
-    private function validateTimeConflicts(
-        \DateTime $scheduledAt,
-        \DateTime $endTime,
-        Professional $professional,
-        Company $company
-    ): void {
-        $conflictCount = $this->entityManager->createQueryBuilder()
-            ->select('COUNT(a.id)')
-            ->from(Appointment::class, 'a')
-            ->join('a.professional', 'p')
-            ->where('a.professional = :professional')
-            ->andWhere('p.company = :company')
-            ->andWhere('a.status NOT IN (:cancelledStatus)')
-            ->andWhere(
-                '(a.scheduledAt < :endTime AND ' .
-                'DATE_ADD(a.scheduledAt, a.durationMinutes, \'MINUTE\') > :startTime)'
-            )
-            ->setParameter('professional', $professional)
-            ->setParameter('company', $company)
-            ->setParameter('cancelledStatus', [StatusEnum::CANCELLED])
-            ->setParameter('startTime', $scheduledAt)
-            ->setParameter('endTime', $endTime)
-            ->getQuery()
-            ->getSingleScalarResult();
-        
-        if ($conflictCount > 0) {
-            throw new \InvalidArgumentException(
-                'El horario seleccionado se superpone con una cita existente. Por favor, seleccione otro horario.'
             );
         }
     }

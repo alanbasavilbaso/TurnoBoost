@@ -29,7 +29,10 @@ class EmailService
             'professional_name' => $professional->getName(),
             'location_name' => $location->getName(),
             'location_address' => $location->getAddress(),
-            'patient_name' => $patient->getName(),
+            'patient_first_name' => $patient->getFirstName(),
+            'patient_last_name' => $patient->getLastName(),
+            'patient_email' => $patient->getEmail(),
+            'patient_phone' => $patient->getPhone(),
             'phone_number' => $location->getPhone() ?? '+54 11 1234-5678',
             'reschedule_url' => '#', // TODO: Implementar URL de reprogramación
             'cancel_url' => '#', // TODO: Implementar URL de cancelación

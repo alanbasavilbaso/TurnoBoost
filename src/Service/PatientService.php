@@ -49,7 +49,8 @@ class PatientService
         // Crear nuevo paciente solo si no existe
         $patient = new Patient();
         $patient->setCompany($company)
-                ->setName($patientData['name'])
+                ->setFirstName($patientData['first_name'] ?? null)
+                ->setLastName($patientData['last_name'] ?? null)
                 ->setEmail($patientData['email'] ?? null)
                 ->setPhone($patientData['phone'] ?? null);
                 

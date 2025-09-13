@@ -4,8 +4,9 @@ class SpecialSchedulesManager {
         this.formModal = null;
         this.currentProfessionalId = null;
         this.locationSchedules = window.locationSchedules || {};
+        this.eventsInitialized = false; // Bandera para evitar múltiples inicializaciones
         this.initializeEventListeners();
-        this.createFormModal();
+        this.initializeFormModal();
     }
 
     initializeEventListeners() {
@@ -27,82 +28,14 @@ class SpecialSchedulesManager {
         });
     }
 
-    createFormModal() {
-        // Crear el modal del formulario si no existe
-        if (!document.getElementById('specialScheduleFormModal')) {
-            const modalHtml = `
-                <div class="modal fade" id="specialScheduleFormModal" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">
-                                    <i class="fas fa-calendar-plus me-2"></i>
-                                    <span id="formModalTitle">Nueva Jornada Especial</span>
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <form id="specialScheduleFormElement">
-                                    <input type="hidden" id="professionalId" value="">
-                                    <input type="hidden" id="scheduleId" value="">
-                                    
-                                    <div class="row">
-                                        <div class="col-md-12 mb-3">
-                                            <label for="fecha" class="form-label">Fecha</label>
-                                            <input type="date" class="form-control" id="fecha" name="fecha" required>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row">
-                                        <div class="col-md-6 mb-3">
-                                            <label for="horaDesde" class="form-label">Hora Desde</label>
-                                            <div class="row">
-                                                <div class="col-6">
-                                                    <select class="form-select" id="horaDesdeHour" name="horaDesdeHour" required>
-                                                        ${this.generateHourOptions()}
-                                                    </select>
-                                                </div>
-                                                <div class="col-6">
-                                                    <select class="form-select" id="horaDesdeMinute" name="horaDesdeMinute" required>
-                                                        ${this.generateMinuteOptions()}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label for="horaHasta" class="form-label">Hora Hasta</label>
-                                            <div class="row">
-                                                <div class="col-6">
-                                                    <select class="form-select" id="horaHastaHour" name="horaHastaHour" required>
-                                                        ${this.generateHourOptions()}
-                                                    </select>
-                                                </div>
-                                                <div class="col-6">
-                                                    <select class="form-select" id="horaHastaMinute" name="horaHastaMinute" required>
-                                                        ${this.generateMinuteOptions()}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="submit" form="specialScheduleFormElement" class="btn btn-success">
-                                    <i class="fas fa-save me-2"></i>Guardar
-                                </button>
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            this.formModal = new bootstrap.Modal(document.getElementById('specialScheduleFormModal'));
-            
-            // Inicializar eventos del formulario
+    initializeFormModal() {
+        // Buscar el modal existente en el DOM (debe estar en el template)
+        const modalElement = document.getElementById('specialScheduleFormModal');
+        if (modalElement) {
+            this.formModal = new bootstrap.Modal(modalElement);
             this.initializeFormEvents();
+        } else {
+            console.error('Modal specialScheduleFormModal no encontrado en el DOM');
         }
     }
 
@@ -132,24 +65,6 @@ class SpecialSchedulesManager {
         return options;
     }
 
-    // Método para obtener horarios del location para un día específico
-    getLocationHoursForDate(dateString) {
-        const date = new Date(dateString);
-        const dayOfWeek = date.getDay(); // 0 = domingo, 1 = lunes, etc.
-        
-        const schedule = this.locationSchedules[dayOfWeek];
-        if (schedule) {
-            return {
-                minHour: schedule.minStartHour,
-                maxHour: schedule.maxEndHour
-            };
-        }
-        
-        // Si no hay horarios para ese día, usar rango completo
-        return { minHour: 0, maxHour: 23 };
-    }
-
-    // Método simplificado para obtener horarios globales del location
     getLocationHours() {
         if (window.globalLocationHours) {
             return {
@@ -158,55 +73,179 @@ class SpecialSchedulesManager {
             };
         }
         
-        // Valores por defecto si no hay configuración
         return { minHour: 8, maxHour: 18 };
     }
 
     // Método para actualizar las opciones de horas (simplificado)
     updateHourOptions() {
         const locationHours = this.getLocationHours();
-        
-        // Actualizar opciones de hora desde
-        const horaDesdeHour = document.getElementById('horaDesdeHour');
-        if (horaDesdeHour) {
-            horaDesdeHour.innerHTML = this.generateHourOptions(locationHours.minHour, locationHours.maxHour, false);
-            // Seleccionar el primer valor por defecto (minHour)
-            horaDesdeHour.value = locationHours.minHour.toString().padStart(2, '0');
-        }
-        
-        // Actualizar opciones de hora hasta
-        const horaHastaHour = document.getElementById('horaHastaHour');
-        if (horaHastaHour) {
-            horaHastaHour.innerHTML = this.generateHourOptions(locationHours.minHour, locationHours.maxHour, false);
-            // Seleccionar el último valor por defecto (maxHour)
-            horaHastaHour.value = locationHours.maxHour.toString().padStart(2, '0');
+        if (locationHours) {
+            // Actualizar opciones de hora desde
+            const startTimeHour = document.getElementById('startTimeHour');
+            if (startTimeHour) {
+                startTimeHour.innerHTML = this.generateHourOptions(locationHours.minHour, locationHours.maxHour, false);
+                // Establecer valor por defecto
+                startTimeHour.value = locationHours.minHour.toString().padStart(2, '0');
+            }
+            
+            // Actualizar opciones de hora hasta
+            const endTimeHour = document.getElementById('endTimeHour');
+            if (endTimeHour) {
+                endTimeHour.innerHTML = this.generateHourOptions(locationHours.minHour, locationHours.maxHour, false);
+                // Establecer valor por defecto
+                endTimeHour.value = locationHours.maxHour.toString().padStart(2, '0');
+            }
         }
     }
 
     initializeFormEvents() {
-        const form = document.getElementById('specialScheduleFormElement');
-        if (form) {
-            form.addEventListener('submit', (e) => this.handleFormSubmit(e));
+        // Solo inicializar una vez
+        if (this.eventsInitialized) {
+            return;
         }
 
-        // Evento para actualizar horas cuando cambia la fecha (simplificado)
-        const fechaInput = document.getElementById('fecha');
-        if (fechaInput) {
-            fechaInput.addEventListener('change', (e) => {
-                if (e.target.value) {
-                    this.updateHourOptions(); // Ya no necesita la fecha como parámetro
-                }
-            });
-        }
-
-        // Evento cuando se cierra el modal del formulario
-        const formModalElement = document.getElementById('specialScheduleFormModal');
-        formModalElement.addEventListener('hidden.bs.modal', () => {
-            // Si hay un modal de lista abierto, refrescarlo
-            if (this.modal && this.currentProfessionalId) {
-                this.openSpecialSchedulesModal(this.currentProfessionalId);
+        // Event delegation para el formulario - usar document para capturar todos los eventos
+        document.addEventListener('submit', (e) => {
+            if (e.target.id === 'specialScheduleFormElement') {
+                this.handleFormSubmit(e);
             }
         });
+
+        document.addEventListener('change', (e) => {
+            if (e.target.id === 'date') {
+                if (e.target.value) {
+                    this.updateHourOptions();
+                }
+            }
+            
+            if (e.target.id === 'selectAllServices') {
+                this.toggleAllServices();
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'toggleAdvancedConfig') {
+                this.toggleAdvancedConfig();
+            }
+        });
+
+        document.addEventListener('hidden.bs.modal', (e) => {
+            if (e.target.id === 'specialScheduleFormModal') {
+                if (this.modal && this.currentProfessionalId) {
+                    this.openSpecialSchedulesModal(this.currentProfessionalId);
+                }
+            }
+        });
+
+        // Marcar como inicializado
+        this.eventsInitialized = true;
+    }
+
+    // NUEVO: Toggle configuración avanzada
+    toggleAdvancedConfig() {
+        console.log('+++++');
+        const advancedConfig = document.getElementById('advancedServiceConfig');
+        const button = document.getElementById('toggleAdvancedConfig');
+        const servicesSection = document.getElementById('servicesSection');
+        
+        if (advancedConfig.classList.contains('d-none')) {
+            advancedConfig.classList.remove('d-none');
+            servicesSection.classList.remove('d-none');
+            button.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Ocultar Configuración';
+        } else {
+            advancedConfig.classList.add('d-none');
+            servicesSection.classList.add('d-none');
+            button.innerHTML = '<i class="fas fa-cog me-1"></i>Configuración Avanzada';
+        }
+    }
+
+    // NUEVO: Seleccionar/deseleccionar todos los servicios
+    toggleAllServices() {
+        const selectAllCheckbox = document.getElementById('selectAllServices');
+        const serviceCheckboxes = document.querySelectorAll('#servicesContainer input[type="checkbox"]');
+        
+        serviceCheckboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+        });
+    }
+
+    // NUEVO: Cargar servicios del profesional
+    async loadProfessionalServices() {
+        const professionalId = this.currentProfessionalId;
+        if (!professionalId) return;
+        
+        try {
+            const response = await fetch(`/profesionales/${professionalId}/services`);
+            if (!response.ok) {
+                throw new Error('Error al cargar los servicios');
+            }
+            
+            const services = await response.json();
+            this.renderServices(services);
+            
+        } catch (error) {
+            console.error('Error loading services:', error);
+            this.showNotification('Error al cargar los servicios', 'error');
+        }
+    }
+
+    // NUEVO: Renderizar servicios en el formulario
+    renderServices(services) {
+        const container = document.getElementById('servicesContainer');
+        container.innerHTML = '';
+        
+        services.forEach(service => {
+            const serviceHtml = `
+                <div class="col-md-6 mb-2">
+                    <div class="form-check">
+                        <input class="form-check-input service-checkbox" 
+                               type="checkbox" 
+                               id="service_${service.id}" 
+                               name="services[]" 
+                               value="${service.id}" 
+                               checked>
+                        <label class="form-check-label" for="service_${service.id}">
+                            ${service.name}
+                            <small class="text-muted d-block">${service.duration} min - $${service.price}</small>
+                        </label>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', serviceHtml);
+        });
+        
+        // Actualizar el checkbox "Seleccionar todos" cuando cambie algún servicio
+        document.querySelectorAll('.service-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => this.updateSelectAllCheckbox());
+        });
+    }
+
+    // NUEVO: Actualizar estado del checkbox "Seleccionar todos"
+    updateSelectAllCheckbox() {
+        const allCheckboxes = document.querySelectorAll('.service-checkbox');
+        const checkedCheckboxes = document.querySelectorAll('.service-checkbox:checked');
+        const selectAllCheckbox = document.getElementById('selectAllServices');
+        
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = allCheckboxes.length === checkedCheckboxes.length;
+            selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < allCheckboxes.length;
+        }
+    }
+
+    // NUEVO: Obtener servicios seleccionados
+    getSelectedServices() {
+        const checkedBoxes = document.querySelectorAll('.service-checkbox:checked');
+        return Array.from(checkedBoxes).map(checkbox => parseInt(checkbox.value));
+    }
+
+    // NUEVO: Mostrar notificaciones
+    showNotification(message, type = 'info') {
+        // Implementar sistema de notificaciones o usar alert como fallback
+        if (window.showNotification) {
+            window.showNotification(message, type);
+        } else {
+            alert(message);
+        }
     }
 
     async openSpecialSchedulesModal(professionalId) {
@@ -236,10 +275,27 @@ class SpecialSchedulesManager {
     }
 
     createModal(content) {
-        // Remover modal existente si existe
+        // Limpiar modal existente completamente
         const existingModal = document.getElementById('specialSchedulesModal');
         if (existingModal) {
+            // Si hay una instancia de Bootstrap Modal, destruirla primero
+            const modalInstance = bootstrap.Modal.getInstance(existingModal);
+            if (modalInstance) {
+                modalInstance.dispose();
+            }
+            
+            // Remover el elemento del modal
             existingModal.remove();
+            
+            // Limpiar cualquier backdrop residual
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                backdrop.remove();
+            });
+            
+            // Restaurar el estado del body
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
         }
 
         // Crear nuevo modal
@@ -255,29 +311,37 @@ class SpecialSchedulesManager {
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
         this.modal = new bootstrap.Modal(document.getElementById('specialSchedulesModal'));
+        
+        // Agregar event listener para limpieza automática al cerrar
+        const modalElement = document.getElementById('specialSchedulesModal');
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            // Limpiar cualquier backdrop que pueda quedar
+            setTimeout(() => {
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                    backdrop.remove();
+                });
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('padding-right');
+                document.body.style.removeProperty('overflow');
+            }, 100);
+        }, { once: true });
     }
 
     initializeModalEvents() {
         const modalElement = document.getElementById('specialSchedulesModal');
         
-        // Botón agregar jornada especial
+        // Inicializar modal del formulario
+        this.initializeFormModal();
+        
+        // NO llamar initializeFormEvents() aquí - ya se inicializó una vez
+        
         const addBtn = modalElement.querySelector('#addSpecialScheduleBtn');
         if (addBtn) {
             addBtn.addEventListener('click', () => {
-                // Cerrar modal de lista y abrir formulario
                 this.modal.hide();
                 this.showSpecialScheduleForm();
             });
         }
-
-        // Botones de editar
-        modalElement.querySelectorAll('.edit-special-schedule').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const scheduleId = e.target.closest('.edit-special-schedule').dataset.scheduleId;
-                this.modal.hide();
-                this.editSpecialSchedule(scheduleId);
-            });
-        });
 
         // Botones de eliminar
         modalElement.querySelectorAll('.delete-special-schedule').forEach(btn => {
@@ -288,58 +352,52 @@ class SpecialSchedulesManager {
         });
     }
 
-    showSpecialScheduleForm(scheduleData = null) {
-        // Configurar el formulario
-        document.getElementById('professionalId').value = this.currentProfessionalId;
-        document.getElementById('scheduleId').value = scheduleData ? scheduleData.id : '';
-        
-        // Configurar título
-        document.getElementById('formModalTitle').textContent = 
-            scheduleData ? 'Editar Jornada Especial' : 'Nueva Jornada Especial';
-        
-        // Llenar datos si es edición
-        if (scheduleData) {
-            document.getElementById('fecha').value = scheduleData.fecha;
-            // Actualizar opciones de horas antes de establecer valores
-            this.updateHourOptions();
-            document.getElementById('horaDesdeHour').value = scheduleData.horaDesde.split(':')[0];
-            document.getElementById('horaDesdeMinute').value = scheduleData.horaDesde.split(':')[1];
-            document.getElementById('horaHastaHour').value = scheduleData.horaHasta.split(':')[0];
-            document.getElementById('horaHastaMinute').value = scheduleData.horaHasta.split(':')[1];
-        } else {
+    async showSpecialScheduleForm() {
+        if (this.formModal) {
             // Limpiar formulario
-            document.getElementById('specialScheduleFormElement').reset();
+            this.resetForm();
+            
+            // Establecer el ID del profesional
             document.getElementById('professionalId').value = this.currentProfessionalId;
             
-            // Establecer fecha de hoy como predeterminada
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('fecha').value = today;
+            // Mostrar modal
+            this.formModal.show();
             
-            // Actualizar opciones de horas y establecer valores por defecto
+            // Actualizar opciones de hora
             this.updateHourOptions();
-            
-            // Los minutos también pueden tener valores por defecto
-            document.getElementById('horaDesdeMinute').value = '00';
-            document.getElementById('horaHastaMinute').value = '00';
+
+            // Cargar servicios del profesional inmediatamente
+            await this.loadProfessionalServices();
         }
-        
-        // Mostrar modal
-        this.formModal.show();
     }
 
-    async editSpecialSchedule(scheduleId) {
-        try {
-            const response = await fetch(`/profesionales/special-schedules/${scheduleId}`);
-            if (!response.ok) {
-                throw new Error('Error al cargar la jornada especial');
+    resetForm() {
+        const form = document.getElementById('specialScheduleFormElement');
+        if (form) {
+            form.reset();
+            
+            // Limpiar servicios
+            const servicesContainer = document.getElementById('servicesContainer');
+            if (servicesContainer) {
+                servicesContainer.innerHTML = '';
             }
             
-            const scheduleData = await response.json();
-            this.showSpecialScheduleForm(scheduleData);
+            // Ocultar configuración avanzada
+            const advancedConfig = document.getElementById('advancedServiceConfig');
+            if (advancedConfig) {
+                advancedConfig.classList.add('d-none');
+            }
             
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error al cargar la jornada especial');
+            const servicesSection = document.getElementById('servicesSection');
+            if (servicesSection) {
+                servicesSection.classList.add('d-none');
+            }
+            
+            // Resetear texto del botón
+            const toggleBtn = document.getElementById('toggleAdvancedConfig');
+            if (toggleBtn) {
+                toggleBtn.innerHTML = '<i class="fas fa-cog me-1"></i>Configuración Avanzada';
+            }
         }
     }
 
@@ -347,77 +405,73 @@ class SpecialSchedulesManager {
         if (!confirm('¿Está seguro de que desea eliminar esta jornada especial?')) {
             return;
         }
-
+        
         try {
             const response = await fetch(`/profesionales/special-schedules/${scheduleId}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                method: 'DELETE'
             });
-
-            if (!response.ok) {
-                throw new Error('Error al eliminar la jornada especial');
-            }
-
-            // Recargar modal
-            this.openSpecialSchedulesModal(this.currentProfessionalId);
             
+            if (response.ok) {
+                this.showNotification('Jornada especial eliminada exitosamente', 'success');
+                // Recargar la lista
+                this.openSpecialSchedulesModal(this.currentProfessionalId);
+            } else {
+                this.showNotification('Error al eliminar la jornada especial', 'error');
+            }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al eliminar la jornada especial');
+            this.showNotification('Error al eliminar la jornada especial', 'error');
         }
     }
 
     async handleFormSubmit(e) {
         e.preventDefault();
         
-        const formData = new FormData(e.target);
-        const scheduleId = document.getElementById('scheduleId').value;
+        const professionalId = document.getElementById('professionalId').value;
         
-        // Construir datos
-        const data = {
-            professionalId: this.currentProfessionalId,
-            fecha: formData.get('fecha'),
-            horaDesde: `${formData.get('horaDesdeHour')}:${formData.get('horaDesdeMinute')}`,
-            horaHasta: `${formData.get('horaHastaHour')}:${formData.get('horaHastaMinute')}`
+        // Obtener valores del formulario
+        const date = document.getElementById('date').value;
+        const startTimeHour = document.getElementById('startTimeHour').value;
+        const startTimeMinute = document.getElementById('startTimeMinute').value;
+        const endTimeHour = document.getElementById('endTimeHour').value;
+        const endTimeMinute = document.getElementById('endTimeMinute').value;
+        
+        // Combinar fecha y hora para crear los campos que espera el controlador
+        const startTime = `${date} ${startTimeHour}:${startTimeMinute}:00`;
+        const endTime = `${date} ${endTimeHour}:${endTimeMinute}:00`;
+        
+        // Crear objeto con los datos en el formato esperado por el controlador
+        const requestData = {
+            date: date,
+            startTime: startTime,
+            endTime: endTime
         };
-    
+        
+        // Siempre agregar servicios seleccionados (independientemente de si la sección está visible)
+        const selectedServices = this.getSelectedServices();
+        if (selectedServices.length > 0) {
+            requestData.services = selectedServices;
+        }
+        
         try {
-            // CORREGIR: Usar rutas correctas con ID del profesional
-            const url = scheduleId ? 
-                `/profesionales/special-schedules/${scheduleId}` : 
-                `/profesionales/${this.currentProfessionalId}/special-schedules`;
-                        
-            const response = await fetch(url, {
+            const response = await fetch(`/profesionales/${professionalId}/special-schedules`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(data)
+                body: JSON.stringify(requestData)
             });
-    
-            // Procesar la respuesta JSON
-            const result = await response.json();
             
-            if (!result.success) {
-                // Mostrar el mensaje específico del servidor
-                alert(result.message || 'Error al guardar la jornada especial');
-                return;
+            if (response.ok) {
+                this.formModal.hide();
+                this.showNotification('Jornada especial creada exitosamente', 'success');
+            } else {
+                const errorData = await response.json();
+                this.showNotification(errorData.message || 'Error al crear la jornada especial', 'error');
             }
-    
-            // Mostrar mensaje de éxito
-            alert(result.message || 'Jornada especial guardada exitosamente');
-            
-            // Cerrar modal del formulario
-            this.formModal.hide();
-            
-            // El evento 'hidden.bs.modal' se encargará de refrescar la lista
-            
         } catch (error) {
             console.error('Error:', error);
-            alert('Error de conexión al guardar la jornada especial');
+            this.showNotification('Error al crear la jornada especial', 'error');
         }
     }
 }

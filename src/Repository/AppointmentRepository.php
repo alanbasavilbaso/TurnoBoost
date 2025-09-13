@@ -27,6 +27,7 @@ class AppointmentRepository extends ServiceEntityRepository
      * @param \DateTime $dateTime Fecha y hora del slot
      * @param int $durationMinutes Duración en minutos
      * @param int $professionalId ID del profesional
+     * @param int $serviceId ID del servicio
      * @param int|null $excludeAppointmentId ID de cita a excluir (para ediciones)
      * @return array Resultado con información de disponibilidad
      */
@@ -34,6 +35,7 @@ class AppointmentRepository extends ServiceEntityRepository
         \DateTime $dateTime,
         int $durationMinutes,
         int $professionalId,
+        int $serviceId,
         ?int $excludeAppointmentId = null
     ): array {
         $endTime = clone $dateTime;
@@ -49,51 +51,73 @@ class AppointmentRepository extends ServiceEntityRepository
                 -- Verificar citas existentes (conflictos)
                 COUNT(DISTINCT a.id) as appointments,
                 
-                -- Verificar horarios especiales
-                COUNT(DISTINCT ss.id) as specialSchedules,
-                MIN(ss.start_time) as specialStartTime,
-                MAX(ss.end_time) as specialEndTime,
+                -- Verificar horarios especiales con servicios
+                CASE 
+                    WHEN ss.id IS NOT NULL AND sss.special_schedule_id IS NOT NULL THEN 1 
+                    ELSE 0 
+                END AS has_special_schedules,
                 
                 -- Verificar disponibilidad regular del profesional
-                COUNT(DISTINCT pa.id) as professionalAvailability,
-                MIN(pa.start_time) as regularStartTime,
-                MAX(pa.end_time) as regularEndTime
+                pa.id as professional_availability
                 
             FROM 
-                (SELECT CAST(:professionalId AS INTEGER) as professional_id) prof
+                professionals p
                 
+            -- JOIN para servicios del profesional (verificar que el profesional ofrece el servicio)
+            JOIN professional_services ps ON (
+                p.id = ps.professional_id 
+                AND ps.service_id = :serviceId
+            )
+            
+            -- LEFT JOIN para disponibilidad regular del profesional
+            LEFT JOIN professional_availability pa ON (
+                p.id = pa.professional_id
+                AND pa.weekday = :dayOfWeek
+                AND pa.start_time <= CAST(:startTime AS TIME)
+                AND pa.end_time >= CAST(:endTime AS TIME)
+            )
+            
             -- LEFT JOIN para citas existentes (detectar conflictos)
             LEFT JOIN appointments a ON (
-                a.professional_id = prof.professional_id
+                p.id = a.professional_id
                 AND DATE(a.scheduled_at) = CAST(:date AS DATE)
                 AND a.status != 'CANCELLED'
                 AND (
-                    -- Verificar solapamiento de horarios: cita existente se solapa con el nuevo slot
-                    (a.scheduled_at::TIME < CAST(:endTime AS TIME) AND 
-                     (a.scheduled_at + INTERVAL '1 minute' * a.duration_minutes)::TIME > CAST(:startTime AS TIME))
+                    -- Verificar solapamiento de horarios
+                    a.scheduled_at::TIME BETWEEN CAST(:startTime AS TIME) AND CAST(:endTime AS TIME)
+                    OR (a.scheduled_at + INTERVAL '1 minute' * a.duration_minutes)::TIME BETWEEN CAST(:startTime AS TIME) AND CAST(:endTime AS TIME)
+                    OR (CAST(:startTime AS TIME) BETWEEN a.scheduled_at::TIME AND (a.scheduled_at + INTERVAL '1 minute' * a.duration_minutes)::TIME)
                 )
                 " . ($excludeAppointmentId ? "AND a.id != :excludeAppointmentId" : "") . "
             )
             
             -- LEFT JOIN para horarios especiales
             LEFT JOIN special_schedules ss ON (
-                ss.professional_id = prof.professional_id
+                ss.professional_id = p.id
                 AND ss.date = CAST(:date AS DATE)
                 AND ss.start_time <= CAST(:startTime AS TIME)
                 AND ss.end_time >= CAST(:endTime AS TIME)
             )
             
-            -- LEFT JOIN para disponibilidad regular del profesional
-            LEFT JOIN professional_availability pa ON (
-                pa.professional_id = prof.professional_id
-                AND pa.weekday = :dayOfWeek
-                AND pa.start_time <= CAST(:startTime AS TIME)
-                AND pa.end_time >= CAST(:endTime AS TIME)
+            -- LEFT JOIN para servicios en horarios especiales
+            LEFT JOIN special_schedule_services sss ON (
+                sss.special_schedule_id = ss.id
+                AND sss.service_id = :serviceId
+                AND ss.id IS NOT NULL
             )
+            
+            WHERE 
+                p.id = :professionalId
+                -- El profesional debe tener disponibilidad regular O horario especial con el servicio
+                AND (pa.weekday = :dayOfWeek OR ss.id IS NOT NULL)
+                
+            GROUP BY 
+                p.id, a.id, ss.id, sss.special_schedule_id, pa.id
         ";
         
         $params = [
             'professionalId' => $professionalId,
+            'serviceId' => $serviceId, // Nuevo parámetro necesario
             'date' => $date,
             'startTime' => $startTime,
             'endTime' => $endTimeFormatted,
@@ -106,13 +130,15 @@ class AppointmentRepository extends ServiceEntityRepository
         
         $stmt = $this->getEntityManager()->getConnection()->prepare($sql);
         $result = $stmt->executeQuery($params)->fetchAssociative();
-        
+        // var_dump($result === false);
+        // exit;
+        $hasInvalidResult = $result === false;
         return [
-            'available' => $this->isSlotAvailable($result),
-            'hasConflicts' => (int)$result['appointments'] > 0,
-            'hasSpecialSchedule' => (int)$result['specialschedules'] > 0,
-            'hasRegularAvailability' => (int)$result['professionalavailability'] > 0,
-            'details' => $result
+            'available' => $hasInvalidResult ? false : $this->isSlotAvailable($result),
+            'hasConflicts' => $hasInvalidResult ? true : (int)$result['appointments'] > 0,
+            'hasSpecialSchedule' => $hasInvalidResult ? false : (int)$result['has_special_schedules'] > 0,
+            'hasRegularAvailability' => $hasInvalidResult ? false : (int)$result['professional_availability'] > 0,
+            'details' => $hasInvalidResult ? [] : $result
         ];
     }
     
@@ -127,7 +153,7 @@ class AppointmentRepository extends ServiceEntityRepository
         }
         
         // Si hay horarios especiales, tienen prioridad sobre los regulares
-        if ((int)$queryResult['specialschedules'] > 0) {
+        if ((int)$queryResult['has_special_schedules'] > 0) {
             return true;
         }
         

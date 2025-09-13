@@ -254,7 +254,6 @@
     opacity: 1 !important;
 }
 .appointment-block {
-    /* background: #007bff; */
     border-color: #1f2937;
     border-width: 2px;
     border-style: solid;
@@ -266,6 +265,7 @@
     cursor: pointer;
     transition: all 0.2s;
     width: 70%;
+    overflow: hidden;
 }
 
 .appointment-block:hover {
@@ -396,11 +396,7 @@
 }
 
 .tooltip-content {
-    padding: 16px;
-}
-
-.patient-info {
-    margin-bottom: 16px;
+    padding: 10px;
 }
 
 .patient-name {
@@ -419,18 +415,23 @@
     color: #6b7280;
     font-size: 14px;
     font-weight: 500;
+    line-height: 19px;
+    font-style: normal;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .appointment-details {
     border-top: 1px solid #f3f4f6;
-    padding-top: 16px;
 }
 
 .detail-row {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 8px;
+    margin-bottom: 1px;
     gap: 12px;
 }
 
@@ -494,10 +495,6 @@
     
     .tooltip-header {
         padding: 10px 12px;
-    }
-    
-    .tooltip-content {
-        padding: 12px;
     }
     
     .patient-name {
@@ -818,15 +815,29 @@
 .detail-label {
     font-weight: 500;
     color: #6c757d;
-    font-size: 0.9rem;
+    font-size: 0.7rem;
 }
 
 .detail-value {
     color: #495057;
-    font-size: 0.9rem;
+    font-size: 0.7rem;
+}
+
+.whatsapp-link {
+    font-size: 8px;
 }
 
 /* REMOVER esta regla que oculta el tooltip */
 /* [data-testid="block-tooltip-container"] {
     display: none !important;
 } */
+
+.mini-calendar td.today {
+    background: white;
+    color: black;
+    border: 1px solid black;
+}
+.mini-calendar td.selected {
+    background: #28a745 !important;
+    color: white !important;
+}

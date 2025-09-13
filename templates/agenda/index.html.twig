@@ -105,6 +105,11 @@
                 <div class="view-controls">
                     <!-- Botones de vista ocultos - la vista se determina automáticamente -->
                     
+                    <div class="">
+                        <button class="nav-btn" id="refreshBtn">
+                            <i class="fas fa-refresh"></i>
+                        </button>
+                    </div>
                     <!-- Botón de intervalos sigue visible -->
                     <div class="dropdown ms-3">
                         <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="timeIntervalDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -240,19 +245,25 @@
                     <div id="new-patient-form" style="display: none;">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="patient-name" class="form-label">Nombre Completo *</label>
-                                <input type="text" class="form-control" id="patient-name" name="patient_name">
+                                <label for="patient-first-name" class="form-label">Nombre *</label>
+                                <input type="text" class="form-control" id="patient-first-name" name="patient_first_name" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="patient-email" class="form-label">Email</label>
-                                <input type="email" class="form-control" id="patient-email" name="patient_email">
+                                <label for="patient-last-name" class="form-label">Apellido *</label>
+                                <input type="text" class="form-control" id="patient-last-name" name="patient_last_name" required>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
+                                <label for="patient-email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="patient-email" name="patient_email">
+                            </div>
+                            <div class="col-md-6 mb-3">
                                 <label for="patient-phone" class="form-label">Teléfono *</label>
                                 <input type="tel" class="form-control" id="patient-phone" name="patient_phone">
                             </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="patient-birth-date" class="form-label">Fecha de Nacimiento</label>
                                 <input type="date" class="form-control" id="patient-birth-date" name="patient_birth_date">

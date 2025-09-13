@@ -6,6 +6,7 @@ use App\Entity\Professional;
 use App\Entity\ProfessionalAvailability;
 use App\Entity\SpecialSchedule;
 use App\Entity\Location;
+use App\Entity\Service;
 use App\Form\ProfessionalType;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
@@ -564,23 +565,28 @@ class ProfessionalController extends AbstractController
             if (!$activeLocation) {
                 return new Response('No se encontró un local activo para validar los horarios.', 400);
             }
+
+            if (!isset($data['services']) || !is_array($data['services'])) {
+                return new Response('Debe seleccionar al menos un servicio.', 400);
+            }
             
-            // Crear las fechas/horas para validación
-            $fecha = new \DateTime($data['fecha']);
-            $horaDesde = new \DateTime($data['horaDesde']);
-            $horaHasta = new \DateTime($data['horaHasta']);
+            // Crear las fechas/horas para validación usando los nombres correctos
+            $date = new \DateTime($data['date']);
+            $startTime = new \DateTime($data['startTime']);
+            $endTime = new \DateTime($data['endTime']);
             
-            // Obtener el día de la semana (0=Lunes, 1=Martes, etc.)
-            $weekDay = (int)$fecha->format('N') - 1; // format('N') devuelve 1-7, necesitamos 0-6
+            // Obtener el día de la semana (0=Domingo, 1=Lunes, 2=Martes, etc.)
+            $weekDay = (int)$date->format('N'); // format('N') devuelve 1-7, necesitamos 0-6
+            $weekDay = ($weekDay === 7) ? 0 : $weekDay;
             
             // Obtener los horarios del location para ese día
             $locationAvailabilities = $activeLocation->getAvailabilitiesForWeekDay($weekDay);
             
             if ($locationAvailabilities->isEmpty()) {
-                $diaEnEspañol = $this->diaEspanol($fecha);
+                $diaEnEspañol = $this->diaEspanol($date);
                  return new JsonResponse([
                     'success' => false,
-                    'message' => "El local no tiene horarios configurados para el día " . $diaEnEspañol
+                    'message' => "El local no tiene horarios configurados para el día " . $diaEnEspañol .". Por favor, configure los horarios en la sección 'Horarios' del perfil del local."
                 ], 400);
             }
             
@@ -589,25 +595,25 @@ class ProfessionalController extends AbstractController
             $maxEndTime = null;
             
             foreach ($locationAvailabilities as $availability) {
-                $startTime = $availability->getStartTime();
-                $endTime = $availability->getEndTime();
+                $availabilityStartTime = $availability->getStartTime();
+                $availabilityEndTime = $availability->getEndTime();
                 
-                if ($minStartTime === null || $startTime < $minStartTime) {
-                    $minStartTime = $startTime;
+                if ($minStartTime === null || $availabilityStartTime < $minStartTime) {
+                    $minStartTime = $availabilityStartTime;
                 }
                 
-                if ($maxEndTime === null || $endTime > $maxEndTime) {
-                    $maxEndTime = $endTime;
+                if ($maxEndTime === null || $availabilityEndTime > $maxEndTime) {
+                    $maxEndTime = $availabilityEndTime;
                 }
             }
             
             // Validar que el horario especial esté dentro del rango del location
-            $horaDesdeTime = $horaDesde->format('H:i:s');
-            $horaHastaTime = $horaHasta->format('H:i:s');
+            $startTimeFormatted = $startTime->format('H:i:s');
+            $endTimeFormatted = $endTime->format('H:i:s');
             $minStartTimeStr = $minStartTime->format('H:i:s');
             $maxEndTimeStr = $maxEndTime->format('H:i:s');
             
-            if ($horaDesdeTime < $minStartTimeStr || $horaHastaTime > $maxEndTimeStr) {
+            if ($startTimeFormatted < $minStartTimeStr || $endTimeFormatted > $maxEndTimeStr) {
                 $locationSchedule = $minStartTime->format('H:i') . ' - ' . $maxEndTime->format('H:i');
                 return new JsonResponse([
                     'success' => false,
@@ -618,11 +624,21 @@ class ProfessionalController extends AbstractController
             // Si llegamos aquí, el horario es válido, crear la jornada especial
             $specialSchedule = new SpecialSchedule();
             $specialSchedule->setProfessional($professional);
-            $specialSchedule->setDate($fecha);
-            $specialSchedule->setStartTime($horaDesde);
-            $specialSchedule->setEndTime($horaHasta);
+            $specialSchedule->setDate($date);
+            $specialSchedule->setStartTime($startTime);
+            $specialSchedule->setEndTime($endTime);
             $specialSchedule->setUser($this->getUser());
             
+            // Agregar servicios si están presentes en el payload
+            if (isset($data['services']) && is_array($data['services'])) {
+                foreach ($data['services'] as $serviceId) {
+                    $service = $entityManager->getRepository(Service::class)->find($serviceId);
+                    if ($service && $service->getCompany() === $company) {
+                        $specialSchedule->addService($service);
+                    }
+                }
+            }
+
             $entityManager->persist($specialSchedule);
             $entityManager->flush();
             
@@ -872,5 +888,31 @@ class ProfessionalController extends AbstractController
         // Nota: Como serviceConfigs tiene mapped => false, no podemos usar setData directamente
         // El frontend JavaScript deberá leer esta información desde el template
         return $serviceConfigs;
+    }
+    
+    /**
+     * Obtiene los servicios de un profesional específico para jornadas especiales
+     */
+    #[Route('/{id}/services', name: 'app_professional_services', methods: ['GET'])]
+    public function getProfessionalServices(Professional $professional): JsonResponse
+    {
+        if (!$this->canAccess($professional)) {
+            return new JsonResponse(['error' => 'No tiene permisos para ver este profesional'], 403);
+        }
+
+        $services = [];
+        foreach ($professional->getProfessionalServices() as $professionalService) {
+            $service = $professionalService->getService();
+            if ($service->isActive()) {
+                $services[] = [
+                    'id' => $service->getId(),
+                    'name' => $service->getName(),
+                    'duration' => $professionalService->getEffectiveDuration() ?? $service->getDurationMinutes(),
+                    'price' => $professionalService->getEffectivePrice() ?? $service->getPrice()
+                ];
+            }
+        }
+
+        return new JsonResponse($services);
     }
 }
