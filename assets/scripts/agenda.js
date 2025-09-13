@@ -211,7 +211,11 @@ class AgendaManager {
         });
 
         document.getElementById('refreshBtn').addEventListener('click', () => {
+            this.showLoading(true);
             this.loadAppointments();
+            setTimeout(() => {
+                this.showLoading(false);
+            }, 200);
         });
         
         document.getElementById('todayBtn').addEventListener('click', () => {
@@ -2866,7 +2870,7 @@ class AgendaManager {
     showLoading(show) {
         const loadingEl = document.getElementById('loading-spinner');
         if (loadingEl) {
-            loadingEl.style.display = show ? 'block' : 'none';
+            loadingEl.style.display = show ? 'flex' : 'none';
         }
     }
 
