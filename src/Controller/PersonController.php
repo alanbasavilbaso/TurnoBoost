@@ -27,7 +27,7 @@ class PersonController extends AbstractController
         
         if (!$company) {
             $this->addFlash('error', 'Debe estar asociado a una empresa para gestionar clientes.');
-            return $this->redirectToRoute('app_dashboard');
+            return $this->redirectToRoute('app_index');
         }
     
         // Parámetros de paginación
@@ -97,7 +97,7 @@ class PersonController extends AbstractController
         
         if (!$company) {
             $this->addFlash('error', 'Debe estar asociado a una empresa para gestionar clientes.');
-            return $this->redirectToRoute('app_dashboard');
+            return $this->redirectToRoute('app_index');
         }
         
         $patient = new Patient();

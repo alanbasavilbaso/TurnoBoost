@@ -2,7 +2,7 @@
 
 namespace App\Service;
 
-use App\Entity\Settings;
+use App\Entity\Company;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -16,51 +16,41 @@ class SettingsService
     }
 
     /**
-     * Obtiene la configuración del usuario, creando una por defecto si no existe
+     * Obtiene la configuración de la empresa del usuario
      */
-    public function getUserSettings(User $user): Settings
+    public function getUserCompany(User $user): Company
     {
-        $settings = $this->entityManager->getRepository(Settings::class)
-            ->findOneBy(['user' => $user]);
-
-        if (!$settings) {
-            $settings = new Settings();
-            $settings->setUser($user);
-            $this->entityManager->persist($settings);
-            $this->entityManager->flush();
-        }
-
-        return $settings;
+        return $user->getCompany();
     }
 
     /**
-     * Guarda la configuración del usuario
+     * Guarda la configuración de la empresa
      */
-    public function saveSettings(Settings $settings): void
+    public function saveCompany(Company $company): void
     {
-        $this->entityManager->persist($settings);
+        $this->entityManager->persist($company);
         $this->entityManager->flush();
     }
 
     /**
-     * Valida si una fecha de cita es válida según la configuración del usuario
+     * Valida si una fecha de cita es válida según la configuración de la empresa
      */
     public function validateAppointmentDate(User $user, \DateTimeInterface $appointmentDate): array
     {
-        $settings = $this->getUserSettings($user);
+        $company = $this->getUserCompany($user);
         $errors = [];
 
-        if (!$settings->isWithinMinimumTime($appointmentDate)) {
+        if (!$company->isWithinMinimumTime($appointmentDate)) {
             $errors[] = sprintf(
                 'La cita debe ser programada con al menos %d minutos de anticipación.',
-                $settings->getMinimumBookingTime()
+                $company->getMinimumBookingTime()
             );
         }
 
-        if (!$settings->isWithinMaximumTime($appointmentDate)) {
+        if (!$company->isWithinMaximumTime($appointmentDate)) {
             $errors[] = sprintf(
-                'La cita no puede ser programada para más de %d meses en el futuro.',
-                $settings->getMaximumFutureTime()
+                'La cita no puede ser programada para más de %d días en el futuro.',
+                $company->getMaximumFutureTime()
             );
         }
 

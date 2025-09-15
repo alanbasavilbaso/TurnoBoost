@@ -1,0 +1,468 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Configuración de Empresa{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('styles/company-config.css') }}">
+{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="row">
+
+        <!-- Formulario de Configuración -->
+        <div class="col-lg-12 ">
+            <div class="card company-card">
+                <div class="card-header-custom text-light">
+                    <h5 class="card-title mb-0 fw-bold">
+                        <i class="fas fa-edit text-primary me-2 text-light"></i>
+                        Editar Configuración
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    {{ form_start(form) }}
+                    
+                    <div class="mb-4">
+                        {{ form_label(form.name, 'Nombre de la Empresa', {'label_attr': {'class': 'form-label'}}) }}
+                        {{ form_widget(form.name, {'attr': {'class': 'form-control form-control-lg'}}) }}
+                        <small class="text-muted">El nombre que aparecerá en todos los lugares.</small>
+                        {% if form.name.vars.errors|length > 0 %}
+                            <div class="text-danger small mt-1">
+                                {{ form_errors(form.name) }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        {{ form_label(form.description, 'Descripción', {'label_attr': {'class': 'form-label'}}) }}
+                        {{ form_widget(form.description, {'attr': {'class': 'form-control', 'rows': '4'}}) }}
+                        <small class="text-muted">Contalé a tus clientes sobre tu empresa, sobre los servicios que ofreces o tu propuesta de valor.</small>
+                    </div>
+
+                    <div class="mb-4">
+                        {{ form_label(form.domain, 'Dominio para Reservas', {'label_attr': {'class': 'form-label'}}) }}
+                        <i class="fas fa-info-circle info-icon ms-1" 
+                           data-bs-toggle="tooltip" 
+                           title="Este dominio se usará para crear la URL de reservas online"></i>
+                        {{ form_widget(form.domain, {'attr': {'class': 'form-control', 'id': 'domain-input'}}) }}
+                        <small class="text-muted">Dirección de tu sitio web de agendamiento<br>Destaca tu marca personalizando la dirección de tu sitio web</small>
+                        {% if form.domain.vars.errors|length > 0 %}
+                            <div class="text-danger small mt-1">
+                                {{ form_errors(form.domain) }}
+                            </div>
+                        {% endif %}
+                        <div class="domain-preview">
+                            <strong><i class="fas fa-globe me-2"></i>Preview:</strong> 
+                            <span class="text-primary fw-bold" id="domain-preview">
+                                {{ app.request.schemeAndHttpHost }}/reservas/{{ company.domain }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Configuración de Reservas -->
+                    <div class="accordion mb-3" id="bookingConfigAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="bookingConfigHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#bookingConfigCollapse" aria-expanded="false" aria-controls="bookingConfigCollapse">
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-calendar-alt me-2"></i>
+                                            Configuración de Reservas
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            Configura cómo funcionan las reservas en tu sitio web y los tiempos permitidos.
+                                        </small>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="bookingConfigCollapse" class="accordion-collapse collapse" aria-labelledby="bookingConfigHeading" data-bs-parent="#bookingConfigAccordion">
+                                <div class="accordion-body">
+                                    <!-- Habilitar Reservas Online -->
+                                    <div class="config-field-group">
+                                        <div class="form-check form-switch">
+                                            {{ form_widget(form.onlineBookingEnabled, {
+                                                'attr': {
+                                                    'class': 'form-check-input',
+                                                    'role': 'switch'
+                                                }
+                                            }) }}
+                                            {{ form_label(form.onlineBookingEnabled, 'Habilitar Reservas en Línea', {
+                                                'label_attr': {'class': 'form-check-label fw-bold'}
+                                            }) }}
+                                        </div>
+                                        <div class="field-description">
+                                            Habilita esta opción para que tus clientes puedan reservar por internet en tu sitio web.
+                                        </div>
+                                    </div>
+
+                                    <hr class="my-3">
+
+                                    <!-- Tiempos de Reserva -->
+                                    <h6 class="fw-bold mb-3">
+                                        <i class="fas fa-clock me-2"></i>
+                                        Tiempos de Reserva
+                                    </h6>
+
+                                    <div class="config-field-group">
+                                        {{ form_label(form.minimumBookingTime, 'Tiempo Mínimo de Reserva', {'label_attr': {'class': 'form-label'}}) }}
+                                        <div class="time-input-group">
+                                            <div class="input-group">
+                                                {{ form_widget(form.minimumBookingTime, {
+                                                    'attr': {
+                                                        'class': 'form-control',
+                                                        'min': '0',
+                                                        'step': '1',
+                                                        'placeholder': '60'
+                                                    }
+                                                }) }}
+                                                <span class="input-group-text">Minutos</span>
+                                            </div>
+                                        </div>
+                                        <div class="field-description">
+                                            Minutos mínimos requeridas para que un cliente reserve. No se podrá reservar con menos anticipación.
+                                        </div>
+                                        {% if form.minimumBookingTime.vars.errors|length > 0 %}
+                                            <div class="text-danger small mt-1">
+                                                {{ form_errors(form.minimumBookingTime) }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="config-field-group">
+                                        {{ form_label(form.maximumFutureTime, 'Tiempo Máximo de Reserva', {'label_attr': {'class': 'form-label'}}) }}
+                                        <div class="time-input-group">
+                                            <div class="input-group">
+                                                {{ form_widget(form.maximumFutureTime, {
+                                                    'attr': {
+                                                        'class': 'form-control',
+                                                        'min': '1',
+                                                        'max': '365',
+                                                        'step': '1',
+                                                        'placeholder': '90'
+                                                    }
+                                                }) }}
+                                                <span class="input-group-text">Días</span>
+                                            </div>
+                                        </div>
+                                        <div class="field-description">
+                                            Tiempo máximo que una persona puede reservar a futuro. No se permiten citas para más de 13 meses a futuro.
+                                        </div>
+                                        {% if form.maximumFutureTime.vars.errors|length > 0 %}
+                                            <div class="text-danger small mt-1">
+                                                {{ form_errors(form.maximumFutureTime) }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Políticas de Cancelación y Edición -->
+                    <div class="accordion mb-3" id="cancellationPolicyAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="cancellationPolicyHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cancellationPolicyCollapse" aria-expanded="false" aria-controls="cancellationPolicyCollapse">
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-edit me-2"></i>
+                                            Políticas de Cancelación y Edición
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            Define las reglas para cancelar y modificar citas, incluyendo tiempos límite y restricciones.
+                                        </small>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="cancellationPolicyCollapse" class="accordion-collapse collapse" aria-labelledby="cancellationPolicyHeading" data-bs-parent="#cancellationPolicyAccordion">
+                                <div class="accordion-body">
+                                    <!-- Switches de Políticas -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <div class="config-field-group">
+                                                <div class="form-check form-switch">
+                                                    {{ form_widget(form.cancellableBookings, {
+                                                        'attr': {
+                                                            'class': 'form-check-input',
+                                                            'role': 'switch'
+                                                        }
+                                                    }) }}
+                                                    {{ form_label(form.cancellableBookings, 'Reservas Cancelables', {
+                                                        'label_attr': {'class': 'form-check-label fw-bold'}
+                                                    }) }}
+                                                </div>
+                                                <div class="field-description">
+                                                    Permite que los clientes cancelen sus reservas
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="config-field-group">
+                                                <div class="form-check form-switch">
+                                                    {{ form_widget(form.editableBookings, {
+                                                        'attr': {
+                                                            'class': 'form-check-input',
+                                                            'role': 'switch'
+                                                        }
+                                                    }) }}
+                                                    {{ form_label(form.editableBookings, 'Reservas Editables', {
+                                                        'label_attr': {'class': 'form-check-label fw-bold'}
+                                                    }) }}
+                                                </div>
+                                                <div class="field-description">
+                                                    Permite que los clientes editen sus reservas
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <hr class="my-3">
+
+                                    <!-- Configuraciones de Tiempo y Límites -->
+                                    <h6 class="fw-bold mb-3">
+                                        <i class="fas fa-clock me-2"></i>
+                                        Restricciones de Tiempo y Límites
+                                    </h6>
+
+                                    <div class="config-field-group">
+                                        {{ form_label(form.minimumEditTime, 'Tiempo Mínimo para Editar/Cancelar', {'label_attr': {'class': 'form-label'}}) }}
+                                        <div class="time-input-group">
+                                            <div class="input-group">
+                                                {{ form_widget(form.minimumEditTime, {
+                                                    'attr': {
+                                                        'class': 'form-control',
+                                                        'min': '0',
+                                                        'step': '1',
+                                                        'placeholder': '120'
+                                                    }
+                                                }) }}
+                                                <span class="input-group-text">Minutos</span>
+                                            </div>
+                                        </div>
+                                        <div class="field-description">
+                                            Minutos mínimos requeridos para que un cliente edite o cancele su cita. No se podrá editar o cancelar citas con menos anticipación.
+                                        </div>
+                                        {% if form.minimumEditTime.vars.errors|length > 0 %}
+                                            <div class="text-danger small mt-1">
+                                                {{ form_errors(form.minimumEditTime) }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="config-field-group">
+                                        {{ form_label(form.maximumEdits, 'Máximo de Ediciones Permitidas', {'label_attr': {'class': 'form-label'}}) }}
+                                        <div class="input-group">
+                                            {{ form_widget(form.maximumEdits, {
+                                                'attr': {
+                                                    'class': 'form-control',
+                                                    'min': '0',
+                                                    'max': '10',
+                                                    'step': '1',
+                                                    'placeholder': '3'
+                                                }
+                                            }) }}
+                                            <span class="input-group-text">Ediciones</span>
+                                        </div>
+                                        <div class="field-description">
+                                            Cantidad máxima de veces que puede editar su cita.
+                                        </div>
+                                        {% if form.maximumEdits.vars.errors|length > 0 %}
+                                            <div class="text-danger small mt-1">
+                                                {{ form_errors(form.maximumEdits) }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                     <!-- Comportamiento de Reservas -->
+                    <div class="accordion mb-3" id="bookingBehaviorAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="bookingBehaviorHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#bookingBehaviorCollapse" aria-expanded="false" aria-controls="bookingBehaviorCollapse">
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-cogs me-2"></i>
+                                            Comportamiento de Reservas
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            Configura la visualización de tu agenda y el comportamiento de tus reservas creadas.
+                                        </small>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="bookingBehaviorCollapse" class="accordion-collapse collapse" aria-labelledby="bookingBehaviorHeading" data-bs-parent="#bookingBehaviorAccordion">
+                                <div class="accordion-body">
+                                    <div class="config-field-group">
+                                        <div class="form-check form-switch">
+                                            {{ form_widget(form.requireContactData, {
+                                                'attr': {
+                                                    'class': 'form-check-input',
+                                                    'role': 'switch'
+                                                }
+                                            }) }}
+                                            {{ form_label(form.requireContactData, 'Requerir Datos de Contacto', {
+                                                'label_attr': {'class': 'form-check-label fw-bold'}
+                                            }) }}
+                                        </div>
+                                        <div class="field-description">
+                                            Si habilitas esta opción, al generar una nueva reserva desde la agenda, el cliente debe tener asociado como mínimo email o teléfono.
+                                        </div>
+                                        {% if form.requireContactData.vars.errors|length > 0 %}
+                                            <div class="text-danger small mt-1">
+                                                {{ form_errors(form.requireContactData) }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Limitar Cantidad de Citas -->
+                    <div class="accordion mb-3" id="bookingLimitsAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="bookingLimitsHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#bookingLimitsCollapse" aria-expanded="false" aria-controls="bookingLimitsCollapse">
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-limit me-2"></i>
+                                            Limitar Cantidad de Citas que Puede Agendar un Cliente
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            En este bloque puedes configurar límites para que tus clientes agenden de acuerdo a la frecuencia que necesites.
+                                        </small>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="bookingLimitsCollapse" class="accordion-collapse collapse" aria-labelledby="bookingLimitsHeading" data-bs-parent="#bookingLimitsAccordion">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="config-field-group">
+                                                {{ form_label(form.bookingLimitLevel, 'Limitar por', {'label_attr': {'class': 'form-label fw-bold'}}) }}
+                                                {{ form_widget(form.bookingLimitLevel, {
+                                                    'attr': {
+                                                        'class': 'form-select'
+                                                    }
+                                                }) }}
+                                                <div class="field-description">
+                                                    Selecciona el nivel donde aplicar el límite de citas pendientes
+                                                </div>
+                                                {% if form.bookingLimitLevel.vars.errors|length > 0 %}
+                                                    <div class="text-danger small mt-1">
+                                                        {{ form_errors(form.bookingLimitLevel) }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="config-field-group">
+                                                {{ form_label(form.maxPendingBookings, 'Cantidad de Turnos Permitidos', {'label_attr': {'class': 'form-label fw-bold'}}) }}
+                                                <div class="input-group">
+                                                    {{ form_widget(form.maxPendingBookings, {
+                                                        'attr': {
+                                                            'class': 'form-control',
+                                                            'min': '1',
+                                                            'max': '50',
+                                                            'step': '1',
+                                                            'placeholder': '5'
+                                                        }
+                                                    }) }}
+                                                    <span class="input-group-text">Turnos</span>
+                                                </div>
+                                                <div class="field-description">
+                                                    Número máximo de turnos pendientes o a futuro que puede tener un cliente
+                                                </div>
+                                                {% if form.maxPendingBookings.vars.errors|length > 0 %}
+                                                    <div class="text-danger small mt-1">
+                                                        {{ form_errors(form.maxPendingBookings) }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="alert alert-info mt-3">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Ejemplo:</strong> Si configuras "Por Empresa" con "3 turnos", un cliente no podrá agendar más de 3 citas pendientes en toda la empresa. Si configuras "Por Profesional" con "2 turnos", el cliente podrá tener máximo 2 citas pendientes con cada profesional.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pagos en Línea -->
+                    <div class="accordion mb-3" id="onlinePaymentsAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="onlinePaymentsHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#onlinePaymentsCollapse" aria-expanded="false" aria-controls="onlinePaymentsCollapse">
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-credit-card me-2"></i>
+                                            Pagos en Línea
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            Configura la integración con Mercado Pago para recibir pagos en línea.
+                                        </small>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="onlinePaymentsCollapse" class="accordion-collapse collapse" aria-labelledby="onlinePaymentsHeading" data-bs-parent="#onlinePaymentsAccordion">
+                                <div class="accordion-body">
+                                    <div class="config-field-group">
+                                        <div class="form-check form-switch">
+                                            {{ form_widget(form.onlinePaymentsEnabled, {
+                                                'attr': {
+                                                    'class': 'form-check-input',
+                                                    'role': 'switch'
+                                                }
+                                            }) }}
+                                            {{ form_label(form.onlinePaymentsEnabled, 'Habilitar Pagos en Línea', {
+                                                'label_attr': {'class': 'form-check-label fw-bold'}
+                                            }) }}
+                                        </div>
+                                        <div class="field-description">
+                                            Habilita los pagos en línea a través de Mercado Pago para que tus clientes puedan pagar sus servicios al momento de reservar.
+                                        </div>
+                                        {% if form.onlinePaymentsEnabled.vars.errors|length > 0 %}
+                                            <div class="text-danger small mt-1">
+                                                {{ form_errors(form.onlinePaymentsEnabled) }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="alert alert-warning mt-3">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <strong>Próximamente:</strong> La integración con Mercado Pago estará disponible en una próxima actualización. Por ahora puedes habilitar esta opción para preparar tu configuración.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+                        <a href="{{ path('app_index') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Dashboard
+                        </a>
+                        {{ form_widget(form.submit, {'attr': {'class': 'btn btn-primary'}}) }}
+                    </div>
+
+                    {{ form_end(form) }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script src="{{ asset('scripts/company-config.js') }}"></script>
+{% endblock %}

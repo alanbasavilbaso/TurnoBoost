@@ -13,6 +13,14 @@
     <div class="agenda-container">
         <!-- Sidebar con filtros y mini calendario -->
         <div class="sidebar">
+            <div class="mb-1 beauty-card">
+                <button class="btn btn-beauty">
+                    <i class="fas fa-copy me-2"></i>Copiá tu Link y compartilo para recibir citas.
+                    <input type="hidden" id="share-link" value="">
+                </button>
+            </div>
+            
+
             <!-- Filtros -->
             <div class="filters-section">
                 <h6 class="mb-3"><i class="fas fa-filter me-2"></i>Filtros</h6>
@@ -64,7 +72,7 @@
                     </div>
                 </div>
                 
-                <div class="mb-3">
+                <div class="">
                     <label for="serviceFilter" class="form-label">Servicio</label>
                     <select class="form-select" id="serviceFilter">
                         <option value="">Todos los servicios</option>
@@ -78,7 +86,6 @@
             
             <!-- Mini Calendario -->
             <div class="mini-calendar-section">
-                <h6 class="mb-3"><i class="fas fa-calendar-alt me-2"></i>Navegación</h6>
                 <div id="miniCalendar" class="mini-calendar"></div>
             </div>
         </div>
@@ -491,4 +498,18 @@
 {% block javascripts %}
     {{ parent() }}
     <script src="{{ asset('scripts/agenda.js') }}"></script>
+     <script>
+        // Funcionalidad para copiar el link
+        document.querySelector('.btn-beauty').addEventListener('click', function() {
+            const linkText = document.querySelector('#share-link').value;
+            navigator.clipboard.writeText(linkText).then(() => {
+                const originalText = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-check me-2"></i>¡Link Copiado!';
+                
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                }, 2000);
+            });
+        });
+    </script>
 {% endblock %}

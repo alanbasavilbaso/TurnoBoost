@@ -27,7 +27,7 @@ class ServiceController extends AbstractController
         
         if (!$company) {
             $this->addFlash('error', 'Debe estar asociado a una empresa para gestionar servicios.');
-            return $this->redirectToRoute('app_dashboard');
+            return $this->redirectToRoute('app_index');
         }
 
         // Obtener el parámetro de búsqueda
@@ -64,7 +64,7 @@ class ServiceController extends AbstractController
         
         if (!$company) {
             $this->addFlash('error', 'Debe estar asociado a una empresa para gestionar servicios.');
-            return $this->redirectToRoute('app_dashboard');
+            return $this->redirectToRoute('app_index');
         }
         
         $service = new Service();

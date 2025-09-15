@@ -4,7 +4,6 @@ namespace App\Command;
 
 use App\Entity\User;
 use App\Entity\Company;
-use App\Entity\Settings;
 use App\Entity\RoleEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -17,7 +16,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 #[AsCommand(
     name: 'app:create-user',
-    description: 'Crea un usuario de prueba en la base de datos con su company y settings',
+    description: 'Crea un usuario de prueba en la base de datos con su company',
 )]
 class CreateUserCommand extends Command
 {
@@ -48,51 +47,37 @@ class CreateUserCommand extends Command
         $password = $input->getArgument('password');
         $roleString = strtolower($input->getArgument('role'));
         $companyName = $input->getArgument('company_name');
-    
+
+        // Validar rol
+        $role = match($roleString) {
+            'admin' => RoleEnum::ADMIN,
+            'profesional' => RoleEnum::PROFESIONAL,
+            'recepcionista' => RoleEnum::RECEPCIONISTA,
+            'paciente' => RoleEnum::PACIENTE,
+            default => throw new \InvalidArgumentException('Rol inválido. Usa: admin, profesional, recepcionista, paciente')
+        };
+
         // Verificar si el usuario ya existe
         $existingUser = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
         if ($existingUser) {
-            $io->error(sprintf('Ya existe un usuario con el email: %s', $email));
-            return Command::FAILURE;
-        }
-    
-        // Validar el rol
-        try {
-            $role = RoleEnum::from($roleString);
-        } catch (\ValueError $e) {
-            $io->error(sprintf('Rol inválido: %s. Roles válidos: admin, profesional, recepcionista, paciente', $roleString));
+            $io->error('Ya existe un usuario con ese email.');
             return Command::FAILURE;
         }
 
-        // Generar nombre de empresa si no se proporciona
+        // Crear empresa si no se proporciona nombre
         if (!$companyName) {
-            $companyNames = [
-                'Clínica Salud Total',
-                'Centro Médico Bienestar',
-                'Consultorio Vida Sana',
-                'Clínica Esperanza',
-                'Centro de Salud Integral',
-                'Clínica San Rafael',
-                'Consultorio Médico Aurora',
-                'Centro Wellness',
-                'Clínica Nueva Vida',
-                'Consultorio Salud Plus'
-            ];
-            $companyName = $companyNames[array_rand($companyNames)];
+            $companyName = 'Empresa de ' . $name;
         }
 
-
-        // 1º - Crear la empresa con el usuario ya persistido
         $company = new Company();
         $company->setName($companyName);
         $company->setDescription('Empresa creada automáticamente para ' . $name);
         $company->setActive(true);
+        $company->setDomain($company->getRandomDomain());
+        $company->setMinimumBookingTime(60); // 1 hora mínimo
+        $company->setMaximumFutureTime(90);  // 90 días máximo
 
-        $this->entityManager->persist($company);
-        $this->entityManager->flush();
-
-
-        // 2º - Crear el usuario
+        // Crear usuario
         $user = new User();
         $user->setName($name);
         $user->setEmail($email);
@@ -109,25 +94,13 @@ class CreateUserCommand extends Command
 
         $user->setCompany($company);
         $user->setIsOwner(true);
-        // PRIMERO: Persistir y hacer flush del usuario para obtener su ID
+        
+        // Persistir entidades
+        $this->entityManager->persist($company);
         $this->entityManager->persist($user);
         $this->entityManager->flush();
 
-        
-        
-        // Crear configuraciones por defecto
-        $settings = new Settings();
-        $settings->setCompany($company);
-        $settings->setMinimumBookingTime(60); // 1 hora mínimo
-        $settings->setMaximumFutureTime(6);   // 6 meses máximo
-
-        // Establecer la relación bidireccional
-        $company->setSettings($settings);
-
-        $this->entityManager->persist($settings);
-        $this->entityManager->flush();
-
-        $io->success('Usuario, empresa y configuraciones creados exitosamente:');
+        $io->success('Usuario y empresa creados exitosamente:');
         $io->table(
             ['Campo', 'Valor'],
             [
@@ -137,15 +110,16 @@ class CreateUserCommand extends Command
                 ['Rol', $user->getRole()->value],
                 ['Empresa ID', $company->getId()],
                 ['Empresa', $company->getName()],
-                ['Settings ID', $settings->getId()],
-                ['Tiempo mín. reserva', $settings->getMinimumBookingTime() . ' minutos'],
-                ['Tiempo máx. futuro', $settings->getMaximumFutureTime() . ' meses'],
+                ['Dominio', $company->getDomain()],
+                ['Tiempo mín. reserva', $company->getMinimumBookingTime() . ' minutos'],
+                ['Tiempo máx. futuro', $company->getMaximumFutureTime() . ' días'],
                 ['Creado', $user->getCreatedAt()->format('Y-m-d H:i:s')],
             ]
         );
         
         $io->note(sprintf('Puedes iniciar sesión con: %s / %s', $email, $password));
         $io->note(sprintf('Empresa creada: %s', $companyName));
+        $io->note(sprintf('URL de reservas: %s', $company->getBookingUrl()));
 
         return Command::SUCCESS;
     }

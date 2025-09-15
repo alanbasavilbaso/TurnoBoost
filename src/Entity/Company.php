@@ -43,9 +43,6 @@ class Company
     #[ORM\OneToMany(mappedBy: 'company', targetEntity: User::class)]
     private Collection $users;
 
-    #[ORM\OneToOne(mappedBy: 'company', targetEntity: Settings::class, cascade: ['persist', 'remove'])]
-    private ?Settings $settings = null;
-
     /**
      * Dominio único para acceso público a reservas online.
      * Este será usado como URL: localhost/{domain}
@@ -65,6 +62,106 @@ class Company
         message: 'El dominio solo puede contener letras minúsculas, números y guiones'
     )]
     private string $domain;
+
+    /**
+     * Tiempo mínimo en minutos que debe pasar desde ahora para poder reservar una cita
+     */
+    #[ORM\Column(type: 'integer', options: ['default' => 60])]
+    #[Assert\NotBlank(message: 'El tiempo mínimo de reserva es obligatorio')]
+    #[Assert\Range(
+        min: 0,
+        max: 10080,
+        notInRangeMessage: 'El tiempo mínimo debe estar entre {{ min }} y {{ max }} minutos'
+    )]
+    private int $minimumBookingTime = 60;
+
+    /**
+     * Tiempo máximo en días hacia el futuro que se pueden hacer reservas
+     */
+    #[ORM\Column(type: 'integer', options: ['default' => 90])]
+    #[Assert\NotBlank(message: 'El tiempo máximo de reserva es obligatorio')]
+    #[Assert\Range(
+        min: 1,
+        max: 365,
+        notInRangeMessage: 'El tiempo máximo debe estar entre {{ min }} y {{ max }} días'
+    )]
+    private int $maximumFutureTime = 90;
+
+    /**
+     * Permite que los clientes cancelen sus reservas
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $cancellableBookings = true;
+
+    /**
+     * Permite que los clientes editen sus reservas
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $editableBookings = true;
+
+    /**
+     * Tiempo mínimo en minutos antes de la cita para poder editarla o cancelarla
+     */
+    #[ORM\Column(type: 'integer', options: ['default' => 120])]
+    #[Assert\NotBlank(message: 'El tiempo mínimo para editar es obligatorio')]
+    #[Assert\Range(
+        min: 0,
+        max: 10080,
+        notInRangeMessage: 'El tiempo mínimo para editar debe estar entre {{ min }} y {{ max }} minutos'
+    )]
+    private int $minimumEditTime = 120;
+
+    /**
+     * Número máximo de veces que un cliente puede editar su cita
+     */
+    #[ORM\Column(type: 'integer', options: ['default' => 3])]
+    #[Assert\NotBlank(message: 'El máximo de ediciones es obligatorio')]
+    #[Assert\Range(
+        min: 0,
+        max: 10,
+        notInRangeMessage: 'El máximo de ediciones debe estar entre {{ min }} y {{ max }}'
+    )]
+    private int $maximumEdits = 3;
+
+    /**
+     * Habilita las reservas en línea a través del sitio web
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $onlineBookingEnabled = true;
+
+    /**
+     * Requiere que el cliente tenga datos de contacto (email o teléfono) para crear reservas
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    private bool $requireContactData = false;
+
+    /**
+     * Nivel de limitación de citas: 'company', 'location', 'professional'
+     */
+    #[ORM\Column(type: 'string', length: 20, options: ['default' => 'company'])]
+    #[Assert\Choice(
+        choices: ['company', 'location', 'professional'],
+        message: 'El nivel de limitación debe ser: company, location o professional'
+    )]
+    private string $bookingLimitLevel = 'company';
+
+    /**
+     * Cantidad máxima de turnos pendientes que puede tener un cliente
+     */
+    #[ORM\Column(type: 'integer', options: ['default' => 5])]
+    #[Assert\NotBlank(message: 'La cantidad máxima de turnos es obligatoria')]
+    #[Assert\Range(
+        min: 1,
+        max: 50,
+        notInRangeMessage: 'La cantidad máxima debe estar entre {{ min }} y {{ max }} turnos'
+    )]
+    private int $maxPendingBookings = 5;
+
+    /**
+     * Habilita los pagos en línea a través de Mercado Pago
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    private bool $onlinePaymentsEnabled = false;
 
     
     public function __construct()
@@ -138,15 +235,151 @@ class Company
         return $this;
     }
 
-     public function getSettings(): ?Settings
+
+
+    public function getMinimumBookingTime(): int
     {
-        return $this->settings;
+        return $this->minimumBookingTime;
     }
 
-    public function setSettings(?Settings $settings): self
+    public function setMinimumBookingTime(int $minimumBookingTime): self
     {
-        $this->settings = $settings;
+        $this->minimumBookingTime = $minimumBookingTime;
         return $this;
+    }
+
+    public function getMaximumFutureTime(): int
+    {
+        return $this->maximumFutureTime;
+    }
+
+    public function setMaximumFutureTime(int $maximumFutureTime): self
+    {
+        $this->maximumFutureTime = $maximumFutureTime;
+        return $this;
+    }
+
+    public function isCancellableBookings(): bool
+    {
+        return $this->cancellableBookings;
+    }
+
+    public function setCancellableBookings(bool $cancellableBookings): self
+    {
+        $this->cancellableBookings = $cancellableBookings;
+        return $this;
+    }
+
+    public function isEditableBookings(): bool
+    {
+        return $this->editableBookings;
+    }
+
+    public function setEditableBookings(bool $editableBookings): self
+    {
+        $this->editableBookings = $editableBookings;
+        return $this;
+    }
+
+    public function getMinimumEditTime(): int
+    {
+        return $this->minimumEditTime;
+    }
+
+    public function setMinimumEditTime(int $minimumEditTime): self
+    {
+        $this->minimumEditTime = $minimumEditTime;
+        return $this;
+    }
+
+    public function getMaximumEdits(): int
+    {
+        return $this->maximumEdits;
+    }
+
+    public function setMaximumEdits(int $maximumEdits): self
+    {
+        $this->maximumEdits = $maximumEdits;
+        return $this;
+    }
+
+    public function isOnlineBookingEnabled(): bool
+    {
+        return $this->onlineBookingEnabled;
+    }
+
+    public function setOnlineBookingEnabled(bool $onlineBookingEnabled): self
+    {
+        $this->onlineBookingEnabled = $onlineBookingEnabled;
+        return $this;
+    }
+
+    /**
+     * Verifica si una fecha de reserva está dentro del tiempo mínimo permitido
+     */
+    public function isWithinMinimumTime(\DateTimeInterface $appointmentDate): bool
+    {
+        $now = new \DateTime();
+        $minimumDateTime = $now->add(new \DateInterval('PT' . $this->minimumBookingTime . 'M'));
+        
+        return $appointmentDate >= $minimumDateTime;
+    }
+
+    /**
+     * Verifica si una fecha de reserva está dentro del tiempo máximo permitido
+     */
+    public function isWithinMaximumTime(\DateTimeInterface $appointmentDate): bool
+    {
+        $now = new \DateTime();
+        $maximumDateTime = $now->add(new \DateInterval('P' . $this->maximumFutureTime . 'D'));
+        
+        return $appointmentDate <= $maximumDateTime;
+    }
+
+    /**
+     * Valida si una fecha de reserva cumple con ambos límites
+     */
+    public function isValidBookingDate(\DateTimeInterface $appointmentDate): bool
+    {
+        return $this->isWithinMinimumTime($appointmentDate) && $this->isWithinMaximumTime($appointmentDate);
+    }
+
+    /**
+     * Verifica si una cita puede ser editada basándose en el tiempo mínimo de edición
+     */
+    public function canEditAppointment(\DateTimeInterface $appointmentDate): bool
+    {
+        if (!$this->editableBookings) {
+            return false;
+        }
+        
+        $now = new \DateTime();
+        $minimumEditDateTime = $now->add(new \DateInterval('PT' . $this->minimumEditTime . 'M'));
+        
+        return $appointmentDate >= $minimumEditDateTime;
+    }
+
+    /**
+     * Verifica si una cita puede ser cancelada basándose en el tiempo mínimo de edición
+     */
+    public function canCancelAppointment(\DateTimeInterface $appointmentDate): bool
+    {
+        if (!$this->cancellableBookings) {
+            return false;
+        }
+        
+        $now = new \DateTime();
+        $minimumEditDateTime = $now->add(new \DateInterval('PT' . $this->minimumEditTime . 'M'));
+        
+        return $appointmentDate >= $minimumEditDateTime;
+    }
+
+    /**
+     * Verifica si se ha alcanzado el máximo número de ediciones permitidas
+     */
+    public function hasReachedMaximumEdits(int $currentEdits): bool
+    {
+        return $currentEdits >= $this->maximumEdits;
     }
     
     // Métodos para la colección de locations
@@ -305,5 +538,73 @@ class Company
         }
         
         return $randomString;
+    }
+
+    // Getters y setters para los nuevos campos
+
+    public function isRequireContactData(): bool
+    {
+        return $this->requireContactData;
+    }
+
+    public function setRequireContactData(bool $requireContactData): self
+    {
+        $this->requireContactData = $requireContactData;
+        return $this;
+    }
+
+    public function getBookingLimitLevel(): string
+    {
+        return $this->bookingLimitLevel;
+    }
+
+    public function setBookingLimitLevel(string $bookingLimitLevel): self
+    {
+        $this->bookingLimitLevel = $bookingLimitLevel;
+        return $this;
+    }
+
+    public function getMaxPendingBookings(): int
+    {
+        return $this->maxPendingBookings;
+    }
+
+    public function setMaxPendingBookings(int $maxPendingBookings): self
+    {
+        $this->maxPendingBookings = $maxPendingBookings;
+        return $this;
+    }
+
+    public function isOnlinePaymentsEnabled(): bool
+    {
+        return $this->onlinePaymentsEnabled;
+    }
+
+    public function setOnlinePaymentsEnabled(bool $onlinePaymentsEnabled): self
+    {
+        $this->onlinePaymentsEnabled = $onlinePaymentsEnabled;
+        return $this;
+    }
+
+    // Métodos de utilidad para los nuevos campos
+
+    /**
+     * Verifica si un cliente puede crear una nueva reserva basado en el límite configurado
+     */
+    public function canClientCreateBooking(int $currentPendingBookings): bool
+    {
+        return $currentPendingBookings < $this->maxPendingBookings;
+    }
+
+    /**
+     * Obtiene las opciones disponibles para el nivel de limitación de reservas
+     */
+    public static function getBookingLimitLevelOptions(): array
+    {
+        return [
+            'company' => 'Por Empresa',
+            'location' => 'Por Local',
+            'professional' => 'Por Profesional'
+        ];
     }
 }

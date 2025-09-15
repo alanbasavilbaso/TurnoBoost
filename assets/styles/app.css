@@ -2,6 +2,10 @@ body {
     background-color: skyblue !important;
 }
 
+body .navbar ~ .container-fluid {
+    margin-top: 0.5rem;
+}
+
 /* Estilos para mensajes de error de validación */
 .invalid-feedback {
     color: #dc3545 !important;
@@ -434,4 +438,28 @@ body {
     .navbar-brand {
         display: none;
     }
+}
+
+.beauty-card {
+    border-radius: 15px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    border: none;
+    transition: transform 0.3s ease;
+}
+.beauty-card:hover {
+    transform: translateY(-5px);
+}
+.btn-beauty {
+    background: linear-gradient(135deg, #ff9999, #ff66a5);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    color: white;
+    transition: all 0.3s;
+}
+.btn-beauty:hover {
+    background: linear-gradient(135deg, #ff66a5, #ff9999);
+    transform: scale(1.05);
+    color: white;
 }

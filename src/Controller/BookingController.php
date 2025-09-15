@@ -363,8 +363,23 @@ class BookingController extends AbstractController
         
         /** @var User $user */
         $user = $this->getUser();
+        $company = $user->getCompany();
         
-        $errors = $this->settingsService->validateAppointmentDate($user, $appointmentDate);
+        $errors = [];
+        
+        if (!$company->isWithinMinimumTime($appointmentDate)) {
+            $errors[] = sprintf(
+                'La cita debe ser programada con al menos %d minutos de anticipación.',
+                $company->getMinimumBookingTime()
+            );
+        }
+
+        if (!$company->isWithinMaximumTime($appointmentDate)) {
+            $errors[] = sprintf(
+                'La cita no puede ser programada para más de %d días en el futuro.',
+                $company->getMaximumFutureTime()
+            );
+        }
         
         return new JsonResponse([
             'valid' => empty($errors),
@@ -381,15 +396,30 @@ class BookingController extends AbstractController
             
             /** @var User $user */
             $user = $this->getUser();
+            $company = $user->getCompany();
             
-            // Validar fecha según configuración
-            $errors = $this->settingsService->validateAppointmentDate($user, $appointmentDate);
+            // Validar fecha según configuración de la empresa
+            $errors = [];
+            
+            if (!$company->isWithinMinimumTime($appointmentDate)) {
+                $errors[] = sprintf(
+                    'La cita debe ser programada con al menos %d minutos de anticipación.',
+                    $company->getMinimumBookingTime()
+                );
+            }
+
+            if (!$company->isWithinMaximumTime($appointmentDate)) {
+                $errors[] = sprintf(
+                    'La cita no puede ser programada para más de %d días en el futuro.',
+                    $company->getMaximumFutureTime()
+                );
+            }
             
             if (!empty($errors)) {
                 return new JsonResponse([
                     'success' => false,
                     'errors' => $errors
-                ], 400);
+                ]);
             }
 
             // ... resto del código de creación de cita ...

@@ -47,7 +47,7 @@ class ProfessionalController extends AbstractController
         
         if (!$company) {
             $this->addFlash('error', 'No tiene una empresa asignada.');
-            return $this->redirectToRoute('app_dashboard');
+            return $this->redirectToRoute('app_index');
         }
     
         // Filtrar solo profesionales activos de la empresa
@@ -152,7 +152,7 @@ class ProfessionalController extends AbstractController
         
         if (!$company) {
             $this->addFlash('error', 'Debe tener una empresa asignada antes de agregar profesionales.');
-            return $this->redirectToRoute('app_dashboard');
+            return $this->redirectToRoute('app_index');
         }
 
         $professional = new Professional();
