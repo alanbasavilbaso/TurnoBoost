@@ -19,13 +19,19 @@ class EmailService
         $patient = $appointment->getPatient();
         $professional = $appointment->getProfessional();
         $service = $appointment->getService();
-        $location = $appointment->getLocation(); // Cambiar esta línea
+        $location = $appointment->getLocation();
+        $company = $appointment->getCompany();
+        
+        // Formatear fecha en español
+        $scheduledAt = $appointment->getScheduledAt();
+        $formattedDate = $this->formatDateInSpanish($scheduledAt);
         
         $htmlContent = $this->twig->render('emails/appointment_confirmation.html.twig', [
-            'business_name' => $location->getName(),
+            'business_name' => $company->getName(),
             'service_name' => $service->getName(),
-            'appointment_date' => $appointment->getScheduledAt()->format('d/m/Y'),
-            'appointment_time' => $appointment->getScheduledAt()->format('H:i'),
+            'appointment_date' => $scheduledAt->format('d/m/Y'),
+            'appointment_date_formatted' => $formattedDate,
+            'appointment_time' => $scheduledAt->format('H:i'),
             'professional_name' => $professional->getName(),
             'location_name' => $location->getName(),
             'location_address' => $location->getAddress(),
@@ -34,8 +40,17 @@ class EmailService
             'patient_email' => $patient->getEmail(),
             'patient_phone' => $patient->getPhone(),
             'phone_number' => $location->getPhone() ?? '+54 11 1234-5678',
-            'reschedule_url' => '#', // TODO: Implementar URL de reprogramación
-            'cancel_url' => '#', // TODO: Implementar URL de cancelación
+            'primary_color' => $company->getPrimaryColor(),
+            'domain' => $company->getDomain(),
+            // Políticas de la empresa
+            'cancellable_bookings' => $company->isCancellableBookings(),
+            'editable_bookings' => $company->isEditableBookings(),
+            'minimum_edit_hours' => round($company->getMinimumEditTime() / 60),
+            'maximum_edits' => $company->getMaximumEdits(),
+            'confirm_url' => $this->generateConfirmUrl($appointment),
+            'reschedule_url' => $this->generateModifyUrl($appointment),
+            'cancel_url' => $this->generateCancelUrl($appointment),
+            'reschedule_website_url' => $_ENV['APP_URL']  . $company->getDomain()
         ]);
         
         // Usar variables de entorno para from y to
@@ -47,6 +62,11 @@ class EmailService
             ->to($toAddress)
             ->subject('Confirmación de tu cita - ' . $service->getName())
             ->html($htmlContent);
+        
+        // Agregar BCC si está configurado en variable de entorno
+        if (!empty($_ENV['MAIL_BCC_DEBUG'])) {
+            $email->bcc($_ENV['MAIL_BCC_DEBUG']);
+        }
             
         $this->mailer->send($email);
     }
@@ -63,6 +83,8 @@ class EmailService
         $patient = $appointment->getPatient();
         $professional = $appointment->getProfessional();
         $service = $appointment->getService();
+        $location = $appointment->getLocation();
+        $company = $appointment->getCompany();
         
         $subject = $this->getSubjectForType($type);
         $template = $this->getTemplateForType($type);
@@ -72,6 +94,15 @@ class EmailService
             'patient' => $patient,
             'professional' => $professional,
             'service' => $service,
+            'location' => $location,
+            'company' => $company,
+            'domain' => $company->getDomain(),
+            'primary_color' => $company->getPrimaryColor(),
+            // Políticas de la empresa
+            'cancellable_bookings' => $company->isCancellableBookings(),
+            'editable_bookings' => $company->isEditableBookings(),
+            'minimum_edit_hours' => round($company->getMinimumEditTime() / 60),
+            'maximum_edits' => $company->getMaximumEdits(),
             'type' => $type
         ]);
         
@@ -84,6 +115,11 @@ class EmailService
             ->to($toAddress)
             ->subject($subject)
             ->html($htmlContent);
+        
+        // Agregar BCC si está configurado en variable de entorno
+        if (!empty($_ENV['MAIL_BCC_DEBUG'])) {
+            $email->bcc($_ENV['MAIL_BCC_DEBUG']);
+        }
             
         $this->mailer->send($email);
     }
@@ -108,5 +144,89 @@ class EmailService
             'cancellation' => 'emails/appointment_cancellation.html.twig',
             default => 'emails/appointment_confirmation.html.twig'
         };
+    }
+
+    /**
+     * Formatea una fecha en español con formato completo
+     */
+    private function formatDateInSpanish(\DateTime $date): string
+    {
+        $dayNames = [
+            'Monday' => 'Lunes',
+            'Tuesday' => 'Martes', 
+            'Wednesday' => 'Miércoles',
+            'Thursday' => 'Jueves',
+            'Friday' => 'Viernes',
+            'Saturday' => 'Sábado',
+            'Sunday' => 'Domingo'
+        ];
+        
+        $monthNames = [
+            'January' => 'Enero',
+            'February' => 'Febrero',
+            'March' => 'Marzo',
+            'April' => 'Abril',
+            'May' => 'Mayo',
+            'June' => 'Junio',
+            'July' => 'Julio',
+            'August' => 'Agosto',
+            'September' => 'Septiembre',
+            'October' => 'Octubre',
+            'November' => 'Noviembre',
+            'December' => 'Diciembre'
+        ];
+        
+        $dayName = $dayNames[$date->format('l')] ?? $date->format('l');
+        $monthName = $monthNames[$date->format('F')] ?? $date->format('F');
+        
+        return sprintf('%s, %d de %s de %s', 
+            $dayName, 
+            $date->format('d'), 
+            $monthName, 
+            $date->format('Y')
+        );
+    }
+
+    /**
+     * Generar token de seguridad para una cita
+     */
+    private function generateAppointmentToken(Appointment $appointment): string
+    {
+        $data = $appointment->getId() . 
+                $appointment->getPatient()->getEmail() . 
+                $appointment->getScheduledAt()->format('Y-m-d H:i:s') .
+                $appointment->getCompany()->getId();
+        
+        return hash('sha256', $data . ($_ENV['APP_SECRET'] ?? 'default_secret'));
+    }
+
+    /**
+     * Generar URL de confirmación
+     */
+    private function generateConfirmUrl(Appointment $appointment): string
+    {
+        $domain = $appointment->getCompany()->getDomain();
+        $token = $this->generateAppointmentToken($appointment);
+        return $_ENV['APP_URL'] . "{$domain}/api/confirm/{$appointment->getId()}/{$token}";
+    }
+
+    /**
+     * Generar URL de cancelación
+     */
+    private function generateCancelUrl(Appointment $appointment): string
+    {
+        $domain = $appointment->getCompany()->getDomain();
+        $token = $this->generateAppointmentToken($appointment);
+        return $_ENV['APP_URL'] . "{$domain}/api/cancel/{$appointment->getId()}/{$token}";
+    }
+
+    /**
+     * Generar URL de modificación
+     */
+    private function generateModifyUrl(Appointment $appointment): string
+    {
+        $domain = $appointment->getCompany()->getDomain();
+        $token = $this->generateAppointmentToken($appointment);
+        return $_ENV['APP_URL'] . "{$domain}/api/modify/{$appointment->getId()}/{$token}";
     }
 }

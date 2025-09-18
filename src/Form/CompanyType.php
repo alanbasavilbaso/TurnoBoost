@@ -3,8 +3,10 @@
 namespace App\Form;
 
 use App\Entity\Company;
+use App\Validator\DomainNotExcluded;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
+use Symfony\Component\Form\Extension\Core\Type\ColorType;
 use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
@@ -38,7 +40,15 @@ class CompanyType extends AbstractType
                 'attr' => [
                     'class' => 'form-control',
                     'rows' => 4,
-                    'placeholder' => 'Descripción de la empresa, servicios que ofrece, etc.'
+                    'placeholder' => 'Descripción de la empresa, servicios que ofrece, etc.',
+                    'maxlength' => 255,
+                    'id' => 'description-field'
+                ],
+                'constraints' => [
+                    new Length([
+                        'max' => 255,
+                        'maxMessage' => 'La descripción no puede exceder {{ limit }} caracteres'
+                    ])
                 ]
             ])
             ->add('domain', TextType::class, [
@@ -49,7 +59,7 @@ class CompanyType extends AbstractType
                     'pattern' => '[a-z0-9-]+',
                     'title' => 'Solo letras minúsculas, números y guiones'
                 ],
-                'help' => 'Este será usado como URL para las reservas online: /reservas/tu-dominio',
+                'help' => 'Este será usado como URL para las reservas online: turnoboost.com/tu-dominio',
                 'constraints' => [
                     new NotBlank(['message' => 'El dominio es obligatorio']),
                     new Length([
@@ -61,7 +71,8 @@ class CompanyType extends AbstractType
                     new Regex([
                         'pattern' => '/^[a-z0-9-]+$/',
                         'message' => 'El dominio solo puede contener letras minúsculas, números y guiones'
-                    ])
+                    ]),
+                    new DomainNotExcluded()
                 ]
             ])
             ->add('minimumBookingTime', IntegerType::class, [
@@ -201,6 +212,98 @@ class CompanyType extends AbstractType
                     'class' => 'form-check-input'
                 ],
                 'help' => 'Habilita los pagos en línea a través de Mercado Pago'
+            ])
+            ->add('primaryColor', ColorType::class, [
+                'label' => 'Color Principal del Sitio Web',
+                'attr' => [
+                    'class' => 'form-control form-control-color',
+                    'title' => 'Selecciona el color principal'
+                ],
+                'help' => 'Te sugerimos que utilices el color que usas para las comunicaciones de tu negocio, como redes sociales y web. Recomendamos que uses colores oscuros para tener mejor legibilidad.',
+                'constraints' => [
+                    new NotBlank(['message' => 'El color principal es obligatorio']),
+                    new Regex([
+                        'pattern' => '/^#[0-9A-Fa-f]{6}$/',
+                        'message' => 'El color debe estar en formato hexadecimal válido (ej: #1a1a1a)'
+                    ])
+                ]
+            ])
+            // Campos de notificaciones
+            ->add('emailNotificationsEnabled', CheckboxType::class, [
+                'label' => 'Habilitar Notificaciones por Email',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input'
+                ],
+                'help' => 'Envía notificaciones por email cuando se crea, modifica o cancela un turno'
+            ])
+            ->add('whatsappNotificationsEnabled', CheckboxType::class, [
+                'label' => 'Habilitar Notificaciones por WhatsApp',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input'
+                ],
+                'help' => 'Envía notificaciones por WhatsApp cuando se crea, modifica o cancela un turno'
+            ])
+            ->add('reminderEmailEnabled', CheckboxType::class, [
+                'label' => 'Recordatorios por Email',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input'
+                ],
+                'help' => 'Envía recordatorios por email'
+            ])
+            ->add('reminderWhatsappEnabled', CheckboxType::class, [
+                'label' => 'Recordatorios por WhatsApp',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input'
+                ],
+                'help' => 'Envía recordatorios por WhatsApp'
+            ])
+            ->add('firstReminderHoursBeforeAppointment', IntegerType::class, [
+                'label' => 'Primer Recordatorio (horas antes)',
+                'attr' => [
+                    'class' => 'form-control',
+                    'placeholder' => '24',
+                    'min' => 1,
+                    'max' => 168
+                ],
+                'constraints' => [
+                    new NotBlank(['message' => 'Las horas del primer recordatorio son obligatorias']),
+                    new Range([
+                        'min' => 1,
+                        'max' => 168,
+                        'notInRangeMessage' => 'Las horas del primer recordatorio deben estar entre {{ min }} y {{ max }} horas'
+                    ])
+                ],
+                'help' => 'Define cuántas horas antes de la reserva se enviará el primer recordatorio por email al cliente'
+            ])
+            ->add('secondReminderEnabled', CheckboxType::class, [
+                'label' => 'Habilitar Segundo Recordatorio',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input'
+                ],
+                'help' => 'Habilita un segundo recordatorio más cercano a la cita'
+            ])
+            ->add('secondReminderHoursBeforeAppointment', IntegerType::class, [
+                'label' => 'Segundo Recordatorio (horas antes)',
+                'attr' => [
+                    'class' => 'form-control',
+                    'placeholder' => '2',
+                    'min' => 1,
+                    'max' => 48
+                ],
+                'constraints' => [
+                    new NotBlank(['message' => 'Las horas del segundo recordatorio son obligatorias']),
+                    new Range([
+                        'min' => 1,
+                        'max' => 48,
+                        'notInRangeMessage' => 'Las horas del segundo recordatorio deben estar entre {{ min }} y {{ max }} horas'
+                    ])
+                ],
+                'help' => 'Define cuántas horas antes de la reserva se enviará el segundo recordatorio por WhatsApp al cliente'
             ])
             ->add('submit', SubmitType::class, [
                 'label' => 'Guardar Configuración',

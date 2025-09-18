@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\Appointment;
+use App\Entity\AppointmentSourceEnum;
 use App\Entity\Company;
 use App\Entity\Professional;
 use App\Entity\Service;
@@ -14,7 +15,6 @@ use App\Repository\AppointmentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\Location;
 use App\Entity\ProfessionalBlock;
-use phpDocumentor\Reflection\DocBlock\Tags\Var_;
 
 class AppointmentService
 {
@@ -23,25 +23,28 @@ class AppointmentService
     private ServiceRepository $serviceRepository;
     private PatientService $patientService;
     private AppointmentRepository $appointmentRepository;
+    private NotificationService $notificationService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         ProfessionalRepository $professionalRepository,
         ServiceRepository $serviceRepository,
         PatientService $patientService,
-        AppointmentRepository $appointmentRepository
+        AppointmentRepository $appointmentRepository,
+        NotificationService $notificationService
     ) {
         $this->entityManager = $entityManager;
         $this->professionalRepository = $professionalRepository;
         $this->serviceRepository = $serviceRepository;
         $this->patientService = $patientService;
         $this->appointmentRepository = $appointmentRepository;
+        $this->notificationService = $notificationService;
     }
 
     /**
      * Crea una nueva cita con todas las validaciones necesarias
      */
-    public function createAppointment(array $data, Company $company, bool $force = false): Appointment
+    public function createAppointment(array $data, Company $company, bool $force = false, AppointmentSourceEnum $source = AppointmentSourceEnum::USER): Appointment
     {
         // Validar y obtener datos básicos
         $appointmentData = $this->validateAndParseData($data);
@@ -49,43 +52,133 @@ class AppointmentService
         // Obtener entidades relacionadas
         $professional = $this->getProfessional($appointmentData['professionalId'], $company);
         $service = $this->getService($appointmentData['serviceId'], $company);
-        $location = $this->getLocation($appointmentData['locationId'], $company); // Agregar esta línea
+        $location = $this->getLocation($appointmentData['locationId'], $company);
         
         // Calcular duración y hora de finalización
         $duration = $this->calculateDuration($professional, $service);
         
-        // Ejecutar todas las validaciones (solo si no se fuerza)
+        // Validaciones específicas para usuarios (no para admin)
+        if ($source === AppointmentSourceEnum::USER && !$force) {
+            $this->validateUserRestrictions($appointmentData, $company);
+        }
+        
+        // Ejecutar validaciones generales (solo si no se fuerza)
         if (!$force) {
             $this->validateAppointment(
                 $appointmentData['scheduledAt'],
                 $duration,
                 $professional,
                 $service,
-                $location // Ahora $location está definida
+                $location
             );
         }
-        // var_dump($force);
-        // var_dump($appointmentData['scheduledAt']);
-        // var_dump($endTime);
-        // exit;
+        
         // Crear o buscar paciente
         $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $company);
         
         // Crear la cita
         $appointment = new Appointment();
-        $appointment->setCompany($company) // Agregar esta línea
+        $appointment->setCompany($company)
                ->setLocation($location)
                ->setProfessional($professional)
                ->setService($service)
                ->setPatient($patient)
                ->setScheduledAt($appointmentData['scheduledAt'])
                ->setDurationMinutes($duration)
-               ->setNotes($appointmentData['notes']);
+               ->setNotes($appointmentData['notes'])
+               ->setSource($source);
         
         $this->entityManager->persist($appointment);
         $this->entityManager->flush();
         
+        // Programar notificaciones automáticamente
+        $this->notificationService->scheduleAppointmentNotifications($appointment);
+        
         return $appointment;
+    }
+
+    /**
+     * Validaciones específicas para citas creadas por usuarios
+     */
+    private function validateUserRestrictions(array $appointmentData, Company $company): void
+    {
+        // Validar tiempo máximo futuro
+        $now = new \DateTime();
+        $maxFutureTime = $company->getMaximumFutureTime(); // en días
+        $maxDate = (clone $now)->add(new \DateInterval('P' . $maxFutureTime . 'D'));
+        
+        if ($appointmentData['scheduledAt'] > $maxDate) {
+            throw new \InvalidArgumentException(
+                "No se pueden agendar citas con más de {$maxFutureTime} días de anticipación."
+            );
+        }
+
+        // Validar límite de reservas pendientes
+        $pendingCount = $this->entityManager->createQueryBuilder()
+            ->select('COUNT(a.id)')
+            ->from(Appointment::class, 'a')
+            ->join('a.patient', 'p')
+            ->where('a.company = :company')
+            ->andWhere('p.email = :email')
+            ->andWhere('a.source = :source')
+            ->andWhere('a.status IN (:pendingStatuses)')
+            ->andWhere('a.scheduledAt > :now')
+            ->setParameter('company', $company)
+            ->setParameter('email', $appointmentData['patientData']['email'])
+            ->setParameter('source', AppointmentSourceEnum::USER)
+            ->setParameter('pendingStatuses', [StatusEnum::SCHEDULED])
+            ->setParameter('now', $now)
+            ->getQuery()
+            ->getSingleScalarResult();
+        
+        if ($pendingCount >= $company->getMaxPendingBookings()) {
+            throw new \InvalidArgumentException(
+                "Has alcanzado el límite máximo de {$company->getMaxPendingBookings()} reservas pendientes."
+            );
+        }
+    }
+
+    /**
+     * Verifica si una cita puede ser cancelada considerando su origen
+     */
+    public function canBeCancelled(Appointment $appointment): bool
+    {
+        $baseCondition = in_array($appointment->getStatus(), [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED]) 
+                        && $appointment->isFuture();
+        
+        // Si fue creada por admin, siempre puede ser cancelada
+        if ($appointment->isAdminCreated()) {
+            return $baseCondition;
+        }
+        
+        // Si fue creada por usuario, verificar configuración de la empresa
+        return $baseCondition && $appointment->getCompany()->isCancellableBookings();
+    }
+
+    /**
+     * Verifica si una cita puede ser editada considerando su origen
+     */
+    public function canBeEdited(Appointment $appointment): bool
+    {
+        $baseCondition = in_array($appointment->getStatus(), [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED]) 
+                        && $appointment->isFuture();
+        
+        // Si fue creada por admin, siempre puede ser editada
+        if ($appointment->isAdminCreated()) {
+            return $baseCondition;
+        }
+        
+        // Si fue creada por usuario, verificar configuración de la empresa
+        if (!$appointment->getCompany()->isEditableBookings()) {
+            return false;
+        }
+        
+        // Verificar tiempo mínimo para edición
+        $now = new \DateTime();
+        $minEditTime = $appointment->getCompany()->getMinimumEditTime(); // en minutos
+        $timeDiff = $appointment->getScheduledAt()->getTimestamp() - $now->getTimestamp();
+        
+        return $baseCondition && ($timeDiff >= $minEditTime * 60);
     }
 
     /**
@@ -202,7 +295,7 @@ class AppointmentService
             $service->getId(),
             null
         );
-        
+        // var_dump($available);exit;
       
         if (!$available['available']) {
             if (isset($available['details']['appointments']) && $available['details']['appointments'] > 0) {
@@ -218,7 +311,7 @@ class AppointmentService
         }
 
         $endTime = (clone $scheduledAt)->add(new \DateInterval('PT' . $durationMinutes . 'M'));
-
+        
         // Verificar bloqueos
         $this->validateBlockConflicts($scheduledAt, $endTime, $professional);
     }
@@ -235,7 +328,7 @@ class AppointmentService
         $appointmentDate = $scheduledAt->format('Y-m-d');
         $appointmentStartTime = $scheduledAt->format('H:i:s');
         $appointmentEndTime = $endTime->format('H:i:s');
-        $dayOfWeek = (int)$scheduledAt->format('N') - 1; // 0=Lunes, 6=Domingo
+        $dayOfWeek = (int)$scheduledAt->format('N'); // 0=Lunes, 6=Domingo
         
         // Buscar bloqueos que puedan interferir
         $qb = $this->entityManager->createQueryBuilder()
@@ -375,9 +468,17 @@ class AppointmentService
             'start' => $appointment->getScheduledAt()->format('c'),
             'end' => $appointment->getEndTime()->format('c'),
             'patientId' => $appointment->getPatient()->getId(),
+            'patientFirstName' => $appointment->getPatient()->getFirstName(),
+            'patientLastName' => $appointment->getPatient()->getLastName(),
+            'patientEmail' => $appointment->getPatient()->getEmail(),
             'professionalId' => $appointment->getProfessional()->getId(),
+            'professionalName' => $appointment->getProfessional()->getName(),
             'serviceId' => $appointment->getService()->getId(),
+            'serviceName' => $appointment->getService()->getName(),
             'status' => $appointment->getStatus()->value,
+            'locationName' => $appointment->getLocation()->getName() . ' - ' . $appointment->getLocation()->getAddress(),
+            'duration' => $appointment->getDurationMinutes(),
+            'price' => $appointment->getPrice(),
             'notes' => $appointment->getNotes()
         ];
     }

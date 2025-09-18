@@ -36,8 +36,18 @@
 
                     <div class="mb-4">
                         {{ form_label(form.description, 'Descripción', {'label_attr': {'class': 'form-label'}}) }}
-                        {{ form_widget(form.description, {'attr': {'class': 'form-control', 'rows': '4'}}) }}
-                        <small class="text-muted">Contalé a tus clientes sobre tu empresa, sobre los servicios que ofreces o tu propuesta de valor.</small>
+                        {{ form_widget(form.description, {'attr': {'class': 'form-control', 'rows': '4', 'maxlength': '255', 'id': 'description-field'}}) }}
+                        <div class="d-flex justify-content-between">
+                            <small class="text-muted">Contalé a tus clientes sobre tu empresa, sobre los servicios que ofreces o tu propuesta de valor.</small>
+                            <small class="text-muted">
+                                <span id="char-count">0</span>/255 caracteres
+                            </small>
+                        </div>
+                        {% if form.description.vars.errors|length > 0 %}
+                            <div class="text-danger small mt-1">
+                                {{ form_errors(form.description) }}
+                            </div>
+                        {% endif %}
                     </div>
 
                     <div class="mb-4">
@@ -55,8 +65,199 @@
                         <div class="domain-preview">
                             <strong><i class="fas fa-globe me-2"></i>Preview:</strong> 
                             <span class="text-primary fw-bold" id="domain-preview">
-                                {{ app.request.schemeAndHttpHost }}/reservas/{{ company.domain }}
+                                {{ app.request.schemeAndHttpHost }}/{{ company.domain }}
                             </span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        {{ form_label(form.primaryColor, 'Color Principal del Sitio Web', {'label_attr': {'class': 'form-label'}}) }}
+                        <div class="color-input-group">
+                            <div class="input-group">
+                                {{ form_widget(form.primaryColor, {'attr': {'class': 'form-control form-control-color', 'id': 'primary-color-input'}}) }}
+                                <input type="text" class="form-control" id="color-hex-input" placeholder="#1a1a1a" readonly>
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            Te sugerimos que utilices el color que usas para las comunicaciones de tu negocio, como redes sociales y web. Recomendamos que uses colores oscuros para tener mejor legibilidad.
+                        </small>
+                        {% if form.primaryColor.vars.errors|length > 0 %}
+                            <div class="text-danger small mt-1">
+                                {{ form_errors(form.primaryColor) }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Acordeón de Notificaciones y Recordatorios -->
+                    <div class="accordion mb-3" id="notificationAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="notificationHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#notificationCollapse" aria-expanded="false" aria-controls="notificationCollapse">
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-bell me-2"></i>
+                                            Notificaciones y Recordatorios
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            Configura las notificaciones automáticas por Email y WhatsApp
+                                        </small>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="notificationCollapse" class="accordion-collapse collapse" aria-labelledby="notificationHeading" data-bs-parent="#notificationAccordion">
+                                <div class="accordion-body">
+                                    <!-- Notificaciones de Email -->
+                                    <h6 class="fw-bold mb-3">
+                                        <i class="fas fa-bell me-2"></i>
+                                        Notificaciones  de creación, edición o cancelación de turno
+                                        <div class="field-description">Permite que tus clientes reciban un email de creación, modificación o eliminación de cita. El email será enviado justo después realizar la acción. En caso de creación de cita esta puede ser creada por tus clientes desde el sitio web o internamente desde la Agenda.</div>
+                                    </h6>
+
+                                    <div class="config-field-group">
+                                        <div class="form-check form-switch">
+                                            {{ form_widget(form.emailNotificationsEnabled, {
+                                                'attr': {
+                                                    'class': 'form-check-input',
+                                                    'role': 'switch'
+                                                }
+                                            }) }}
+                                            {{ form_label(form.emailNotificationsEnabled, 'Enviar Notificaciones por Email', {
+                                                'label_attr': {'class': 'form-check-label fw-bold'}
+                                            }) }}
+                                        </div>
+                                    </div>
+
+                                    <div class="config-field-group">
+                                        <div class="form-check form-switch">
+                                            {{ form_widget(form.whatsappNotificationsEnabled, {
+                                                'attr': {
+                                                    'class': 'form-check-input',
+                                                    'role': 'switch'
+                                                }
+                                            }) }}
+                                            {{ form_label(form.whatsappNotificationsEnabled, 'Enviar Notificaciones por WhatsApp', {
+                                                'label_attr': {'class': 'form-check-label fw-bold'}
+                                            }) }}
+                                        </div>
+                                    </div>
+
+                                    <hr class="my-3">
+
+                                    <!-- Recordatorios -->
+                                    <h6 class="fw-bold mb-3">
+                                        <i class="fas fa-clock me-2"></i>
+                                        Recordatorios Automáticos
+                                        <div class="field-description">
+                                            Envía recordatorios por WhatsApp antes del turno programadas.
+                                        </div>
+                                    </h6>
+
+                                    <div class="config-field-group">
+                                        <div class="form-check form-switch">
+                                            {{ form_widget(form.reminderEmailEnabled, {
+                                                'attr': {
+                                                    'class': 'form-check-input',
+                                                    'role': 'switch'
+                                                }
+                                            }) }}
+                                            {{ form_label(form.reminderEmailEnabled, 'Recordatorios por Email', {
+                                                'label_attr': {'class': 'form-check-label fw-bold'}
+                                            }) }}
+                                        </div>
+                                    </div>
+
+                                    <div class="config-field-group">
+                                        <div class="form-check form-switch">
+                                            {{ form_widget(form.reminderWhatsappEnabled, {
+                                                'attr': {
+                                                    'class': 'form-check-input',
+                                                    'role': 'switch'
+                                                }
+                                            }) }}
+                                            {{ form_label(form.reminderWhatsappEnabled, 'Recordatorios por WhatsApp', {
+                                                'label_attr': {'class': 'form-check-label fw-bold'}
+                                            }) }}
+                                        </div>
+                                    </div>
+
+                                    <div class="config-field-group">
+                                        {{ form_label(form.firstReminderHoursBeforeAppointment, 'Primer Recordatorio (horas antes)', {'label_attr': {'class': 'form-label'}}) }}
+                                        <div class="time-input-group">
+                                            <div class="input-group">
+                                                {{ form_widget(form.firstReminderHoursBeforeAppointment, {
+                                                    'attr': {
+                                                        'class': 'form-control',
+                                                        'min': '1',
+                                                        'max': '168',
+                                                        'step': '1',
+                                                        'placeholder': '24'
+                                                    }
+                                                }) }}
+                                                <span class="input-group-text">Horas</span>
+                                            </div>
+                                        </div>
+                                        <div class="field-description">
+                                            Define cuántas horas antes de la reserva se enviará el primer recordatorio.
+                                        </div>
+                                        {% if form.firstReminderHoursBeforeAppointment.vars.errors|length > 0 %}
+                                            <div class="text-danger small mt-1">
+                                                {{ form_errors(form.firstReminderHoursBeforeAppointment) }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <hr class="my-3">
+
+                                    <!-- Segundo Recordatorio -->
+                                    <h6 class="fw-bold mb-3">
+                                        <i class="fas fa-bell me-2"></i>
+                                        Segundo Recordatorio (Urgente)
+                                        <div class="field-description">
+                                            Envía un segundo recordatorio más cercano al turno.
+                                        </div>
+                                    </h6>
+
+                                    <div class="config-field-group">
+                                        <div class="form-check form-switch">
+                                            {{ form_widget(form.secondReminderEnabled, {
+                                                'attr': {
+                                                    'class': 'form-check-input',
+                                                    'role': 'switch'
+                                                }
+                                            }) }}
+                                            {{ form_label(form.secondReminderEnabled, 'Habilitar Segundo Recordatorio', {
+                                                'label_attr': {'class': 'form-check-label fw-bold'}
+                                            }) }}
+                                        </div>
+                                    </div>
+
+                                    <div class="config-field-group">
+                                        {{ form_label(form.secondReminderHoursBeforeAppointment, 'Segundo Recordatorio (horas antes)', {'label_attr': {'class': 'form-label'}}) }}
+                                        <div class="time-input-group">
+                                            <div class="input-group">
+                                                {{ form_widget(form.secondReminderHoursBeforeAppointment, {
+                                                    'attr': {
+                                                        'class': 'form-control',
+                                                        'min': '1',
+                                                        'max': '48',
+                                                        'step': '1',
+                                                        'placeholder': '2'
+                                                    }
+                                                }) }}
+                                                <span class="input-group-text">Horas</span>
+                                            </div>
+                                        </div>
+                                        <div class="field-description">
+                                            Define cuántas horas antes de la reserva se enviará el segundo recordatorio.
+                                        </div>
+                                        {% if form.secondReminderHoursBeforeAppointment.vars.errors|length > 0 %}
+                                            <div class="text-danger small mt-1">
+                                                {{ form_errors(form.secondReminderHoursBeforeAppointment) }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

@@ -8,4 +8,5 @@ enum NotificationTypeEnum: string
     case REMINDER = 'reminder';
     case URGENT_REMINDER = 'urgent_reminder';
     case CANCELLATION = 'cancellation';
+    case MODIFICATION = 'modification';
 }

@@ -30,7 +30,7 @@ class TimeSlot
         \DateTime $date,
         ?int $excludeAppointmentId = null
     ): array {
-        $dayOfWeek = (int)$date->format('N') - 1; // 0=Lunes, 6=Domingo
+        $dayOfWeek = (int)$date->format('N'); // 0=Lunes, 6=Domingo
         
         // Obtener el ProfessionalService para usar la duración efectiva
         $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
@@ -38,16 +38,13 @@ class TimeSlot
                 'professional' => $professional,
                 'service' => $service
             ]);
-        
         if (!$professionalService) {
             return [];
         }
-        
         // Verificar si el servicio está disponible para este profesional en este día
         if (!$professionalService->isAvailableOnDay($dayOfWeek)) {
             return [];
         }
-        
         // Obtener disponibilidades del profesional para este día
         $availabilities = $this->getProfessionalAvailabilities($professional, $dayOfWeek);
         

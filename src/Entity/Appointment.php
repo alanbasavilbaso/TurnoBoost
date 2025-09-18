@@ -56,6 +56,9 @@ class Appointment
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $updatedAt;
 
+    #[ORM\Column(type: 'string', enumType: AppointmentSourceEnum::class)]
+    private AppointmentSourceEnum $source = AppointmentSourceEnum::USER;
+
     #[ORM\OneToMany(mappedBy: 'appointment', targetEntity: Notification::class, cascade: ['persist', 'remove'])]
     private Collection $notifications;
 
@@ -67,6 +70,7 @@ class Appointment
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
         $this->status = StatusEnum::SCHEDULED;
+        $this->source = AppointmentSourceEnum::USER; // Por defecto, asumimos que es creada por usuario
         $this->notifications = new ArrayCollection();
     }
 
@@ -221,14 +225,6 @@ class Appointment
         $today = new \DateTime('today');
         $tomorrow = new \DateTime('tomorrow');
         return $this->scheduledAt >= $today && $this->scheduledAt < $tomorrow;
-    }
-
-    /**
-     * Verifica si la cita puede ser cancelada
-     */
-    public function canBeCancelled(): bool
-    {
-        return in_array($this->status, [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED]) && $this->isFuture();
     }
 
     /**
@@ -426,5 +422,73 @@ class Appointment
     public function canReceiveFeedback(): bool
     {
         return $this->status === StatusEnum::COMPLETED && !$this->hasFeedback();
+    }
+
+    public function getSource(): AppointmentSourceEnum
+    {
+        return $this->source;
+    }
+
+    public function setSource(AppointmentSourceEnum $source): static
+    {
+        $this->source = $source;
+        return $this;
+    }
+
+    /**
+     * Verifica si la cita fue creada por un usuario (no admin)
+     */
+    public function isUserCreated(): bool
+    {
+        return $this->source->isUserCreated();
+    }
+
+    /**
+     * Verifica si la cita fue creada por un administrador
+     */
+    public function isAdminCreated(): bool
+    {
+        return $this->source->isAdminCreated();
+    }
+
+    /**
+     * Verifica si la cita puede ser cancelada (considerando el origen)
+     */
+    public function canBeCancelled(): bool
+    {
+        $baseCondition = in_array($this->status, [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED]) && $this->isFuture();
+        
+        // Si fue creada por admin, siempre puede ser cancelada (si cumple condiciones base)
+        if ($this->isAdminCreated()) {
+            return $baseCondition;
+        }
+        
+        // Si fue creada por usuario, verificar configuración de la empresa
+        return $baseCondition && $this->company->isCancellableBookings();
+    }
+
+    /**
+     * Verifica si la cita puede ser editada (considerando el origen)
+     */
+    public function canBeEdited(): bool
+    {
+        $baseCondition = in_array($this->status, [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED]) && $this->isFuture();
+        
+        // Si fue creada por admin, siempre puede ser editada (si cumple condiciones base)
+        if ($this->isAdminCreated()) {
+            return $baseCondition;
+        }
+        
+        // Si fue creada por usuario, verificar configuración de la empresa
+        if (!$this->company->isEditableBookings()) {
+            return false;
+        }
+        
+        // Verificar tiempo mínimo para edición
+        $now = new \DateTime();
+        $minEditTime = $this->company->getMinimumEditTime(); // en minutos
+        $timeDiff = $this->scheduledAt->getTimestamp() - $now->getTimestamp();
+        
+        return $baseCondition && ($timeDiff >= $minEditTime * 60);
     }
 }

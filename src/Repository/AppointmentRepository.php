@@ -84,9 +84,16 @@ class AppointmentRepository extends ServiceEntityRepository
                 AND a.status != 'CANCELLED'
                 AND (
                     -- Verificar solapamiento de horarios
-                    a.scheduled_at::TIME BETWEEN CAST(:startTime AS TIME) AND CAST(:endTime AS TIME)
-                    OR (a.scheduled_at + INTERVAL '1 minute' * a.duration_minutes)::TIME BETWEEN CAST(:startTime AS TIME) AND CAST(:endTime AS TIME)
-                    OR (CAST(:startTime AS TIME) BETWEEN a.scheduled_at::TIME AND (a.scheduled_at + INTERVAL '1 minute' * a.duration_minutes)::TIME)
+                    -- a.scheduled_at::TIME BETWEEN CAST(:startTime AS TIME) AND CAST(:endTime AS TIME)
+                    -- OR (a.scheduled_at + INTERVAL '1 minute' * a.duration_minutes)::TIME BETWEEN CAST(:startTime AS TIME) AND CAST(:endTime AS TIME)
+                    -- OR (CAST(:startTime AS TIME) BETWEEN a.scheduled_at::TIME AND (a.scheduled_at + INTERVAL '1 minute' * a.duration_minutes)::TIME)
+
+                    -- Verificar solapamiento de horarios (sin incluir extremos)
+                    -- Hay solapamiento si:
+                    -- 1. La cita existente empieza antes de que termine la nueva cita
+                    -- 2. Y la cita existente termina después de que empiece la nueva cita
+                    a.scheduled_at::TIME < CAST(:endTime AS TIME)
+                    AND (a.scheduled_at + INTERVAL '1 minute' * a.duration_minutes)::TIME > CAST(:startTime AS TIME)
                 )
                 " . ($excludeAppointmentId ? "AND a.id != :excludeAppointmentId" : "") . "
             )
@@ -112,7 +119,7 @@ class AppointmentRepository extends ServiceEntityRepository
                 AND (pa.weekday = :dayOfWeek OR ss.id IS NOT NULL)
                 
             GROUP BY 
-                p.id, a.id, ss.id, sss.special_schedule_id, pa.id
+                p.id, ss.id, sss.special_schedule_id, pa.id
         ";
         
         $params = [
@@ -129,9 +136,16 @@ class AppointmentRepository extends ServiceEntityRepository
         }
         
         $stmt = $this->getEntityManager()->getConnection()->prepare($sql);
+        // $result = $stmt->executeQuery($params)->fetchAssociative();
         $result = $stmt->executeQuery($params)->fetchAssociative();
-        // var_dump($result === false);
+        // var_dump($result === false)
+        // $finalSql = $sql;
+        // foreach ($params as $key => $value) {
+        //     $finalSql = str_replace(":$key", "'$value'", $finalSql);
+        // }
+        // var_dump($finalSql);
         // exit;
+
         $hasInvalidResult = $result === false;
         return [
             'available' => $hasInvalidResult ? false : $this->isSlotAvailable($result),
@@ -158,7 +172,7 @@ class AppointmentRepository extends ServiceEntityRepository
         }
         
         // Si no hay horarios especiales, verificar disponibilidad regular
-        return (int)$queryResult['professionalavailability'] > 0;
+        return (int)$queryResult['professional_availability'] > 0;
     }
     
     /**

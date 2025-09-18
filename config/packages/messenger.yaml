@@ -3,17 +3,17 @@ framework:
         failure_transport: failed
 
         transports:
-            # https://symfony.com/doc/current/messenger.html#transport-configuration
             async:
                 dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
                 options:
                     use_notify: true
                     check_delayed_interval: 60000
                 retry_strategy:
-                    max_retries: 3
+                    max_retries: 2  # Solo 2
                     multiplier: 2
+                    delay: 1000     # 1 segundo entre reintentos
+                    max_delay: 5000 # Máximo 5 segundos
             failed: 'doctrine://default?queue_name=failed'
-            # sync: 'sync://'
 
         default_bus: messenger.bus.default
 

@@ -1,0 +1,151 @@
+{% extends 'booking_base.html.twig' %}
+
+{% block title %}Error - {{ company ? company.name : 'TurnoBoost' }}{% endblock %}
+
+{% block stylesheets %}
+<style>
+    :root {
+        --primary-color: {{ company and company.primaryColor ? company.primaryColor : '#007bff' }};
+        --danger-color: #dc3545;
+    }
+    
+    .error-container {
+        max-width: 600px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    
+    .company-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #f8f9fa;
+    }
+    
+    .company-logo {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin-bottom: 1rem;
+    }
+    
+    .error-icon {
+        font-size: 5rem;
+        color: var(--danger-color);
+        margin-bottom: 1.5rem;
+    }
+    
+    .error-message {
+        font-size: 1.25rem;
+        color: #495057;
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 8px;
+        color: #721c24;
+    }
+    
+    .btn-primary {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+        padding: 12px 30px;
+        font-weight: 600;
+        border-radius: 8px;
+        margin: 0.5rem;
+    }
+    .btn:first-child:active, .btn:hover {
+        background-color: var(--primary-color);
+        opacity: 0.9
+    }
+    
+    .help-section {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 2rem 0;
+        text-align: left;
+    }
+    
+    .help-item {
+        display: flex;
+        align-items: center;
+        margin: 0.5rem 0;
+        color: #495057;
+    }
+    
+    .help-item i {
+        margin-right: 0.75rem;
+        color: var(--primary-color);
+        width: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="error-container">
+        {% if company %}
+        <div class="company-header">
+            {# {% if company.logo %}
+                <img src="{{ asset('uploads/companies/' ~ company.logo) }}" alt="{{ company.name }}" class="company-logo">
+            {% endif %} #}
+            <h2>{{ company.name }}</h2>
+        </div>
+        {% endif %}
+        
+        <div class="text-center">
+            <i class="fas fa-exclamation-triangle error-icon"></i>
+            <h3>Oops! Algo salió mal</h3>
+            
+            <div class="error-message">
+                <i class="fas fa-info-circle me-2"></i>
+                {{ error }}
+            </div>
+        </div>
+        
+        <div class="help-section">
+            <h5 class="mb-3">¿Qué puedes hacer?</h5>
+            
+            <div class="help-item">
+                <i class="fas fa-redo"></i>
+                <span>Intenta nuevamente en unos minutos</span>
+            </div>
+            
+            <div class="help-item">
+                <i class="fas fa-calendar-plus"></i>
+                <span>Agenda una nueva cita desde el inicio</span>
+            </div>
+            
+            {# {% if company and company.phone %}
+            <div class="help-item">
+                <i class="fas fa-phone"></i>
+                <span>Llama al {{ company.phone }} para asistencia</span>
+            </div>
+            {% endif %} #}
+            
+            {# {% if company and company.email %}
+            <div class="help-item">
+                <i class="fas fa-envelope"></i>
+                <span>Envía un email a {{ company.email }}</span>
+            </div>
+            {% endif %} #}
+        </div>
+        
+        <div class="mt-4">
+            <a href="/{{ domain }}" class="btn btn-primary text-decoration-none">
+                <i class="fas fa-home me-2"></i>Volver al Inicio
+            </a>
+            
+            {# {% if company and company.website %}
+                <a href="{{ company.website }}" target="_blank" class="btn btn-secondary text-decoration-none">
+                    <i class="fas fa-external-link-alt me-2"></i>Sitio Web
+                </a>
+            {% endif %} #}
+        </div>
+    </div>
+</div>
+{% endblock %}

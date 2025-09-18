@@ -45,7 +45,9 @@ class PatientService
                 return $existingPatient;
             }
         }
-        
+        // var_dump($patientData);
+        // var_dump($patientData['last_name']);
+        // exit;
         // Crear nuevo paciente solo si no existe
         $patient = new Patient();
         $patient->setCompany($company)

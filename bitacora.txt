@@ -225,3 +225,16 @@ title -> El horario de los profesionales se actualizó al nuevo horario del loca
 message -> Se ha cerrado un día en el horario del local, lo que ha afectado automáticamente los horarios de los profesionales asociados. Si decides revertir este cambio, recuerda actualizar manualmente los horarios individuales de los profesionales. 
 
 y eso deberia aplicar a professional
+
+
+
+
+worker
+# Ver mensajes fallidos
+php bin/console messenger:failed:show
+
+# Eliminar todos los mensajes fallidos
+php bin/console messenger:failed:remove --force
+
+# Reiniciar el worker limpio
+php bin/console messenger:consume async

@@ -1,0 +1,227 @@
+{% extends 'booking_base.html.twig' %}
+
+{% block title %}
+    {% if action == 'confirm' %}
+        Cita Confirmada - {{ company.name }}
+    {% elseif action == 'cancel' %}
+        Cita Cancelada - {{ company.name }}
+    {% else %}
+        Acción Completada - {{ company.name }}
+    {% endif %}
+{% endblock %}
+
+{% block stylesheets %}
+<style>
+    :root {
+        --primary-color: {{ company.primaryColor ?? '#007bff' }};
+        --secondary-color: {{ '#6c757d' }};
+        --success-color: #28a745;
+    }
+    
+    .success-container {
+        max-width: 600px;
+        margin: 1rem auto;
+        padding: 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    
+    .company-header {
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #f8f9fa;
+    }
+    
+    .company-logo {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin-bottom: 1rem;
+    }
+    
+    .success-icon {
+        font-size: 5rem;
+        color: var(--success-color);
+        margin-bottom: 1rem;
+    }
+    
+    .success-message {
+        font-size: 1.25rem;
+        color: #495057;
+        margin-bottom: 2rem;
+    }
+    
+    .appointment-summary {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+        text-align: left;
+    }
+    
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .summary-row:last-child {
+        border-bottom: none;
+    }
+    
+    .summary-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .summary-value {
+        color: #212529;
+    }
+    
+    .btn-primary {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+        padding: 12px 30px;
+        font-weight: 600;
+        border-radius: 8px;
+        margin: 0.5rem;
+    }
+    .btn-primary:hover {
+        opacity: 0.9;
+        background-color: var(--primary-color);
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        margin-top: 1rem;
+    }
+    
+    .status-confirmed {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .status-cancelled {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="success-container">
+        <div class="company-header">
+            {# {% if company.logo %}
+                <img src="{{ asset('uploads/companies/' ~ company.logo) }}" alt="{{ company.name }}" class="company-logo">
+            {% endif %} #}
+            <h2>{{ company.name }}</h2>
+        </div>
+        
+        <div class="text-center">
+            <i class="fas fa-check-circle success-icon"></i>
+            <h3>
+                {% if action == 'confirm' %}
+                    ¡Cita Confirmada!
+                {% elseif action == 'cancel' %}
+                    Cita Cancelada
+                {% else %}
+                    ¡Listo!
+                {% endif %}
+            </h3>
+            <p class="success-message">{{ message }}</p>
+            
+            {% if action == 'confirm' %}
+                <div class="status-badge status-confirmed">
+                    <i class="fas fa-check me-2"></i>Confirmada
+                </div>
+            {% elseif action == 'cancel' %}
+                <div class="status-badge status-cancelled">
+                    <i class="fas fa-times me-2"></i>Cancelada
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="appointment-summary">
+            <h5 class="mb-3">Resumen de tu cita:</h5>
+            
+            <div class="summary-row">
+                <span class="summary-label">
+                    <i class="fas fa-user me-2"></i>Paciente:
+                </span>
+                <span class="summary-value">{{ appointment.patient.name }}</span>
+            </div>
+            
+            <div class="summary-row">
+                <span class="summary-label">
+                    <i class="fas fa-stethoscope me-2"></i>Servicio:
+                </span>
+                <span class="summary-value">{{ appointment.service.name }}</span>
+            </div>
+            
+            {% if appointment.professional %}
+            <div class="summary-row">
+                <span class="summary-label">
+                    <i class="fas fa-user-md me-2"></i>Profesional:
+                </span>
+                <span class="summary-value">{{ appointment.professional.name }}</span>
+            </div>
+            {% endif %}
+            
+            <div class="summary-row">
+                <span class="summary-label">
+                    <i class="fas fa-calendar me-2"></i>Fecha:
+                </span>
+                <span class="summary-value">{{ appointment.scheduledAt|date_spanish }}</span>
+            </div>
+            
+            <div class="summary-row">
+                <span class="summary-label">
+                    <i class="fas fa-clock me-2"></i>Hora:
+                </span>
+                <span class="summary-value">{{ appointment.scheduledAt|date('H:i') }}</span>
+            </div>
+            
+            {% if appointment.location %}
+            <div class="summary-row">
+                <span class="summary-label">
+                    <i class="fas fa-map-marker-alt me-2"></i>Ubicación:
+                </span>
+                <span class="summary-value">{{ appointment.location.name }}</span>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="mt-4">
+            {% if action == 'confirm' %}
+                <p class="text-muted small">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Te recomendamos llegar 10 minutos antes de tu cita.
+                </p>
+            {% elseif action == 'cancel' %}
+                <p class="text-muted small">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Puedes agendar una nueva cita cuando lo desees.
+                </p>
+            {% endif %}
+            
+            <a href="/{{ domain }}" class="btn btn-primary text-decoration-none">
+                <i class="fas fa-calendar-plus me-2"></i>Agendar Nueva Cita
+            </a>
+            
+            {# {% if company.website %}
+                <a href="{{ company.website }}" target="_blank" class="btn btn-secondary text-decoration-none">
+                    <i class="fas fa-external-link-alt me-2"></i>Visitar Sitio Web
+                </a>
+            {% endif %} #}
+        </div>
+    </div>
+</div>
+{% endblock %}

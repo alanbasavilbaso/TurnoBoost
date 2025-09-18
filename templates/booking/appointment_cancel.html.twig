@@ -1,0 +1,194 @@
+{% extends 'booking_base.html.twig' %}
+
+{% block title %}Cancelar Cita - {{ company.name }}{% endblock %}
+
+{% block stylesheets %}
+<style>
+    :root {
+        --primary-color: {{ company.primaryColor ?? '#007bff' }};
+        --secondary-color: {{ '#6c757d' }};
+        --danger-color: #dc3545;
+    }
+    
+    .cancellation-container {
+        max-width: 600px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .company-header {
+        text-align: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #f8f9fa;
+    }
+    
+    .company-logo {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin-bottom: 1rem;
+    }
+    
+    .cancellation-icon {
+        font-size: 4rem;
+        color: var(--danger-color);
+        margin-bottom: 1rem;
+    }
+    
+    .appointment-details {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+    
+    .detail-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .detail-value {
+        color: #212529;
+    }
+    
+    .btn-cancel {
+        background-color: var(--danger-color);
+        border-color: var(--danger-color);
+        padding: 12px 30px;
+        font-weight: 600;
+        border-radius: 8px;
+        width: 100%;
+        margin-top: 1rem;
+    }
+    
+    .btn-cancel:hover {
+        background-color: var(--danger-color);
+        border-color: var(--danger-color);
+        opacity: 0.9;
+    }
+    
+    .btn-secondary {
+        background-color: var(--secondary-color);
+        border-color: var(--secondary-color);
+        padding: 12px 30px;
+        font-weight: 600;
+        border-radius: 8px;
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+    
+    .warning-alert {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="cancellation-container">
+        <div class="company-header">
+            {# {% if company.logo %}
+                <img src="{{ asset('uploads/companies/' ~ company.logo) }}" alt="{{ company.name }}" class="company-logo">
+            {% endif %} #}
+            <h2>{{ company.name }}</h2>
+        </div>
+        
+        <div class="text-center">
+            <i class="fas fa-calendar-times cancellation-icon"></i>
+            <h3>Cancelar tu Turno</h3>
+            <p class="text-muted">¿Estás seguro de que deseas cancelar tu turno?</p>
+        </div>
+        
+        <div class="warning-alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Atención:</strong> Esta acción no se puede deshacer. Una vez cancelada, deberás agendar un nuevo turno.
+        </div>
+        
+        <div class="appointment-details">
+            <div class="detail-row">
+                <span class="detail-label">
+                    <i class="fas fa-user me-2"></i>Paciente:
+                </span>
+                <span class="detail-value">{{ appointment.patient.name }}</span>
+            </div>
+            
+            <div class="detail-row">
+                <span class="detail-label">
+                    <i class="fas fa-stethoscope me-2"></i>Servicio:
+                </span>
+                <span class="detail-value">{{ appointment.service.name }}</span>
+            </div>
+            
+            {% if appointment.professional %}
+            <div class="detail-row">
+                <span class="detail-label">
+                    <i class="fas fa-user-md me-2"></i>Profesional:
+                </span>
+                <span class="detail-value">{{ appointment.professional.name }}</span>
+            </div>
+            {% endif %}
+            
+            <div class="detail-row">
+                <span class="detail-label">
+                    <i class="fas fa-calendar me-2"></i>Fecha:
+                </span>
+                <span class="detail-value">{{ appointment.scheduledAt|date_spanish }}</span>
+            </div>
+            
+            <div class="detail-row">
+                <span class="detail-label">
+                    <i class="fas fa-clock me-2"></i>Hora:
+                </span>
+                <span class="detail-value">{{ appointment.scheduledAt|date('H:i') }}</span>
+            </div>
+            
+            <div class="detail-row">
+                <span class="detail-label">
+                    <i class="fas fa-hourglass-half me-2"></i>Duración:
+                </span>
+                <span class="detail-value">{{ appointment.durationMinutes }} minutos</span>
+            </div>
+            
+            {% if appointment.location %}
+            <div class="detail-row">
+                <span class="detail-label">
+                    <i class="fas fa-map-marker-alt me-2"></i>Ubicación:
+                </span>
+                <span class="detail-value">{{ appointment.location.name }}</span>
+            </div>
+            {% endif %}
+        </div>
+        
+        <form method="POST">
+            <button type="submit" class="btn btn-danger btn-cancel">
+                <i class="fas fa-times me-2"></i>Cancelar Cita
+            </button>
+        </form>
+        
+        <a href="/{{ domain }}" class="btn btn-secondary text-decoration-none d-block text-center">
+            <i class="fas fa-arrow-left me-2"></i>Volver al inicio
+        </a>
+    </div>
+</div>
+{% endblock %}

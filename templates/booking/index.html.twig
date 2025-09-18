@@ -1,269 +1,511 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reservar Turno - {{ location.name }}</title>
-    
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="{{ asset('vendor/bootstrap/bootstrap.min.css') }}">
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="{{ asset('vendor/fontawesome/css/all.min.css') }}">
-    
-    <link href="{{ asset('styles/booking.css') }}" rel="stylesheet">
-    
-</head>
-<body>
-    <!-- Header de la Clínica -->
-    <div class="location-header">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h1 class="mb-2"><i class="fas fa-calendar-check me-2"></i>{{ location.name }}</h1>
-                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{{ location.address }}</p>
-                    <p class="mb-0"><i class="fas fa-phone me-2"></i>{{ location.phone }}</p>
-                </div>
-                <div class="col-md-4 text-end">
-                    <h3 class="mb-0">Reservar Turno</h3>
-                    <p class="mb-0">Selecciona tu servicio y horario</p>
-                </div>
-            </div>
+{% extends 'booking_base.html.twig' %}
+
+{% block title %}
+    {% if selectedLocation %}
+        {{ selectedLocation.name }} - {{ company.name }}
+    {% else %}
+        {{ company.name }} - Reserva tu cita
+    {% endif %}
+{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('styles/booking.css') }}">
+     <style>
+        :root {
+            --primary-color: {{ company.primaryColor }};
+            --primary-dark: {{ company.primaryColor }}D9; /* Versión más oscura */
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+<div class="header-container position-fixed top-0 start-0 end-0">
+    <div class="row p-2">
+        <div class="col-10 offset-1">
+            <span class="h5 mb-0 company-name">{{ company.name }}</span>
         </div>
     </div>
+</div>
 
-    <div class="container my-5">
-        <div class="row">
-            <!-- Columna Principal -->
-            <div class="col-lg-8">
-                <!-- Resumen de Selección -->
-                <div class="summary-section mb-4">
-                    <h4 class="mb-3"><i class="fas fa-clipboard-list me-2"></i>Tu Selección</h4>
+<div class="container-fluid py-4 mt-5 mb-5" data-location-id="{{ selectedLocation ? selectedLocation.id : '' }}" data-domain="{{ domain }}">
+    <div class="row justify-content-center">
+            {% if showLocationSelector %}
+                <div class="col-12">
+                    <!-- Selector de ubicación cuando hay múltiples -->
+                    <div class="card shadow-lg border-0 mb-4">
+                        <div class="card-header bg-primary text-white text-center py-4">
+                            <h1 class="h3 mb-1">{{ company.name }}</h1>
+                            <p class="mb-0 opacity-75">Selecciona una ubicación para continuar</p>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-info d-flex align-items-center mb-4">
+                                <i class="fas fa-map-marker-alt me-2"></i>
+                                <div>
+                                    <h5 class="alert-heading mb-1">Selecciona una ubicación</h5>
+                                    <p class="mb-0">{{ company.name }} tiene múltiples ubicaciones disponibles. Por favor, selecciona la que prefieras:</p>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3">
+                                {% for location in locations %}
+                                    <div class="col-12 col-md-6">
+                                        <div class="card h-100 border-2 location-card" style="cursor: pointer;" onclick="selectLocation({{ location.id }})">
+                                            <div class="card-body">
+                                                <h5 class="card-title">{{ location.name }}</h5>
+                                                {% if location.address %}
+                                                    <p class="card-text small text-muted mb-2">
+                                                        <i class="fas fa-map-marker-alt me-1"></i>
+                                                        {{ location.address }}
+                                                    </p>
+                                                {% endif %}
+                                                {% if location.phone %}
+                                                    <p class="card-text small text-muted mb-2">
+                                                        <i class="fas fa-phone me-1"></i>
+                                                        {{ location.phone }}
+                                                    </p>
+                                                {% endif %}
+                                                {% if location.description %}
+                                                    <p class="card-text">{{ location.description }}</p>
+                                                {% endif %}
+                                            </div>
+                                            <div class="card-footer bg-transparent">
+                                                <button class="btn btn-primary w-100">
+                                                    <i class="fas fa-calendar-alt me-1"></i> Reservar aquí
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% elseif showServiceSelector %}
+                <div class="col-12">
+                    <!-- Selector de servicios -->
+                    <div class="card shadow-lg border-0 mb-4">
+                        <div class="card-header bg-primary text-white text-center py-4">
+                            <h1 class="h3 mb-1">{{ company.name }}</h1>
+                            <p class="mb-0 opacity-75">{{ selectedLocation.name }}</p>
+                            <p class="mb-0 opacity-75">{{ company.description }}</p>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-info d-flex align-items-center mb-4">
+                                <i class="fas fa-list-alt me-2"></i>
+                                <div>
+                                    <h5 class="alert-heading mb-1">Selecciona un servicio</h5>
+                                    <p class="mb-0">Elige el servicio que deseas reservar:</p>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3">
+                                {% for service in services %}
+                                    <div class="col-12 col-md-6 col-lg-4">
+                                        <div class="card h-100 border-2 service-card" style="cursor: pointer;" onclick="selectService({{ service.id }})">
+                                            <div class="card-body d-flex flex-column">
+                                                <h5 class="card-title">{{ service.name }}</h5>
+                                                {% if service.description %}
+                                                    <div class="service-description-container mb-3 flex-grow-1">
+                                                        <p class="card-text text-muted service-description preserve-lines" data-full-text="{{ service.description }}">{{ service.description }}</p>
+                                                        <button class="btn btn-link btn-sm p-0 text-primary expand-btn" style="display: none;">
+                                                            <small>Ver más</small>
+                                                        </button>
+                                                        <button class="btn btn-link btn-sm p-0 text-primary collapse-btn" style="display: none;">
+                                                            <small>Ver menos</small>
+                                                        </button>
+                                                    </div>
+                                                {% endif %}
+                                                
+                                                <div class="service-badges mt-auto">
+                                                    {% if service.defaultDurationMinutes %}
+                                                        <span class="badge bg-info me-2">
+                                                            <i class="fas fa-clock me-1"></i>{{ service.defaultDurationMinutes }} min
+                                                        </span>
+                                                    {% endif %}
+                                                    {% if service.price %}
+                                                        <span class="badge bg-success">
+                                                            <i class="fas fa-dollar-sign me-1"></i>{{ service.price|number_format(0, ',', '.') }}
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="card-footer bg-transparent">
+                                                <button class="btn btn-primary w-100">
+                                                    <i class="fas fa-calendar-alt me-1"></i> Seleccionar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="col-12 col-md-10">
+                    <!-- Wizard de Reserva -->
+                    <div class="booking-wizard p-0">
+                        <!-- Header con información de la clínica -->
+                        <div class="wizard-header mb-1 p-2 position-fixed top-0 start-0 end-0">
+                            <div class="row align-items-center">
+                                <div class="col-4 text-start">
+                                    <button type="button" class="btn btn-outline-secondary wizard-nav-btn" id="prev-step" style="display: none;">
+                                        <i class="fas fa-arrow-left me-2"></i>Anterior
+                                    </button>
+                                </div>
+                                
+                                <div class="col-8 text-end">
+                                    <button class="btn btn-link text-primary p-0" onclick="window.location.href = '/{{ domain }}'">
+                                        <i class="fas fa-times me-2 fa-2x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Indicador de progreso del wizard -->
+                        <div class="wizard-progress mb-4 d-none">
+                            <div class="progress-steps">
+                                <div class="progress-step active" data-step="1">
+                                    <div class="step-circle">
+                                        <span class="step-number">1</span>
+                                    </div>
+                                    <span class="step-label">Profesional</span>
+                                </div>
+                                <div class="progress-step" data-step="2">
+                                    <div class="step-circle">
+                                        <span class="step-number">2</span>
+                                    </div>
+                                    <span class="step-label">Fecha y Hora</span>
+                                </div>
+                                <div class="progress-step" data-step="3">
+                                    <div class="step-circle">
+                                        <span class="step-number">3</span>
+                                    </div>
+                                    <span class="step-label">Contacto</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Resumen de selección -->
+                        <div class="selection-summary mb-4 d-none">
+                            <div class="card shadow-sm">
+                                <div class="card-body">
+                                    <h6 class="card-title"><i class="fas fa-clipboard-list me-2"></i>Tu Selección</h6>
+                                    <div class="summary-item">
+                                        <span class="summary-label">Servicio:</span>
+                                        <span class="summary-value">{{ selectedService ? selectedService.name : 'No seleccionado' }}</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span class="summary-label">Profesional:</span>
+                                        <span class="summary-value" id="selected-professional-display">
+                                            {{ selectedProfessional ? selectedProfessional.name : 'Selecciona un profesional' }}
+                                        </span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span class="summary-label">Fecha:</span>
+                                        <span class="summary-value pending" id="selected-date-display">Selecciona una fecha</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span class="summary-label">Hora:</span>
+                                        <span class="summary-value pending" id="selected-time-display">Selecciona una hora</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contenido del wizard -->
+                        <div class="wizard-content">
+                            <!-- Paso 1: Selección de Profesional -->
+                            <div class="wizard-step active" id="step-1">
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-white border-bottom border-top">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-user-md text-primary me-2"></i>
+                                            Selecciona un Profesional
+                                        </h5>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        {% if professionals is empty %}
+                                            <div class="text-center py-5">
+                                                <i class="fas fa-user-times fa-3x text-muted mb-3"></i>
+                                                <h6 class="text-muted">No hay profesionales disponibles</h6>
+                                                <p class="text-muted">No se encontraron profesionales para este servicio.</p>
+                                            </div>
+                                        {% else %}
+                                            <div class="professionals-grid">
+                                                {% for professional in professionals %}
+                                                    <div class="professional-card" 
+                                                        data-professional-id="{{ professional.id }}" 
+                                                        data-professional-name="{{ professional.name }}">
+                                                        <div class="professional-avatar">
+                                                            {{ professional.name|first|upper }}
+                                                        </div>
+                                                        <h6>{{ professional.name }}</h6>
+                                                        {% if professional.specialty %}
+                                                            <p class="text-muted small mb-0">{{ professional.specialty }}</p>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Paso 2: Selección de Fecha y Hora -->
+                            <div class="wizard-step" id="step-2" style="display: none;">
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-white border-bottom border-top">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-calendar-alt text-primary me-2"></i>
+                                            Selecciona Fecha y Hora
+                                        </h5>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <!-- Selector de fechas horizontal -->
+                                        <div class="date-selector mb-4">
+                                            <!-- Días de la semana horizontales con navegación lateral -->
+                                            <div class="days-horizontal-container position-relative">
+                                                <button class="btn btn-outline-secondary date-nav-btn date-nav-prev" id="prev-days">
+                                                    <i class="fas fa-chevron-left"></i>
+                                                </button>
+                                                
+                                                <div class="days-horizontal-scroll" id="days-scroll-container">
+                                                    <div class="days-horizontal" id="days-container">
+                                                        <!-- Los días se generarán dinámicamente -->
+                                                    </div>
+                                                </div>
+                                                
+                                                <button class="btn btn-outline-secondary date-nav-btn date-nav-next" id="next-days">
+                                                    <i class="fas fa-chevron-right"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Horarios organizados por secciones -->
+                                        <div class="timeslots-container" id="timeslots-container">
+                                            <div id="timeslots-loading" class="text-center py-4" style="display: none;">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Cargando...</span>
+                                                </div>
+                                                <p class="mt-2 text-muted">Cargando horarios disponibles...</p>
+                                            </div>
+                                            
+                                            <div id="timeslots-content">
+                                                <div class="text-center py-5 text-muted">
+                                                    <i class="fas fa-clock fa-2x mb-3"></i>
+                                                    <p>Selecciona una fecha para ver los horarios disponibles</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Paso 3: Datos de Contacto -->
+                            <div class="wizard-step" id="step-3" style="display: none;">
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-white border-bottom border-top">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-user text-primary me-2"></i>
+                                            Datos de Contacto
+                                        </h5>
+                                    </div>
+                                    <div class="card-body p-4">
+                                        <form id="contact-form">
+                                            <div class="row g-3">
+                                                <div class="col-12 col-md-6">
+                                                    <label for="patient-firstname" class="form-label">Nombre *</label>
+                                                    <input type="text" class="form-control" id="patient-firstname" name="firstname" required>
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <label for="patient-lastname" class="form-label">Apellido *</label>
+                                                    <input type="text" class="form-control" id="patient-lastname" name="lastname" required>
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <label for="patient-phone" class="form-label">Teléfono *</label>
+                                                    <input type="tel" class="form-control" id="patient-phone" name="phone" required>
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <label for="patient-email" class="form-label">Email</label>
+                                                    <input type="email" class="form-control" id="patient-email" name="email">
+                                                </div>
+                                                <div class="col-12">
+                                                    <label for="patient-notes" class="form-label">Notas adicionales</label>
+                                                    <textarea class="form-control" id="patient-notes" name="notes" rows="3" placeholder="Información adicional que consideres importante..."></textarea>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Navegación del wizard -->
+                        <div class="wizard-navigation position-fixed bottom-0 start-0 end-0">
+                            <div class="d-flex justify-content-between align-items-center w-100">
+                                <div class="col-6">
+                                    <div class="service-summary">
+                                        <h6 class="mb-1 text-dark fw-bold">{{ selectedService ? selectedService.name : 'Servicio seleccionado' }}</h6>
+                                        <div class="service-details" id="service-details" style="display: none;">
+                                            <p class="mb-0 text-muted small">
+                                                <i class="fas fa-dollar-sign me-1"></i>
+                                                <span id="selected-price">{{ selectedService ? selectedService.price : '$0' }}</span>
+                                            </p>
+                                            <p class="mb-0 text-muted small">
+                                                <i class="fas fa-calendar me-1"></i>
+                                                <span id="selected-date">--</span>
+                                            </p>
+                                            <p class="mb-0 text-muted small">
+                                                <i class="fas fa-clock me-1"></i>
+                                                <span id="selected-time">--:-- hrs</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 d-flex justify-content-end gap-2">
+                                    <button type="button" class="btn btn-primary wizard-nav-btn" id="next-step">
+                                        Siguiente</i>
+                                    </button>
+                                    <button type="button" class="btn btn-success wizard-nav-btn" id="confirm-booking" style="display: none;">
+                                        <i class="fas fa-check me-2"></i>Confirmar Turno
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Pantalla de éxito -->
+<div id="booking-success-screen" class="booking-success-screen d-none">
+    <!-- Botón de cerrar -->
+    <button type="button" class="btn-close-success" onclick="window.location.href='/{{ company.domain }}'">
+        <i class="fas fa-times"></i>
+    </button>
+    
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                <div class="success-card text-center">
+                    <div class="success-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h2 class="success-title">¡Gracias <span id="success-patient-name"></span> por agendar en <span id="success-company-name">{{ company.name }}</span>!</h2>
                     
-                    <!-- Servicio Seleccionado -->
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="selection-card p-3" id="selected-service-card" onclick="openServiceModal()">
-                                <div id="service-content">
-                                    <h6 class="text-muted mb-1">Servicio</h6>
-                                    <p class="mb-0" id="selected-service-name">Seleccionar servicio</p>
-                                    <small class="text-muted" id="selected-service-duration"></small>
-                                </div>
-                                <i class="fas fa-edit text-primary float-end"></i>
+                    <div class="booking-details">
+                        <div class="detail-item">
+                            <i class="fas fa-concierge-bell text-primary"></i>
+                            <div class="detail-content">
+                                <strong>Servicio</strong>
+                                <span id="success-service"></span>
                             </div>
                         </div>
                         
-                        <!-- Profesional Seleccionado -->
-                        <div class="col-md-6">
-                            <div class="selection-card p-3" id="selected-professional-card" onclick="openProfessionalModal()">
-                                <div id="professional-content">
-                                    <h6 class="text-muted mb-1">Profesional</h6>
-                                    <p class="mb-0" id="selected-professional-name">Seleccionar profesional</p>
-                                    <small class="text-muted" id="selected-professional-price"></small>
-                                </div>
-                                <i class="fas fa-edit text-primary float-end"></i>
+                        <div class="detail-item">
+                            <i class="fas fa-calendar-alt text-primary"></i>
+                            <div class="detail-content">
+                                <strong>Fecha y hora</strong>
+                                <span id="success-datetime"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <i class="fas fa-clock text-primary"></i>
+                            <div class="detail-content">
+                                <strong>Duración</strong>
+                                <span id="success-duration"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <i class="fas fa-map-marker-alt text-primary"></i>
+                            <div class="detail-content">
+                                <strong>Ubicación</strong>
+                                <span id="success-location"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <i class="fas fa-dollar-sign text-primary"></i>
+                            <div class="detail-content">
+                                <strong>Precio</strong>
+                                <span id="success-price"></span>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Selección de Fecha -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-calendar me-2"></i>Seleccionar Fecha</h5>
+                    
+                    <div class="notification-info">
+                        <p class="mb-0">Enviamos la información de tu reserva a <strong id="success-email"></strong></p>
                     </div>
-                    <div class="card-body">
-                        <input type="date" class="form-control" id="selected-date" min="{{ 'now'|date('Y-m-d') }}">
-                    </div>
-                </div>
-
-                <!-- Horarios Disponibles -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Horarios Disponibles</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="timeslots-container">
-                            <p class="text-muted text-center py-4">
-                                <i class="fas fa-info-circle me-2"></i>
-                                Selecciona un servicio, profesional y fecha para ver los horarios disponibles
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sidebar -->
-            <div class="col-lg-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Información</h5>
-                    </div>
-                    <div class="card-body">
-                        <p><strong>Dirección:</strong><br>{{ location.address }}</p>
-                        <p><strong>Teléfono:</strong><br>{{ location.phone }}</p>
-                        {% if location.email %}
-                        <p><strong>Email:</strong><br>{{ location.email }}</p>
-                        {% endif %}
-                        
-                        <hr>
-                        
-                        <div class="d-grid">
-                            <button class="btn btn-success btn-lg" id="confirm-booking-btn" disabled>
-                                <i class="fas fa-check me-2"></i>Confirmar Reserva
-                            </button>
-                        </div>
+                    
+                    <!-- Botón para agendar otro turno -->
+                    <div class="mt-4">
+                        <button type="button" class="btn btn-primary btn-lg btn-schedule-another" onclick="window.location.href='/{{ company.domain }}'">
+                            <i class="fas fa-calendar-plus me-2"></i>
+                            Agendar otro turno
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Botón Flotante de Reservar -->
-    <div id="floating-reserve-btn" class="floating-reserve-btn" style="display: none;">
-        <button class="btn btn-primary btn-lg" onclick="openBookingModal()">
-            <i class="fas fa-calendar-check me-2"></i>Reservar
-        </button>
-    </div>
-
-    <!-- Modal Selección de Servicios -->
-    <div class="modal fade" id="serviceModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-spa me-2"></i>Seleccionar Servicio</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- Modal de error -->
+<div class="modal fade" id="booking-error-modal" tabindex="-1" aria-labelledby="bookingErrorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white border-0">
+                <h5 class="modal-title" id="bookingErrorModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error en la reserva
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="error-icon mb-3">
+                    <i class="fas fa-times-circle text-danger" style="font-size: 3rem;"></i>
                 </div>
-                <div class="modal-body">
-                    <div id="services-list">
-                        <!-- Los servicios se cargarán aquí dinámicamente -->
-                    </div>
-                </div>
+                <h6 class="mb-3">Lo sentimos, ocurrió un problema</h6>
+                <p id="error-message" class="text-muted mb-0"></p>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Modal Selección de Profesionales -->
-    <div class="modal fade" id="professionalModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-user-md me-2"></i>Seleccionar Profesional</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="professionals-list">
-                        <!-- Los profesionales se cargarán aquí dinámicamente -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- Hidden data for JavaScript -->
+<script>
+    window.bookingData = {
+        selectedService: {{ selectedService ? selectedService.id : 'null' }},
+        selectedServiceDuration: {{ selectedService ? selectedService.defaultDurationMinutes : 'null' }},
+        selectedProfessional: {{ selectedProfessional ? selectedProfessional.id : 'null' }},
+        wizardStep1Complete: {{ wizardStep1Complete ? 'true' : 'false' }},
+        professionals: {{ professionals|json_encode|raw }},
+        domain: '{{ domain }}',
+        locationId: {{ selectedLocation ? selectedLocation.id : 'null' }}
+    };
+</script>
+{% endblock %}
 
-    <!-- Modal Confirmación de Reserva -->
-    <div class="modal fade" id="bookingModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-calendar-check me-2"></i>Turno a Reservar</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="booking-summary">
-                        <div class="row mb-3">
-                            <div class="col-4"><strong>Servicio:</strong></div>
-                            <div class="col-8" id="booking-service">-</div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-4"><strong>Profesional:</strong></div>
-                            <div class="col-8" id="booking-professional">-</div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-4"><strong>Fecha:</strong></div>
-                            <div class="col-8" id="booking-date">-</div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-4"><strong>Hora:</strong></div>
-                            <div class="col-8" id="booking-time">-</div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-4"><strong>Duración:</strong></div>
-                            <div class="col-8" id="booking-duration">-</div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-4"><strong>Precio:</strong></div>
-                            <div class="col-8" id="booking-price">-</div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-4"><strong>Lugar:</strong></div>
-                            <div class="col-8" id="booking-location">{{ location.address }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" id="auth-and-book-btn" onclick="handleBooking()">
-                        <i class="fas fa-user-check me-2"></i>Autenticarme y Reservar
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal de Autenticación -->
-    <div class="modal fade" id="authModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-sign-in-alt me-2"></i>Autenticación</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="auth-step-1">
-                        <h6 class="mb-3">Acceder con tu email</h6>
-                        <div class="mb-3">
-                            <label for="auth-email" class="form-label">Email</label>
-                            <input type="email" class="form-control" id="auth-email" placeholder="tu@email.com">
-                        </div>
-                        <div class="d-grid">
-                            <button type="button" class="btn btn-primary" onclick="sendAuthCode()">
-                                <i class="fas fa-paper-plane me-2"></i>Enviarme código
-                            </button>
-                        </div>
-                    </div>
-                    <!-- esta es la mejor forma? -->
-                    <div id="auth-step-2" style="display: none;">
-                        <h6 class="mb-3">Ingresa el código enviado a tu email</h6>
-                        <div class="mb-3">
-                            <label for="auth-code" class="form-label">Código de verificación</label>
-                            <input type="text" class="form-control" id="auth-code" placeholder="123456">
-                        </div>
-                        <div class="d-grid">
-                            <button type="button" class="btn btn-success" onclick="verifyCodeAndBook()">
-                                <i class="fas fa-check me-2"></i>Verificar y Reservar
-                            </button>
-                        </div>
-                        <div class="text-center mt-2">
-                            <button type="button" class="btn btn-link btn-sm" onclick="backToEmailStep()">
-                                Cambiar email
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bootstrap JS -->
-    <script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-
-    <!-- Booking JavaScript -->
+{% block javascripts %}
+    {{ parent() }}
     <script src="{{ asset('scripts/booking.js') }}"></script>
-    
-    <!-- Pasar datos de el local al JavaScript -->
-    <div data-location-domain="{{ location.domain }}" style="display: none;"></div>
-    
-    <!-- Simular estado de autenticación (en producción esto vendría del servidor) -->
-    <!-- ALAN -->
-    <div data-user-authenticated="false" style="display: none;"></div>
-</body>
-</html>
+    <script>
+        function selectLocation(locationId) {
+            const currentUrl = new URL(window.location);
+            currentUrl.searchParams.set('location', locationId);
+            window.location.href = currentUrl.toString();
+        }
+        
+        function selectService(serviceId) {
+            const currentUrl = new URL(window.location);
+            currentUrl.searchParams.set('service', serviceId);
+            window.location.href = currentUrl.toString();
+        }
+    </script>
+{% endblock %}

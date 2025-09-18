@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Actualizar preview del dominio en tiempo real
-    const domainInput = document.getElementById('domain-input');
+    const domainInput = document.getElementById('company_domain');
     const domainPreview = document.getElementById('domain-preview');
-    const baseUrl = window.location.protocol + '//' + window.location.host + '/reservas/';
+    const baseUrl = window.location.protocol + '//' + window.location.host + '/';
     
     if (domainInput && domainPreview) {
         domainInput.addEventListener('input', function() {
@@ -10,6 +10,40 @@ document.addEventListener('DOMContentLoaded', function() {
             this.value = domain;
             domainPreview.textContent = baseUrl + (domain || 'tu-dominio');
         });
+    }
+
+    // Funcionalidad del selector de color
+    const colorInput = document.getElementById('primary-color-input');
+    const colorHexInput = document.getElementById('color-hex-input');
+    const colorSample = document.getElementById('color-sample');
+    
+    if (colorInput && colorHexInput && colorSample) {
+        // Sincronizar el valor inicial
+        colorHexInput.value = colorInput.value;
+        
+        // Actualizar cuando cambia el selector de color
+        colorInput.addEventListener('input', function() {
+            const color = this.value;
+            colorHexInput.value = color;
+            colorSample.style.backgroundColor = color;
+        });
+        
+        // Actualizar cuando se escribe en el campo hexadecimal
+        colorHexInput.addEventListener('input', function() {
+            const color = this.value;
+            if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
+                colorInput.value = color;
+                colorSample.style.backgroundColor = color;
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.add('is-invalid');
+                this.classList.remove('is-valid');
+            }
+        });
+        
+        // Hacer el campo hexadecimal editable
+        colorHexInput.removeAttribute('readonly');
     }
     
     // Inicializar tooltips
@@ -68,6 +102,34 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Contador de caracteres para descripción
+    const descriptionField = document.getElementById('company_description');
+    const charCount = document.getElementById('char-count');
+    
+    if (descriptionField && charCount) {
+        // Función para actualizar el contador
+        function updateCharCount() {
+            const currentLength = descriptionField.value.length;
+            charCount.textContent = currentLength;
+            
+            // Cambiar color según proximidad al límite
+            if (currentLength > 240) {
+                charCount.style.color = '#dc3545'; // Rojo
+            } else if (currentLength > 200) {
+                charCount.style.color = '#fd7e14'; // Naranja
+            } else {
+                charCount.style.color = '#6c757d'; // Gris normal
+            }
+        }
+        
+        // Actualizar contador al cargar la página
+        updateCharCount();
+        
+        // Actualizar contador mientras se escribe
+        descriptionField.addEventListener('input', updateCharCount);
+        descriptionField.addEventListener('keyup', updateCharCount);
+    }
 });
 
 // Función para copiar URL al portapapeles

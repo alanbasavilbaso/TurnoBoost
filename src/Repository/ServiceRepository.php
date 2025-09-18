@@ -29,9 +29,9 @@ class ServiceRepository extends ServiceEntityRepository
     public function findByNameAndLocation(string $search, Location $location): array
     {
         return $this->createQueryBuilder('s')
-            ->andWhere('s.location = :location')
+            ->andWhere('s.company = :company')
             ->andWhere('LOWER(s.name) LIKE LOWER(:search) OR LOWER(s.description) LIKE LOWER(:search)')
-            ->setParameter('location', $location)
+            ->setParameter('company', $location->getCompany())
             ->setParameter('search', '%' . $search . '%')
             ->orderBy('s.name', 'ASC')
             ->getQuery()

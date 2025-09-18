@@ -42,3 +42,9 @@ services:
     App\Service\SettingsService:
         arguments:
             $entityManager: '@doctrine.orm.entity_manager'
+    
+    App\Service\NotificationService:
+        arguments:
+            $entityManager: '@doctrine.orm.entity_manager'
+            $messageBus: '@messenger.default_bus'
+            $logger: '@logger'

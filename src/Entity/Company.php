@@ -163,6 +163,72 @@ class Company
     #[ORM\Column(type: 'boolean', options: ['default' => false])]
     private bool $onlinePaymentsEnabled = false;
 
+    /**
+     * Color principal del sitio web de la empresa
+     * Formato hexadecimal (#RRGGBB)
+     */
+    #[ORM\Column(type: 'string', length: 7, options: ['default' => '#1a1a1a'])]
+    #[Assert\NotBlank(message: 'El color principal es obligatorio')]
+    #[Assert\Regex(
+        pattern: '/^#[0-9A-Fa-f]{6}$/',
+        message: 'El color debe estar en formato hexadecimal válido (#RRGGBB)'
+    )]
+    private string $primaryColor = '#1a1a1a';
+
+    /**
+     * Habilita las notificaciones por email para creación, modificación y cancelación de turnos
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $emailNotificationsEnabled = true;
+
+    /**
+     * Habilita las notificaciones por WhatsApp para creación, modificación y cancelación de turnos
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $whatsappNotificationsEnabled = true;
+
+    /**
+     * Habilita recordatorios por email
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $reminderEmailEnabled = true;
+
+    /**
+     * Habilita recordatorios por WhatsApp
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $reminderWhatsappEnabled = true;
+
+    /**
+     * Habilita el segundo recordatorio
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    private bool $secondReminderEnabled = false;
+
+    /**
+     * Horas antes del turno para enviar el primer recordatorio por email
+     */
+    #[ORM\Column(type: 'integer', options: ['default' => 24])]
+    #[Assert\NotBlank(message: 'Las horas del primer recordatorio son obligatorias')]
+    #[Assert\Range(
+        min: 1,
+        max: 168,
+        notInRangeMessage: 'Las horas del primer recordatorio deben estar entre {{ min }} y {{ max }} horas'
+    )]
+    private int $firstReminderHoursBeforeAppointment = 24;
+
+    /**
+     * Horas antes del turno para enviar el segundo recordatorio por WhatsApp
+     */
+    #[ORM\Column(type: 'integer', options: ['default' => 2])]
+    #[Assert\NotBlank(message: 'Las horas del segundo recordatorio son obligatorias')]
+    #[Assert\Range(
+        min: 1,
+        max: 48,
+        notInRangeMessage: 'Las horas del segundo recordatorio deben estar entre {{ min }} y {{ max }} horas'
+    )]
+    private int $secondReminderHoursBeforeAppointment = 2;
+
     
     public function __construct()
     {
@@ -313,6 +379,8 @@ class Company
         $this->onlineBookingEnabled = $onlineBookingEnabled;
         return $this;
     }
+
+    // Métodos de utilidad para los nuevos campos
 
     /**
      * Verifica si una fecha de reserva está dentro del tiempo mínimo permitido
@@ -583,6 +651,94 @@ class Company
     public function setOnlinePaymentsEnabled(bool $onlinePaymentsEnabled): self
     {
         $this->onlinePaymentsEnabled = $onlinePaymentsEnabled;
+        return $this;
+    }
+
+    public function getPrimaryColor(): string
+    {
+        return $this->primaryColor;
+    }
+
+    public function setPrimaryColor(string $primaryColor): self
+    {
+        $this->primaryColor = $primaryColor;
+        return $this;
+    }
+
+    public function isEmailNotificationsEnabled(): bool
+    {
+        return $this->emailNotificationsEnabled;
+    }
+
+    public function setEmailNotificationsEnabled(bool $emailNotificationsEnabled): self
+    {
+        $this->emailNotificationsEnabled = $emailNotificationsEnabled;
+        return $this;
+    }
+
+    public function isWhatsappNotificationsEnabled(): bool
+    {
+        return $this->whatsappNotificationsEnabled;
+    }
+
+    public function setWhatsappNotificationsEnabled(bool $whatsappNotificationsEnabled): self
+    {
+        $this->whatsappNotificationsEnabled = $whatsappNotificationsEnabled;
+        return $this;
+    }
+
+    public function isReminderEmailEnabled(): bool
+    {
+        return $this->reminderEmailEnabled;
+    }
+
+    public function setReminderEmailEnabled(bool $reminderEmailEnabled): self
+    {
+        $this->reminderEmailEnabled = $reminderEmailEnabled;
+        return $this;
+    }
+
+    public function isReminderWhatsappEnabled(): bool
+    {
+        return $this->reminderWhatsappEnabled;
+    }
+
+    public function setReminderWhatsappEnabled(bool $reminderWhatsappEnabled): self
+    {
+        $this->reminderWhatsappEnabled = $reminderWhatsappEnabled;
+        return $this;
+    }
+
+    public function isSecondReminderEnabled(): bool
+    {
+        return $this->secondReminderEnabled;
+    }
+
+    public function setSecondReminderEnabled(bool $secondReminderEnabled): self
+    {
+        $this->secondReminderEnabled = $secondReminderEnabled;
+        return $this;
+    }
+
+    public function getFirstReminderHoursBeforeAppointment(): int
+    {
+        return $this->firstReminderHoursBeforeAppointment;
+    }
+
+    public function setFirstReminderHoursBeforeAppointment(int $firstReminderHoursBeforeAppointment): self
+    {
+        $this->firstReminderHoursBeforeAppointment = $firstReminderHoursBeforeAppointment;
+        return $this;
+    }
+
+    public function getSecondReminderHoursBeforeAppointment(): int
+    {
+        return $this->secondReminderHoursBeforeAppointment;
+    }
+
+    public function setSecondReminderHoursBeforeAppointment(int $secondReminderHoursBeforeAppointment): self
+    {
+        $this->secondReminderHoursBeforeAppointment = $secondReminderHoursBeforeAppointment;
         return $this;
     }
 

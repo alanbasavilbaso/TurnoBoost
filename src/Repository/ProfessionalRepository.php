@@ -27,8 +27,8 @@ class ProfessionalRepository extends ServiceEntityRepository
     public function findByLocation($location, array $orderBy = []): array
     {
         $qb = $this->createQueryBuilder('p')
-            ->andWhere('p.location = :location')
-            ->setParameter('location', $location);
+            ->andWhere('p.company = :company')
+            ->setParameter('company', $location->getCompany());
 
         foreach ($orderBy as $field => $direction) {
             $qb->addOrderBy('p.' . $field, $direction);
@@ -43,9 +43,9 @@ class ProfessionalRepository extends ServiceEntityRepository
     public function findActiveByLocation($location): array
     {
         return $this->createQueryBuilder('p')
-            ->andWhere('p.location = :location')
+            ->andWhere('p.company = :company')
             ->andWhere('p.active = :active')
-            ->setParameter('location', $location)
+            ->setParameter('company', $location->getCompany())
             ->setParameter('active', true)
             ->orderBy('p.name', 'ASC')
             ->getQuery()
@@ -58,9 +58,9 @@ class ProfessionalRepository extends ServiceEntityRepository
     public function searchByNameOrSpecialty($location, string $searchTerm): array
     {
         return $this->createQueryBuilder('p')
-            ->andWhere('p.location = :location')
+            ->andWhere('p.company = :company')
             ->andWhere('p.name LIKE :searchTerm OR p.specialty LIKE :searchTerm')
-            ->setParameter('location', $location)
+            ->setParameter('company', $location->getCompany())
             ->setParameter('searchTerm', '%' . $searchTerm . '%')
             ->orderBy('p.name', 'ASC')
             ->getQuery()
@@ -74,8 +74,8 @@ class ProfessionalRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('p')
             ->select('COUNT(p.id)')
-            ->andWhere('p.location = :location')
-            ->setParameter('location', $location)
+            ->andWhere('p.company = :company')
+            ->setParameter('company', $location->getCompany())
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -87,9 +87,9 @@ class ProfessionalRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('p')
             ->leftJoin('p.appointments', 'a')
-            ->andWhere('p.location = :location')
+            ->andWhere('p.company = :company')
             ->andWhere('a.appointmentDate BETWEEN :startDate AND :endDate')
-            ->setParameter('location', $location)
+            ->setParameter('company', $location->getCompany())
             ->setParameter('startDate', $startDate)
             ->setParameter('endDate', $endDate)
             ->groupBy('p.id')

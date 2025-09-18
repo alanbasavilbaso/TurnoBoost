@@ -10,6 +10,7 @@ use App\Entity\ProfessionalBlock;
 use App\Entity\Company;
 use App\Entity\Service;
 use App\Entity\StatusEnum;
+use App\Entity\AppointmentSourceEnum;
 use App\Entity\Location;
 use App\Repository\ProfessionalRepository;
 use App\Repository\ServiceRepository;
@@ -86,7 +87,8 @@ class AgendaController extends AbstractController
             'professionals' => $professionals,
             'services' => $services,
             'locations' => $locations,
-            'company' => $company
+            'company' => $company,
+            'app_domain' => $_ENV['APP_URL'] . $company->getDomain()
         ]);
     }
 
@@ -362,11 +364,9 @@ class AgendaController extends AbstractController
         $force = $data['force'] ?? false;
         
         try {
-            $appointment = $appointmentService->createAppointment($data, $company, $force);
-            
-            // Programar notificaciones
-            $this->notificationService->scheduleAppointmentNotifications($appointment);
-            
+            // Crear la cita con origen ADMIN
+            $appointment = $appointmentService->createAppointment($data, $company, $force, AppointmentSourceEnum::ADMIN);
+                        
             return new JsonResponse([
                 'success' => true,
                 'appointment' => $appointmentService->appointmentToArray($appointment)

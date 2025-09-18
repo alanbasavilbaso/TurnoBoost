@@ -457,6 +457,7 @@ body .navbar ~ .container-fluid {
     font-weight: 600;
     color: white;
     transition: all 0.3s;
+    height: 68px;
 }
 .btn-beauty:hover {
     background: linear-gradient(135deg, #ff66a5, #ff9999);
