@@ -487,7 +487,28 @@
         wizardStep1Complete: {{ wizardStep1Complete ? 'true' : 'false' }},
         professionals: {{ professionals|json_encode|raw }},
         domain: '{{ domain }}',
-        locationId: {{ selectedLocation ? selectedLocation.id : 'null' }}
+        locationId: {{ selectedLocation ? selectedLocation.id : 'null' }},
+        {% if isModification and preloadData %}
+        isModification: true,
+        preloadData: {
+            appointmentId: {{ preloadData.appointment_id }},
+            modifyToken: '{{ preloadData.modify_token }}',
+            patient: {
+                firstName: '{{ preloadData.patient.first_name|default('') }}',
+                lastName: '{{ preloadData.patient.last_name|default('') }}',
+                email: '{{ preloadData.patient.email|default('') }}',
+                phone: '{{ preloadData.patient.phone|default('') }}'
+            },
+            serviceId: {{ preloadData.service_id|default('null') }},
+            professionalId: {{ preloadData.professional_id|default('null') }},
+            locationId: {{ preloadData.location_id|default('null') }},
+            originalDate: '{{ preloadData.original_date|default('') }}',
+            originalTime: '{{ preloadData.original_time|default('') }}'
+        }
+        {% else %}
+        isModification: false,
+        preloadData: null
+        {% endif %}
     };
 </script>
 {% endblock %}

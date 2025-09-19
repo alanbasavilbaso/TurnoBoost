@@ -38,6 +38,12 @@ security:
     # Note: Only the *first* access control that matches will be used
     access_control:
         - { path: ^/login, roles: PUBLIC_ACCESS }
+        # Permitir acceso público a todas las rutas de booking
+        - { path: ^/[a-z0-9-]+$, roles: PUBLIC_ACCESS }                    # /{domain}
+        - { path: ^/[a-z0-9-]+/, roles: PUBLIC_ACCESS }                    # /{domain}/...
+        - { path: ^/booking/[a-z0-9-]+/, roles: PUBLIC_ACCESS }            # /booking/{domain}/...
+        - { path: ^/reservas/[a-z0-9-]+/, roles: PUBLIC_ACCESS }           # /reservas/{domain}/...
+        # Rutas administrativas requieren autenticación
         - { path: ^/, roles: [ROLE_ADMIN, ROLE_PROFESIONAL, ROLE_RECEPCIONISTA, ROLE_PACIENTE] }
 
 when@test:

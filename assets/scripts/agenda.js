@@ -370,6 +370,24 @@ class AgendaManager {
             selectable: true,
             selectMirror: true,
             
+            // Agregar eventContent para personalizar la renderización
+            eventContent: function(arg) {
+                const sourceIcon = arg.event.extendedProps?.source === 'user' ? '<span class="source-icon" title="Reservado desde la web">💻</span>' : '';
+                
+                return {
+                    html: `
+                        <div class="fc-event-main">
+                            <div class="fc-event-main-frame">
+                                <div class="fc-event-time">${arg.timeText}${sourceIcon}</div>
+                                <div class="fc-event-title-container">
+                                    <div class="fc-event-title fc-sticky">${arg.event.title}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `
+                };
+            },
+            
             // Configuración específica por vista
             views: {
                 dayGridMonth: {
@@ -504,9 +522,12 @@ class AgendaManager {
                         aptBlock.style.backgroundColor = apt.backgroundColor;
                     }
 
+                    // Crear ícono de fuente si es necesario (al lado de la hora)
+                    const sourceIcon = apt.extendedProps?.source === 'user' ? '<span class="source-icon" title="Reservado desde la web">💻</span>' : '';
+                    
                     // Mostrar información completa del turno
                     aptBlock.innerHTML = `
-                        <div class="appointment-time">${new Date(apt.start).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})} - ${new Date(apt.end).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</div>
+                        <div class="appointment-time">${new Date(apt.start).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})} - ${new Date(apt.end).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})} ${sourceIcon}</div>
                         <div class="appointment-title">${apt.title}</div>
                     `;
                     // UN SOLO EVENT LISTENER CON EL EVENTO PASADO CORRECTAMENTE

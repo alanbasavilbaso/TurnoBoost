@@ -23,7 +23,14 @@ class AuditService
         $auditLog->setAction($action);
         $auditLog->setOldValues($oldValues);
         $auditLog->setNewValues($newValues);
-        $auditLog->setUser($this->security->getUser());
+        
+        // Solo establecer el usuario si está autenticado y existe
+        $user = $this->security->getUser();
+        if ($user && $user->getId()) {
+            $auditLog->setUser($user);
+        }
+        // Si no hay usuario autenticado, dejar user como null (permitido por el constraint nullable: true)
+        
         $auditLog->setCreatedAt(new \DateTimeImmutable());
         
         $request = $this->requestStack->getCurrentRequest();

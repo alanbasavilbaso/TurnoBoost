@@ -8,6 +8,7 @@ use App\Entity\Appointment;
 use App\Entity\ProfessionalService;
 use App\Repository\AppointmentRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Entity\StatusEnum;
 
 class TimeSlot
 {
@@ -116,9 +117,11 @@ class TimeSlot
             ->createQueryBuilder('a')
             ->where('a.professional = :professional')
             ->andWhere('a.scheduledAt BETWEEN :start AND :end')
+            ->andWhere('a.status IN (:activeStatuses)')
             ->setParameter('professional', $professional)
             ->setParameter('start', $startOfDay)
-            ->setParameter('end', $endOfDay);
+            ->setParameter('end', $endOfDay)
+            ->setParameter('activeStatuses', [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED]);
             
         // Excluir el turno actual si se está editando
         if ($excludeAppointmentId) {

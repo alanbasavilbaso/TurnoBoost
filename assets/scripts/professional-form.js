@@ -20,17 +20,17 @@ const Utils = {
 
     getDefaultAvailabilityDays() {
         const defaultDays = {
+            availableSunday: false,
             availableMonday: false,
             availableTuesday: false,
             availableWednesday: false,
             availableThursday: false,
             availableFriday: false,
             availableSaturday: false,
-            availableSunday: false
         };
         
         // Leer los días habilitados desde los checkboxes de disponibilidad
-        const dayKeys = ['availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday', 'availableSunday'];
+        const dayKeys = ['availableSunday', 'availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday'];
         
         dayKeys.forEach((dayKey, index) => {
             const availabilityCheckbox = document.querySelector(`input[id*="availability_${index}_enabled"]`);
@@ -45,7 +45,7 @@ const Utils = {
     // Nueva función para sincronizar servicios con disponibilidad
     syncAllServicesWithAvailability() {
         const currentAvailability = this.getDefaultAvailabilityDays();
-        const dayKeys = ['availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday', 'availableSunday'];
+        const dayKeys = ['availableSunday', 'availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday'];
         
         // Actualizar todos los servicios configurados
         Object.keys(servicesConfiguration).forEach(serviceId => {
@@ -502,8 +502,13 @@ const ServiceManager = {
         }
         
         const dayMapping = {
-            0: 'availableMonday', 1: 'availableTuesday', 2: 'availableWednesday',
-            3: 'availableThursday', 4: 'availableFriday', 5: 'availableSaturday', 6: 'availableSunday'
+            0: 'availableSunday',
+            1: 'availableMonday',
+            2: 'availableTuesday',
+            3: 'availableWednesday',
+            4: 'availableThursday',
+            5: 'availableFriday',
+            6: 'availableSaturday'
         };
         
         Object.entries(existingServiceConfigs).forEach(([serviceId, config]) => {
@@ -552,8 +557,8 @@ const ServiceManager = {
                             <div class="availability-days hide">
                                 <small class="text-muted">Días disponibles:</small>
                                 <div class="mt-1">
-                                    ${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day, index) => {
-                                        const dayKeys = ['availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday', 'availableSunday'];
+                                    ${['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day, index) => {
+                                        const dayKeys = ['availableSunday', 'availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday'];
                                         const isAvailable = config[dayKeys[index]] === true;
                                         return `<span class="badge ${isAvailable ? 'bg-success' : 'bg-secondary'} me-1">${day}</span>`;
                                     }).join('')}
@@ -627,7 +632,7 @@ const ServiceManager = {
                 ];
                 
                 // Agregar días disponibles
-                const dayKeys = ['availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday', 'availableSunday'];
+                const dayKeys = ['availableSunday', 'availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday'];
                 dayKeys.forEach((dayKey, index) => {
                     if (config[dayKey] === true) {
                         inputs.push({ name: `service_configs[${serviceId}][days][]`, value: index });
@@ -668,7 +673,7 @@ const ServiceManager = {
         
         document.getElementById('current-service-name').textContent = config.name;
         
-        const dayKeys = ['availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday', 'availableSunday'];
+        const dayKeys = ['availableSunday', 'availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday'];
         dayKeys.forEach((dayKey, index) => {
             const checkbox = document.getElementById(`service-day-${index}`);
             const availabilityCheckbox = document.querySelector(`input[id*="availability_${index}_enabled"]`);
@@ -704,7 +709,9 @@ const ServiceManager = {
     },
 
     copyAvailabilityDays() {
-        const dayKeys = ['availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday', 'availableSunday'];
+        console.log('-----');
+        // CORREGIDO: Usar el mapeo correcto 0=Domingo, 1=Lunes, ..., 6=Sábado
+        const dayKeys = ['availableSunday', 'availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday'];
         
         dayKeys.forEach((dayKey, index) => {
             const availabilityCheckbox = document.querySelector(`input[id*="availability_${index}_enabled"]`);
@@ -745,7 +752,8 @@ const ServiceManager = {
             return;
         }
         
-        const dayKeys = ['availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday', 'availableSunday'];
+        // CORREGIDO: Usar el mapeo correcto 0=Domingo, 1=Lunes, ..., 6=Sábado
+        const dayKeys = ['availableSunday', 'availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday'];
         
         dayKeys.forEach((dayKey, index) => {
             const checkbox = document.getElementById(`service-day-${index}`);

@@ -817,13 +817,13 @@ class ProfessionalController extends AbstractController
                 
                 // Procesar configuración de días
                 $dayMapping = [
-                    0 => 'setAvailableMonday',
-                    1 => 'setAvailableTuesday', 
-                    2 => 'setAvailableWednesday',
-                    3 => 'setAvailableThursday',
-                    4 => 'setAvailableFriday',
-                    5 => 'setAvailableSaturday',
-                    6 => 'setAvailableSunday'
+                    0 => 'setAvailableSunday',
+                    1 => 'setAvailableMonday',
+                    2 => 'setAvailableTuesday', 
+                    3 => 'setAvailableWednesday',
+                    4 => 'setAvailableThursday',
+                    5 => 'setAvailableFriday',
+                    6 => 'setAvailableSaturday',
                 ];
                 
                 // Establecer todos los días como false primero
@@ -865,13 +865,14 @@ class ProfessionalController extends AbstractController
             
             // Crear array de días seleccionados
             $selectedDays = [];
-            if ($professionalService->isAvailableMonday()) $selectedDays[] = 0;
-            if ($professionalService->isAvailableTuesday()) $selectedDays[] = 1;
-            if ($professionalService->isAvailableWednesday()) $selectedDays[] = 2;
-            if ($professionalService->isAvailableThursday()) $selectedDays[] = 3;
-            if ($professionalService->isAvailableFriday()) $selectedDays[] = 4;
-            if ($professionalService->isAvailableSaturday()) $selectedDays[] = 5;
-            if ($professionalService->isAvailableSunday()) $selectedDays[] = 6;
+            if ($professionalService->isAvailableSunday()) $selectedDays[] = 0;
+            if ($professionalService->isAvailableMonday()) $selectedDays[] = 1;
+            if ($professionalService->isAvailableTuesday()) $selectedDays[] = 2;
+            if ($professionalService->isAvailableWednesday()) $selectedDays[] = 3;
+            if ($professionalService->isAvailableThursday()) $selectedDays[] = 4;
+            if ($professionalService->isAvailableFriday()) $selectedDays[] = 5;
+            if ($professionalService->isAvailableSaturday()) $selectedDays[] = 6;
+            
             
             $serviceConfigs[$serviceId] = [
                 'id' => $serviceId,

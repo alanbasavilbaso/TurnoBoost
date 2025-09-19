@@ -21,6 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use App\Entity\AppointmentSourceEnum;
+use App\Service\AuditService;
 
 class BookingController extends AbstractController
 {
@@ -28,15 +29,21 @@ class BookingController extends AbstractController
     private TimeSlot $timeSlotService;
     private SettingsService $settingsService;
     private DomainRoutingService $domainRoutingService;
+    private AppointmentService $appointmentService;
+    private AuditService $auditService;
 
     public function __construct(
         EntityManagerInterface $entityManager, 
         TimeSlot $timeSlotService,
-        DomainRoutingService $domainRoutingService
+        DomainRoutingService $domainRoutingService,
+        AppointmentService $appointmentService,
+        AuditService $auditService
     ) {
         $this->entityManager = $entityManager;
         $this->timeSlotService = $timeSlotService;
         $this->domainRoutingService = $domainRoutingService;
+        $this->appointmentService = $appointmentService;
+        $this->auditService = $auditService;
     }
 
     /**
@@ -45,6 +52,10 @@ class BookingController extends AbstractController
     #[Route('/{domain}', name: 'booking_index_direct', requirements: ['domain' => '[a-z0-9-]+'], priority: -10)]
     public function indexDirect(string $domain, Request $request): Response
     {
+        // $a = $this->appointmentService->findActiveAppointmentFromChain(81);
+        // var_dump($a->getOriginalAppointment()->getId());
+        // var_dump($a->getOriginalAppointment()->getModificationCount());
+        // exit;
         if (!$this->domainRoutingService->isValidDomainRoute($domain)) {
             throw $this->createNotFoundException('Domain not found or not available');
         }
@@ -77,6 +88,31 @@ class BookingController extends AbstractController
     {
         $company = $this->getCompanyByDomain($domain);
         
+        // Verificar si es una modificación de cita
+        $preloadData = null;
+        $isModification = false;
+        
+        if ($request->query->get('preload') && $request->query->get('modify_token') && $request->query->get('appointment_id')) {
+            $modifyToken = $request->query->get('modify_token');
+            $appointmentId = (int) $request->query->get('appointment_id');
+            // Validar el token de modificación usando el nuevo método
+            $preloadResult = $this->appointmentService->validateTokenForPreload($appointmentId, $modifyToken);
+            
+            if ($preloadResult && $preloadResult['appointment']->getCompany()->getId() === $company->getId()) {
+                $isModification = true;
+                $preloadData = [
+                    'appointment_id' => $appointmentId,
+                    'modify_token' => $modifyToken,
+                    'patient' => $preloadResult['patient'],
+                    'service_id' => $preloadResult['service_id'],
+                    'professional_id' => $preloadResult['professional_id'],
+                    'location_id' => $preloadResult['location_id'],
+                    'original_date' => $preloadResult['original_date'],
+                    'original_time' => $preloadResult['original_time'],
+                ];
+            }
+        }
+        
         // Obtener todas las ubicaciones activas de la empresa
         $locations = $this->entityManager->getRepository(Location::class)
             ->findBy(['company' => $company, 'active' => true]);
@@ -85,8 +121,8 @@ class BookingController extends AbstractController
             throw new NotFoundHttpException(sprintf('No se encontraron ubicaciones activas para la empresa con dominio "%s"', $domain));
         }
 
-        // Determinar la ubicación a usar
-        $selectedLocationId = $request->query->get('location');
+        // Determinar la ubicación a usar (priorizar datos de precarga)
+        $selectedLocationId = $preloadData['location_id'] ?? $request->query->get('location');
         $selectedLocation = null;
         
         if ($selectedLocationId) {
@@ -102,8 +138,8 @@ class BookingController extends AbstractController
             $selectedLocation = $locations[0];
         }
 
-        // Obtener el servicio seleccionado desde la query string
-        $selectedServiceId = $request->query->get('service');
+        // Obtener el servicio seleccionado (priorizar datos de precarga)
+        $selectedServiceId = $preloadData['service_id'] ?? $request->query->get('service');
         $selectedService = null;
         
         if ($selectedServiceId && $selectedLocation) {
@@ -162,6 +198,15 @@ class BookingController extends AbstractController
             if (count($professionals) === 1) {
                 $selectedProfessional = $professionals[0];
                 $wizardStep1Complete = true;
+            } elseif ($preloadData && isset($preloadData['professional_id'])) {
+                // Si estamos modificando, seleccionar el profesional de la cita original
+                foreach ($professionals as $professional) {
+                    if ($professional->getId() === $preloadData['professional_id']) {
+                        $selectedProfessional = $professional;
+                        $wizardStep1Complete = true;
+                        break;
+                    }
+                }
             }
         }
 
@@ -199,7 +244,9 @@ class BookingController extends AbstractController
             'locationSchedule' => $locationSchedule,
             'domain' => $domain,
             'showLocationSelector' => count($locations) > 1 && !$selectedLocation,
-            'showServiceSelector' => $showServiceSelector
+            'showServiceSelector' => $showServiceSelector,
+            'isModification' => $isModification,
+            'preloadData' => $preloadData
         ]);
     }
 
@@ -490,38 +537,49 @@ class BookingController extends AbstractController
         }
 
         try {
-            $service = $this->entityManager->getRepository(Service::class)->find($serviceId);
-            $professional = $this->entityManager->getRepository(Professional::class)->find($professionalId);
             $dateTime = new \DateTime($date);
 
-            // Corregir: validar que el servicio pertenece a la misma empresa que la ubicación
-            if (!$service || $service->getCompany() !== $location->getCompany()) {
-                throw new NotFoundHttpException('Service not found');
-            }
+            // Buscar la relación ProfessionalService directamente
+            $professionalService = $this->entityManager->getRepository(ProfessionalService::class)->findOneBy([
+                'professional' => $professionalId,
+                'service' => $serviceId
+            ]);
 
-            if (!$professional || !$professional->isActive()) {
-                throw new NotFoundHttpException('Professional not found');
-            }
-
-            // Verificar que el profesional esté asociado al servicio
-            $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
-                ->findOneBy(['professional' => $professional, 'service' => $service]);
-                
             if (!$professionalService) {
                 throw new NotFoundHttpException('Professional not available for this service');
             }
 
+            $professional = $professionalService->getProfessional();
+            $service = $professionalService->getService();
+
+            if (!$professional->isActive()) {
+                throw new NotFoundHttpException('Professional is not active');
+            }
+
+            if ($service->getCompany() !== $location->getCompany()) {
+                throw new NotFoundHttpException('Service does not belong to this company');
+            }
+            // Generar slots disponibles
             $timeSlots = $this->timeSlotService->generateAvailableSlots(
                 $professional,
                 $service,
                 $dateTime
             );
-          
+            
+            // Filtrar slots bloqueados usando AppointmentService
+            $filteredSlots = $this->appointmentService->filterAvailableSlots(
+                $timeSlots, 
+                $professional->getId(), 
+                $dateTime->format('Y-m-d')
+            );
+            // var_dump($filteredSlots);
+            // var_dump('--');
+            // exit;
             $timeSlotsData = [];
             $now = new \DateTime(); // Obtener la fecha y hora actual
             $company = $location->getCompany(); // Obtener la empresa para validaciones
             
-            foreach ($timeSlots as $slot) {
+            foreach ($filteredSlots as $slot) {
                 $slotDateTime = new \DateTime($slot['datetime']);
                 
                 // Solo incluir slots que sean en el futuro Y que cumplan con el tiempo mínimo de reserva
@@ -569,33 +627,42 @@ class BookingController extends AbstractController
         
         $serviceId = $request->query->get('service_id');
         $professionalId = $request->query->get('professional_id');
+        $startDate = $request->query->get('start_date');
 
         if (!$serviceId || !$professionalId) {
             return new JsonResponse(['error' => 'Missing required parameters'], 400);
         }
 
         try {
-            $service = $this->entityManager->getRepository(Service::class)->find($serviceId);
-            $professional = $this->entityManager->getRepository(Professional::class)->find($professionalId);
+            // Buscar la relación ProfessionalService directamente
+            $professionalService = $this->entityManager->getRepository(ProfessionalService::class)->findOneBy([
+                'professional' => $professionalId,
+                'service' => $serviceId
+            ]);
 
-            if (!$service || $service->getCompany() !== $location->getCompany()) {
-                throw new NotFoundHttpException('Service not found');
-            }
-
-            if (!$professional || !$professional->isActive()) {
-                throw new NotFoundHttpException('Professional not found');
-            }
-
-            // Verificar que el profesional esté asociado al servicio
-            $professionalService = $this->entityManager->getRepository(ProfessionalService::class)
-                ->findOneBy(['professional' => $professional, 'service' => $service]);
-                
             if (!$professionalService) {
                 throw new NotFoundHttpException('Professional not available for this service');
             }
 
-            // Generar fechas disponibles para los próximos 30 días
-            $availableDates = $this->generateAvailableDates($professional, $service, $location);
+            // Obtener las entidades desde el ProfessionalService
+            $professional = $professionalService->getProfessional();
+            $service = $professionalService->getService();
+
+            // Validaciones adicionales
+            if (!$professional->isActive()) {
+                throw new NotFoundHttpException('Professional is not active');
+            }
+
+            if ($service->getCompany() !== $location->getCompany()) {
+                throw new NotFoundHttpException('Service does not belong to this company');
+            }
+
+            // Procesar fechas de inicio y fin
+            $startDateTime = $startDate ? new \DateTime($startDate) : new \DateTime();
+            
+
+            // Generar fechas disponibles para el rango especificado
+            $availableDates = $this->generateAvailableDates($professional, $service, $location, $startDateTime);
 
             return new JsonResponse($availableDates);
 
@@ -643,29 +710,46 @@ class BookingController extends AbstractController
  
         try {
             $originalStatus = $appointment->getStatus();
+            $actionPerformed = false;
             
             switch ($action) {
                 case 'confirm':
                     // Solo confirmar si no está ya confirmada
                     if ($originalStatus !== StatusEnum::CONFIRMED) {
                         $appointment->setStatus(StatusEnum::CONFIRMED);
+                        $appointment->setConfirmedAt(new \DateTime());
                         $actionPerformed = true;
-                    } else {
-                        $actionPerformed = false;
+                    }
+                    break;
+                case 'cancel':
+                    // Solo cancelar si no está ya cancelada
+                    if ($originalStatus !== StatusEnum::CANCELLED) {
+                        $appointment->setStatus(StatusEnum::CANCELLED);
+                        $appointment->setCancelledAt(new \DateTime());
+                        $actionPerformed = true;
                     }
                     break;
                 default:
                     throw new \InvalidArgumentException('Acción no válida.');
             }
-            $message = '';
+            
             // Solo actualizar la base de datos si se realizó un cambio
             if ($actionPerformed) {
                 $appointment->setUpdatedAt(new \DateTime());
                 $this->entityManager->flush();
+                
+                // Registrar en auditoría solo si se realizó la acción
+                $this->auditService->logChange(
+                    'Appointment',
+                    $appointment->getId(),
+                    $action . '_by_link',
+                    ['status' => $originalStatus->value],
+                    ['status' => $appointment->getStatus()->value]
+                );
             }
             
             return $this->render('booking/appointment_success.html.twig', [
-                'message' => $message,
+                'message' => '',
                 'appointment' => $appointment,
                 'company' => $company,
                 'domain' => $domain,
@@ -675,11 +759,11 @@ class BookingController extends AbstractController
             ]);
 
         } catch (\Exception $e) {
+            var_dump($e->getMessage());
             return $this->render('booking/appointment_error.html.twig', [
                 'error' => 'Ocurrió un error al procesar tu solicitud. Por favor, inténtalo de nuevo.',
                 'domain' => $domain,
                 'company' => $company,
-                'appointment' => $appointment,
                 'action' => $action
             ]);
         }
@@ -743,7 +827,7 @@ class BookingController extends AbstractController
 
         // Si es POST, procesar la acción
         if ($request && $request->isMethod('POST')) {
-            return $this->processAppointmentAction($appointment, $company, $action, $domain, $token);
+            return $this->processAppointmentAction($appointment, $company, $action, $domain, $token, $this->auditService);
         }
 
         // Si es GET, mostrar la página correspondiente
@@ -765,18 +849,18 @@ class BookingController extends AbstractController
             ];
         }
 
-        // Buscar la cita
-        $appointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
-        if (!$appointment) {
+        // Buscar el turno activo de la cadena
+        $activeAppointment = $this->appointmentService->findActiveAppointmentFromChain($appointmentId);
+        if (!$activeAppointment) {
             return [
-                'error' => 'Cita no encontrada.',
+                'error' => 'No se encontró un turno activo.',
                 'company' => $company,
                 'appointment' => null
             ];
         }
         
         // Verificar que la cita pertenece a la empresa
-        if ($appointment->getCompany()->getId() !== $company->getId()) {
+        if ($activeAppointment->getCompany()->getId() !== $company->getId()) {
             return [
                 'error' => 'Esta cita no pertenece a este dominio.',
                 'company' => $company,
@@ -784,28 +868,29 @@ class BookingController extends AbstractController
             ];
         }
 
-        // Verificar el token
-        if (!$this->verifyAppointmentToken($appointment, $token)) {
+        // Verificar el token (usando el ID original para validación)
+        $originalAppointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
+        if (!$originalAppointment || !$this->verifyAppointmentToken($originalAppointment, $token)) {
             return [
                 'error' => 'Token de acceso inválido.',
                 'company' => $company,
-                'appointment' => $appointment
+                'appointment' => $activeAppointment
             ];
         }
 
         // Validaciones específicas por acción
-        $actionValidation = $this->validateSpecificAction($appointment, $company, $action);
+        $actionValidation = $this->validateSpecificAction($activeAppointment, $company, $action);
         if ($actionValidation['error']) {
             return [
                 'error' => $actionValidation['error'],
                 'company' => $company,
-                'appointment' => $appointment
+                'appointment' => $activeAppointment
             ];
         }
         return [
             'error' => null,
             'company' => $company,
-            'appointment' => $appointment
+            'appointment' => $activeAppointment
         ];
     }
 
@@ -931,8 +1016,18 @@ class BookingController extends AbstractController
             case 'cancel':
                 return $this->render('booking/appointment_cancel.html.twig', $templateData);
             case 'modify':
-                // Para modificar, redirigir al sistema de reservas con parámetros
-                $redirectUrl = "/{$domain}?edit_appointment={$appointment->getId()}&token={$token}";
+                // Usar la cita original para generar el token de modificación
+                $rootAppointment = $appointment->getRootAppointment();
+                $modifyToken = $this->appointmentService->generateSecureToken($rootAppointment->getId(), 'modify');
+                
+                // Construir URL con query parameters para precarga
+                $queryParams = http_build_query([
+                    'modify_token' => $modifyToken,
+                    'appointment_id' => $rootAppointment->getId(),
+                    'preload' => '1'
+                ]);
+                
+                $redirectUrl = "/{$domain}?{$queryParams}";
                 return $this->redirect($redirectUrl);
             default:
                 return $this->render('booking/appointment_error.html.twig', [
@@ -949,13 +1044,17 @@ class BookingController extends AbstractController
     private function processAppointmentAction(Appointment $appointment, Company $company, string $action, string $domain, string $token): Response
     {
         try {
+            $oldStatus = $appointment->getStatus()->value;
+            
             switch ($action) {
                 case 'confirm':
                     $appointment->setStatus(StatusEnum::CONFIRMED);
+                    $appointment->setConfirmedAt(new \DateTime());
                     $message = 'Tu cita ha sido confirmada exitosamente.';
                     break;
                 case 'cancel':
                     $appointment->setStatus(StatusEnum::CANCELLED);
+                    $appointment->setCancelledAt(new \DateTime());
                     $message = 'Tu cita ha sido cancelada exitosamente.';
                     break;
                 default:
@@ -964,6 +1063,15 @@ class BookingController extends AbstractController
 
             $appointment->setUpdatedAt(new \DateTime());
             $this->entityManager->flush();
+
+            // Registrar en auditoría
+            $this->auditService->logChange(
+                'Appointment',
+                $appointment->getId(),
+                $action . '_by_link',
+                ['status' => $oldStatus],
+                ['status' => $appointment->getStatus()->value]
+            );
 
             return $this->render('booking/appointment_success.html.twig', [
                 'message' => $message,
@@ -974,11 +1082,12 @@ class BookingController extends AbstractController
             ]);
 
         } catch (\Exception $e) {
+            var_dump($e->getMessage());
             return $this->render('booking/appointment_error.html.twig', [
                 'error' => 'Ocurrió un error al procesar tu solicitud. Por favor, inténtalo de nuevo.',
                 'domain' => $domain,
                 'company' => $company,
-                'appointment' => $appointment
+                'action' => $action
             ]);
         }
     }
@@ -986,16 +1095,16 @@ class BookingController extends AbstractController
     /**
      * Genera las fechas disponibles basadas en location_availability y professional_availability
      */
-    private function generateAvailableDates(Professional $professional, Service $service, Location $location): array
+    private function generateAvailableDates(Professional $professional, Service $service, Location $location, \DateTime $startDate = null): array
     {
         $availableDates = [];
-        $today = new \DateTime();
-        $endDate = (clone $today)->add(new \DateInterval('P30D')); // 30 días desde hoy
+        $today = $startDate ?? new \DateTime();
+        $endDate = (clone $today)->add(new \DateInterval('P10D')); // 10 días por defecto
 
         $currentDate = clone $today;
         while ($currentDate <= $endDate) {
-            $dayOfWeek = (int)$currentDate->format('N'); // Convertir a 0=Lunes, 6=Domingo
-            if ($dayOfWeek === 7) $dayOfWeek = 0; // Domingo
+            $dayOfWeek = (int)$currentDate->format('w'); // Convertir a 0=Lunes, 6=Domingo
+            // if ($dayOfWeek === 7) $dayOfWeek = 0; // Domingo
 
             // Verificar si la ubicación está disponible este día
             $locationAvailable = $location->getAvailabilitiesForWeekDay($dayOfWeek)->count() > 0;
@@ -1080,9 +1189,27 @@ class BookingController extends AbstractController
                 'notes' => $data['notes'] ?? null
             ];
 
-            // Crear la cita usando el AppointmentService con origen USER
-            // Las validaciones de usuario se aplicarán automáticamente
-            $appointment = $appointmentService->createAppointment($appointmentData, $company, false, AppointmentSourceEnum::USER);
+            // Verificar si es una modificación de cita existente
+            if (isset($data['is_modification']) && $data['is_modification'] && isset($data['appointment_id']) && isset($data['modify_token'])) {
+                $appointmentId = (int)$data['appointment_id'];
+                $modifyToken = $data['modify_token'];
+                
+                try {
+                    // Usar el nuevo método modifyAppointment del servicio
+                    $appointment = $appointmentService->modifyAppointment(
+                        $appointmentId,
+                        $modifyToken,
+                        $appointmentData,
+                        $company
+                    );
+                } catch (\InvalidArgumentException $e) {
+                    return new JsonResponse(['success' => false, 'message' => $e->getMessage()], 400);
+                }
+            } else {
+                // Crear la cita usando el AppointmentService con origen USER
+                // Las validaciones de usuario se aplicarán automáticamente
+                $appointment = $appointmentService->createAppointment($appointmentData, $company, false, AppointmentSourceEnum::USER);
+            }
 
             // Extraer date y time del scheduledAt para evitar problemas de zona horaria en el frontend
             $scheduledAt = $appointment->getScheduledAt();
@@ -1122,149 +1249,6 @@ class BookingController extends AbstractController
         }
         
         return $hours . 'h ' . $remainingMinutes . 'min';
-    }
-
-    /**
-     * Confirmar cita
-     */
-    private function confirmAppointmentResponse(string $domain, int $appointmentId, string $token): JsonResponse
-    {
-        try {
-            // Verificar que el dominio existe
-            $company = $this->domainRoutingService->getCompanyByDomain($domain);
-            if (!$company) {
-                return new JsonResponse(['success' => false, 'message' => 'Dominio no encontrado'], 404);
-            }
-
-            // Buscar la cita
-            $appointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
-            if (!$appointment || $appointment->getCompany() !== $company) {
-                return new JsonResponse(['success' => false, 'message' => 'Cita no encontrada'], 404);
-            }
-
-            // Verificar token de seguridad
-            if (!$this->verifyAppointmentToken($appointment, $token)) {
-                return new JsonResponse(['success' => false, 'message' => 'Token inválido'], 403);
-            }
-
-            // Verificar que la cita se puede confirmar
-            if (!in_array($appointment->getStatus(), [StatusEnum::SCHEDULED])) {
-                return new JsonResponse(['success' => false, 'message' => 'La cita no se puede confirmar en su estado actual'], 400);
-            }
-
-            // Confirmar la cita
-            $appointment->setStatus(StatusEnum::CONFIRMED);
-            $appointment->setUpdatedAt(new \DateTime());
-            $this->entityManager->flush();
-
-            return new JsonResponse([
-                'success' => true, 
-                'message' => 'Cita confirmada exitosamente',
-                'appointment' => [
-                    'id' => $appointment->getId(),
-                    'status' => $appointment->getStatus()->value,
-                    'scheduled_at' => $appointment->getScheduledAt()->format('Y-m-d H:i:s')
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return new JsonResponse(['success' => false, 'message' => 'Error interno del servidor'], 500);
-        }
-    }
-
-    /**
-     * Cancelar cita
-     */
-    private function cancelAppointmentResponse(string $domain, int $appointmentId, string $token): JsonResponse
-    {
-        try {
-            // Verificar que el dominio existe
-            $company = $this->domainRoutingService->getCompanyByDomain($domain);
-            if (!$company) {
-                return new JsonResponse(['success' => false, 'message' => 'Dominio no encontrado'], 404);
-            }
-
-            // Buscar la cita
-            $appointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
-            if (!$appointment || $appointment->getCompany() !== $company) {
-                return new JsonResponse(['success' => false, 'message' => 'Cita no encontrada'], 404);
-            }
-
-            // Verificar token de seguridad
-            if (!$this->verifyAppointmentToken($appointment, $token)) {
-                return new JsonResponse(['success' => false, 'message' => 'Token inválido'], 403);
-            }
-
-            // Verificar que la cita se puede cancelar
-            if (!$appointment->canBeCancelled()) {
-                return new JsonResponse(['success' => false, 'message' => 'La cita no se puede cancelar'], 400);
-            }
-
-            // Cancelar la cita
-            $appointment->setStatus(StatusEnum::CANCELLED);
-            $appointment->setUpdatedAt(new \DateTime());
-            $this->entityManager->flush();
-
-            return new JsonResponse([
-                'success' => true, 
-                'message' => 'Cita cancelada exitosamente',
-                'appointment' => [
-                    'id' => $appointment->getId(),
-                    'status' => $appointment->getStatus()->value,
-                    'scheduled_at' => $appointment->getScheduledAt()->format('Y-m-d H:i:s')
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return new JsonResponse(['success' => false, 'message' => 'Error interno del servidor'], 500);
-        }
-    }
-
-    /**
-     * Redirigir a modificar cita (redirige al sistema de reservas)
-     */
-    private function modifyAppointmentResponse(string $domain, int $appointmentId, string $token): JsonResponse
-    {
-        try {
-            // Verificar que el dominio existe
-            $company = $this->domainRoutingService->getCompanyByDomain($domain);
-            if (!$company) {
-                return new JsonResponse(['success' => false, 'message' => 'Dominio no encontrado'], 404);
-            }
-
-            // Buscar la cita
-            $appointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
-            if (!$appointment || $appointment->getCompany() !== $company) {
-                return new JsonResponse(['success' => false, 'message' => 'Cita no encontrada'], 404);
-            }
-
-            // Verificar token de seguridad
-            if (!$this->verifyAppointmentToken($appointment, $token)) {
-                return new JsonResponse(['success' => false, 'message' => 'Token inválido'], 403);
-            }
-
-            // Verificar que la cita se puede modificar
-            if (!$company->canEditAppointment($appointment)) {
-                return new JsonResponse(['success' => false, 'message' => 'La cita no se puede modificar'], 400);
-            }
-
-            // Redirigir al sistema de reservas con información de la cita
-            $redirectUrl = "https://{$domain}?edit_appointment={$appointmentId}&token={$token}";
-            
-            return new JsonResponse([
-                'success' => true, 
-                'message' => 'Redirigiendo al sistema de modificación',
-                'redirect_url' => $redirectUrl,
-                'appointment' => [
-                    'id' => $appointment->getId(),
-                    'status' => $appointment->getStatus()->value,
-                    'scheduled_at' => $appointment->getScheduledAt()->format('Y-m-d H:i:s')
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return new JsonResponse(['success' => false, 'message' => 'Error interno del servidor'], 500);
-        }
     }
 
     /**

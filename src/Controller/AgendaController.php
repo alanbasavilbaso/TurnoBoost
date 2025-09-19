@@ -39,6 +39,7 @@ class AgendaController extends AbstractController
     private PatientService $patientService;
     private NotificationService $notificationService;
     private PhoneUtilityService $phoneUtilityService;
+    private AppointmentService $appointmentService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -47,7 +48,8 @@ class AgendaController extends AbstractController
         TimeSlot $timeSlotService,
         PatientService $patientService,
         NotificationService $notificationService,
-        PhoneUtilityService $phoneUtilityService
+        PhoneUtilityService $phoneUtilityService,
+        AppointmentService $appointmentService,
     ) {
         $this->entityManager = $entityManager;
         $this->professionalRepository = $professionalRepository;
@@ -56,6 +58,7 @@ class AgendaController extends AbstractController
         $this->patientService = $patientService;
         $this->notificationService = $notificationService;
         $this->phoneUtilityService = $phoneUtilityService;
+        $this->appointmentService = $appointmentService;
     }
 
     #[Route('/', name: 'app_agenda_index', methods: ['GET'])]
@@ -151,7 +154,6 @@ class AgendaController extends AbstractController
         }
     
         // Remover el filtro duplicado de fecha específica ya que ahora se maneja arriba
-        
         $appointments = $queryBuilder->getQuery()->getResult();
     
         $events = [];
@@ -172,17 +174,18 @@ class AgendaController extends AbstractController
                 'extendedProps' => [
                     'professionalId' => $appointment->getProfessional()->getId(),
                     'professionalName' => $appointment->getProfessional()->getName(),
-                    'patientId' => $appointment->getPatient()->getId(), // Agregar esta línea
+                    'patientId' => $appointment->getPatient()->getId(),
                     'patientEmail' => $appointment->getPatient()->getEmail(),
                     'patientPhone' => $appointment->getPatient()->getPhone(),
                     'patientFirstName' => $appointment->getPatient()->getFirstName(),
                     'patientLastName' => $appointment->getPatient()->getLastName(),
-                    'email' => $appointment->getPatient()->getEmail(), // También agregar email para consistencia
+                    'email' => $appointment->getPatient()->getEmail(),
                     'serviceName' => $appointment->getService()?->getName(),
-                    'serviceId' => $appointment->getService()?->getId(), // También agregar serviceId
+                    'serviceId' => $appointment->getService()?->getId(),
                     'status' => $appointment->getStatus(),
                     'phone' => $appointment->getPatient()->getPhone(),
-                    'notes' => $appointment->getNotes()
+                    'notes' => $appointment->getNotes(),
+                    'source' => $appointment->getSource()->value
                 ]
             ];
         }
@@ -311,38 +314,6 @@ class AgendaController extends AbstractController
         }
         
         return new JsonResponse($nextSlot);
-    }
-
-    /**
-     * API para obtener estadísticas de disponibilidad
-     */
-    #[Route('/availability-stats', name: 'app_agenda_stats', methods: ['GET'])]
-    public function getAvailabilityStats(Request $request): JsonResponse
-    {
-        $professionalId = $request->query->get('professional_id');
-        $serviceId = $request->query->get('service_id');
-        $startDate = new \DateTime($request->query->get('start_date', 'today'));
-        $endDate = new \DateTime($request->query->get('end_date', '+7 days'));
-
-        if (!$professionalId || !$serviceId) {
-            return new JsonResponse(['error' => 'Professional y Service son requeridos'], 400);
-        }
-
-        $professional = $this->professionalRepository->find($professionalId);
-        $service = $this->serviceRepository->find($serviceId);
-        
-        if (!$professional || !$service) {
-            return new JsonResponse(['error' => 'Professional o Service no encontrado'], 404);
-        }
-
-        $stats = $this->timeSlotService->getAvailabilityStats(
-            $professional, 
-            $service, 
-            $startDate, 
-            $endDate
-        );
-        
-        return new JsonResponse($stats);
     }
 
     #[Route('/appointment', name: 'app_agenda_create_appointment', methods: ['POST'])]
@@ -945,14 +916,25 @@ class AgendaController extends AbstractController
             $dateTime = new \DateTime($date . ' ' . $time);
             
             // Usar el método optimizado para validar el slot específico
-            $available = $this->timeSlotService->isSlotAvailableForDateTime(
-                $professionalService->getProfessional(),
-                $professionalService->getService(),
+            // $available = $this->timeSlotService->isSlotAvailableForDateTime(
+            //     $professionalService->getProfessional(),
+            //     $professionalService->getService(),
+            //     $dateTime,
+            //     $professionalService->getEffectiveDuration(),
+            //     $appointmentId ? (int)$appointmentId : null
+            // );
+
+            $locationRepository = $this->entityManager->getRepository('App\\Entity\\Location');
+            $location = $locationRepository->findOneBy(['company' => $company, 'active' => true]);
+
+            $available = $this->appointmentService->validateAppointment(
                 $dateTime,
                 $professionalService->getEffectiveDuration(),
-                $appointmentId ? (int)$appointmentId : null
+                $professionalService->getProfessional(),
+                $professionalService->getService(),
+                $location
             );
-            
+
             return new JsonResponse([
                 'available' => $available,
                 'message' => $available ? 
@@ -1153,7 +1135,6 @@ class AgendaController extends AbstractController
             ]);
 
         } catch (\Exception $e) {
-            var_dump($e->getMessage());exit;
             return new JsonResponse([
                 'error' => 'Error al crear el bloqueo: ' . $e->getMessage()
             ], 500);

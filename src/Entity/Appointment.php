@@ -56,6 +56,12 @@ class Appointment
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $updatedAt;
 
+    #[ORM\Column(type: 'datetime', nullable: true)]
+    private ?\DateTimeInterface $confirmedAt = null;
+
+    #[ORM\Column(type: 'datetime', nullable: true)]
+    private ?\DateTimeInterface $cancelledAt = null;
+
     #[ORM\Column(type: 'string', enumType: AppointmentSourceEnum::class)]
     private AppointmentSourceEnum $source = AppointmentSourceEnum::USER;
 
@@ -64,6 +70,18 @@ class Appointment
 
     #[ORM\OneToOne(mappedBy: 'appointment', targetEntity: Feedback::class, cascade: ['persist', 'remove'])]
     private ?Feedback $feedback = null;
+
+    // Campos para rastreo de modificaciones
+    #[ORM\ManyToOne(targetEntity: self::class)]
+    #[ORM\JoinColumn(name: 'original_appointment_id', referencedColumnName: 'id', onDelete: 'SET NULL')]
+    private ?Appointment $originalAppointment = null;
+
+    #[ORM\Column(type: 'integer', options: ['default' => 0])]
+    private int $modificationCount = 0;
+
+    #[ORM\ManyToOne(targetEntity: self::class)]
+    #[ORM\JoinColumn(name: 'previous_appointment_id', referencedColumnName: 'id', onDelete: 'SET NULL')]
+    private ?Appointment $previousAppointment = null;
 
     public function __construct()
     {
@@ -188,6 +206,28 @@ class Appointment
     public function setUpdatedAt(\DateTimeInterface $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
+        return $this;
+    }
+
+    public function getConfirmedAt(): ?\DateTimeInterface
+    {
+        return $this->confirmedAt;
+    }
+
+    public function setConfirmedAt(?\DateTimeInterface $confirmedAt): static
+    {
+        $this->confirmedAt = $confirmedAt;
+        return $this;
+    }
+
+    public function getCancelledAt(): ?\DateTimeInterface
+    {
+        return $this->cancelledAt;
+    }
+
+    public function setCancelledAt(?\DateTimeInterface $cancelledAt): static
+    {
+        $this->cancelledAt = $cancelledAt;
         return $this;
     }
 
@@ -419,6 +459,84 @@ class Appointment
     /**
      * Verifica si la cita puede recibir feedback
      */
+    // Getters y setters para rastreo de modificaciones
+    public function getOriginalAppointment(): ?Appointment
+    {
+        return $this->originalAppointment;
+    }
+
+    public function setOriginalAppointment(?Appointment $originalAppointment): static
+    {
+        $this->originalAppointment = $originalAppointment;
+        return $this;
+    }
+
+    public function getModificationCount(): int
+    {
+        return $this->modificationCount;
+    }
+
+    public function setModificationCount(int $modificationCount): static
+    {
+        $this->modificationCount = $modificationCount;
+        return $this;
+    }
+
+    public function incrementModificationCount(): static
+    {
+        $this->modificationCount++;
+        return $this;
+    }
+
+    public function getPreviousAppointment(): ?Appointment
+    {
+        return $this->previousAppointment;
+    }
+
+    public function setPreviousAppointment(?Appointment $previousAppointment): static
+    {
+        $this->previousAppointment = $previousAppointment;
+        return $this;
+    }
+
+    /**
+     * Verifica si esta cita es una modificación de otra
+     */
+    public function isModification(): bool
+    {
+        return $this->originalAppointment !== null;
+    }
+
+    /**
+     * Verifica si esta cita es la original (no es modificación)
+     */
+    public function isOriginal(): bool
+    {
+        return $this->originalAppointment === null;
+    }
+
+    /**
+     * Obtiene la cita original (si es modificación) o esta misma (si es original)
+     */
+    public function getRootAppointment(): Appointment
+    {
+        return $this->originalAppointment ?? $this;
+    }
+
+    /**
+     * Verifica si se puede modificar basado en el límite de modificaciones
+     */
+    public function canBeModified(int $maxModifications = 3): bool
+    {
+        if (!$this->canBeEdited()) {
+            return false;
+        }
+        
+        // Obtener el contador de la cita original
+        $rootAppointment = $this->getRootAppointment();
+        return $rootAppointment->getModificationCount() < $maxModifications;
+    }
+
     public function canReceiveFeedback(): bool
     {
         return $this->status === StatusEnum::COMPLETED && !$this->hasFeedback();

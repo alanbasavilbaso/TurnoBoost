@@ -6,6 +6,7 @@ use App\Entity\Appointment;
 use App\Entity\Notification;
 use App\Entity\NotificationTypeEnum;
 use App\Entity\NotificationStatusEnum;
+use App\Entity\StatusEnum;
 use App\Message\SendEmailNotification;
 use App\Message\SendWhatsAppNotification;
 use Doctrine\ORM\EntityManagerInterface;
@@ -231,9 +232,88 @@ class NotificationService
         $this->entityManager->persist($notification);
         $this->entityManager->flush();
         
-        // Despachar mensaje a la cola
-        $message = new SendEmailNotification($notification->getId(), $type);
-        $this->messageBus->dispatch($message);
+        // Solo despachar inmediatamente si es una confirmación o si la fecha ya llegó
+        if ($type === NotificationTypeEnum::CONFIRMATION->value || $scheduledAt <= new \DateTime()) {
+            $message = new SendEmailNotification($notification->getId(), $type);
+            $this->messageBus->dispatch($message);
+        }
+        // Para reminders futuros, solo se guarda en BD y se procesará con el comando cron
+    }
+
+    /**
+     * Procesa notificaciones programadas que ya deben enviarse
+     */
+    public function sendScheduledNotifications(): void
+    {
+        $now = new \DateTime();
+        
+        // Buscar notificaciones pendientes cuya fecha de envío ya llegó
+        // EXCLUYENDO turnos cancelados y marcando como CANCELLED las de turnos cancelados
+        
+        // Primero, marcar como CANCELLED las notificaciones de turnos cancelados
+        $this->entityManager->createQueryBuilder()
+            ->update(Notification::class, 'n')
+            ->set('n.status', ':cancelledStatus')
+            ->where('n.status = :pendingStatus')
+            ->andWhere('n.appointment IS NOT NULL')
+            ->andWhere('EXISTS (
+                SELECT 1 FROM App\Entity\Appointment a 
+                WHERE a.id = n.appointment 
+                AND a.status = :appointmentCancelledStatus
+            )')
+            ->setParameter('cancelledStatus', NotificationStatusEnum::CANCELLED)
+            ->setParameter('pendingStatus', NotificationStatusEnum::PENDING)
+            ->setParameter('appointmentCancelledStatus', StatusEnum::CANCELLED)
+            ->getQuery()
+            ->execute();
+        
+        // Luego, obtener solo notificaciones de turnos activos
+        $notifications = $this->entityManager->getRepository(Notification::class)
+            ->createQueryBuilder('n')
+            ->leftJoin('n.appointment', 'a')
+            ->where('n.status = :status')
+            ->andWhere('n.scheduledAt <= :now')
+            ->andWhere('(n.appointment IS NULL OR a.status != :cancelledStatus)')
+            ->setParameter('status', NotificationStatusEnum::PENDING)
+            ->setParameter('now', $now)
+            ->setParameter('cancelledStatus', StatusEnum::CANCELLED)
+            ->getQuery()
+            ->getResult();
+
+        foreach ($notifications as $notification) {
+            try {
+                // Despachar el mensaje para envío inmediato
+                if (str_contains($notification->getTemplateUsed(), 'email_')) {
+                    $message = new SendEmailNotification(
+                        $notification->getId(), 
+                        $notification->getType()->value
+                    );
+                    $this->messageBus->dispatch($message);
+                } elseif (str_contains($notification->getTemplateUsed(), 'whatsapp_')) {
+                    $message = new SendWhatsAppNotification(
+                        $notification->getId(), 
+                        $notification->getType()->value
+                    );
+                    $this->messageBus->dispatch($message);
+                }
+                
+                $this->logger->info('Scheduled notification dispatched', [
+                    'notification_id' => $notification->getId(),
+                    'type' => $notification->getType()->value,
+                    'scheduled_at' => $notification->getScheduledAt()->format('Y-m-d H:i:s')
+                ]);
+                
+            } catch (\Exception $e) {
+                $this->logger->error('Failed to dispatch scheduled notification', [
+                    'notification_id' => $notification->getId(),
+                    'error' => $e->getMessage()
+                ]);
+                
+                $notification->setStatus(NotificationStatusEnum::FAILED);
+                $notification->setErrorMessage($e->getMessage());
+                $this->entityManager->flush();
+            }
+        }
     }
 
     private function createAndDispatchWhatsAppNotification(
@@ -253,7 +333,7 @@ class NotificationService
         $this->entityManager->flush();
         
         // Despachar mensaje a la cola
-        $message = new SendWhatsAppNotification($notification->getId(), $type);
+        $message = new SendWhatsAppNotification($notification->getId());
         $this->messageBus->dispatch($message);
     }
 
@@ -265,12 +345,35 @@ class NotificationService
             NotificationTypeEnum::CANCELLATION->value,
             new \DateTime()
         );
-
+    
         // Enviar notificación de cancelación por WhatsApp
         $this->createAndDispatchWhatsAppNotification(
             $appointment,
             NotificationTypeEnum::CANCELLATION->value,
             new \DateTime()
         );
+    }
+
+    public function modifyAppointmentNotifications(Appointment $appointment): void
+    {
+        $company = $appointment->getCompany();
+        
+        // Enviar notificación de modificación por email (si está habilitada)
+        if ($company->isEmailNotificationsEnabled()) {
+            $this->createAndDispatchEmailNotification(
+                $appointment,
+                NotificationTypeEnum::MODIFICATION->value,
+                new \DateTime()
+            );
+        }
+    
+        // Enviar notificación de modificación por WhatsApp (si está habilitada)
+        if ($company->isWhatsappNotificationsEnabled()) {
+            $this->createAndDispatchWhatsAppNotification(
+                $appointment,
+                NotificationTypeEnum::MODIFICATION->value,
+                new \DateTime()
+            );
+        }
     }
 }

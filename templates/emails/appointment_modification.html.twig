@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Confirmación de Turno - {{ business_name }}</title>
+    <title>Modificación de Turno - {{ business_name }}</title>
 </head>
 <body style="font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
@@ -15,8 +15,8 @@
                     <tr>
                         <td style="background: linear-gradient(0deg, transparent, {{ primary_color|default('#667eea') }}dd); color: white; padding: 30px 20px; text-align: center;">
                             <h1 style="margin: 0; font-size: 24px; font-weight: 600; text-transform: capitalize;">{{ business_name }}</h1>
-                            <div style="background-color: #10b981; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; margin-top: 15px; display: inline-block;">
-                                ✓ ¡Todo listo! Recibimos tu turno
+                            <div style="background-color: #d97706; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; margin-top: 15px; display: inline-block;">
+                                ✏️ Turno Modificado
                             </div>
                         </td>
                     </tr>
@@ -24,6 +24,16 @@
                     <!-- Content -->
                     <tr>
                         <td style="padding: 30px 20px;">
+                            
+                            <!-- Modification Message -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
+                                <tr>
+                                    <td align="center">
+                                        <div style="font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 10px;">Tu turno ha sido modificado</div>
+                                        <div style="font-size: 14px; color: #6b7280;">Aquí están los nuevos detalles de tu cita.</div>
+                                    </td>
+                                </tr>
+                            </table>
                             
                             <!-- Appointment Card -->
                             <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid {{ primary_color|default('#667eea') }}; border-right: 4px solid {{ primary_color|default('#667eea') }}">
@@ -41,7 +51,7 @@
                                                                 <span style="font-size: 16px;">📅</span>
                                                             </td>
                                                             <td style="color: #374151; font-size: 14px; vertical-align: top;">
-                                                                {{ appointment_date }}
+                                                                {{ appointment_date_formatted }}
                                                             </td>
                                                         </tr>
                                                     </table>
@@ -115,7 +125,7 @@
                                             <tr>
                                                 <td>
                                                     <a href="{{ modify_url }}" style="display: inline-block; padding: 12px 24px; background-color: #fef3c7; border: 1px solid #fbbf24; color: #2c3941; text-decoration: none; border-radius: 8px; font-weight: 500; font-size: 14px; width: 200px; text-align: center;">
-                                                        ✏️ Modificar el turno
+                                                        ✏️ Modificar nuevamente
                                                     </a>
                                                 </td>
                                             </tr>

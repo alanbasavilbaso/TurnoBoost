@@ -4,6 +4,73 @@
  */
 
 class BookingWizard {
+    /**
+     * Precarga los datos del paciente en el formulario de contacto
+     * @param {Object} patientData - Datos del paciente
+     */
+    preloadPatientData(patientData) {
+        if (!this.elements.contactForm || !patientData) return;
+        
+        const fields = {
+            'firstname': patientData.firstName || '',
+            'lastname': patientData.lastName || '',
+            'email': patientData.email || '',
+            'phone': patientData.phone || ''
+        };
+        
+        Object.entries(fields).forEach(([fieldName, value]) => {
+            const field = this.elements.contactForm.querySelector(`#patient-${fieldName}`);
+            if (field) {
+                field.value = value;
+            }
+        });
+    }
+    
+    /**
+     * Muestra información sobre la modificación del turno
+     */
+    showModificationInfo() {
+        if (!this.elements.modificationInfo || !this.state.preloadData) return;
+        
+        // Mostrar el contenedor de información
+        this.elements.modificationInfo.classList.remove('d-none');
+        
+        // Llenar con los datos del turno original
+        const originalDate = new Date(this.state.preloadData.originalDate);
+        const dateFormatted = originalDate.toLocaleDateString('es-ES', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        
+        const timeFormatted = this.state.preloadData.originalTime;
+        
+        // Actualizar el texto
+        const infoText = this.elements.modificationInfo.querySelector('.modification-info-text');
+        if (infoText) {
+            infoText.innerHTML = `Estás modificando tu turno original del <strong>${dateFormatted}</strong> a las <strong>${timeFormatted}</strong>`;
+        }
+        
+        // Agregar un banner informativo adicional
+        const container = document.querySelector('.container-fluid');
+        if (container) {
+            const banner = document.createElement('div');
+            banner.className = 'alert alert-info d-flex align-items-center mb-4';
+            banner.innerHTML = `
+                <i class="fas fa-edit me-2"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">Modificando turno existente</h5>
+                    <p class="mb-0">
+                        Turno original: ${dateFormatted} a las ${timeFormatted}
+                        <br>
+                        <small class="text-muted">Puedes cambiar la fecha, hora o datos de contacto.</small>
+                    </p>
+                </div>
+            `;
+            container.insertBefore(banner, container.firstChild);
+        }
+    }
     constructor() {
         // Estado del wizard
         this.state = {
@@ -15,7 +82,9 @@ class BookingWizard {
             selectedLocationId: null,
             domain: null,
             isLoading: false,
-            wizardStep1Complete: false
+            wizardStep1Complete: false,
+            isModification: false,
+            preloadData: null
         };
 
         // Estado del selector de fechas
@@ -124,6 +193,9 @@ class BookingWizard {
         
         // Service details container
         this.elements.serviceDetails = document.getElementById('service-details');
+        
+        // Modification info container
+        this.elements.modificationInfo = document.getElementById('modification-info');
     }
 
     /**
@@ -137,6 +209,21 @@ class BookingWizard {
             this.state.wizardStep1Complete = window.bookingData.wizardStep1Complete;
             this.state.domain = window.bookingData.domain;
             this.state.selectedLocationId = window.bookingData.locationId;
+            
+            // Manejar datos de modificación
+            if (window.bookingData.isModification && window.bookingData.preloadData) {
+                this.state.isModification = true;
+                this.state.preloadData = window.bookingData.preloadData;
+                
+                // Preseleccionar datos del turno existente
+                this.state.selectedService = window.bookingData.preloadData.serviceId;
+                this.state.selectedProfessional = window.bookingData.preloadData.professionalId;
+                this.state.selectedLocationId = window.bookingData.preloadData.locationId;
+                this.state.wizardStep1Complete = false;
+                
+                // Mostrar información de modificación
+                this.showModificationInfo();
+            }
         }
     }
 
@@ -224,7 +311,18 @@ class BookingWizard {
      */
     initializeWizard() {
         // Determinar el paso inicial basado en el estado
-        if (this.state.wizardStep1Complete) {
+        if (this.state.isModification && this.state.preloadData) {
+            this.state.currentStep = 1;
+            this.showStep(1);
+            this.updateProgressIndicator();
+            
+            // Preseleccionar el profesional después de que el DOM esté listo
+            setTimeout(() => {
+                const professionalId = this.state.preloadData.professionalId;
+                const professionalName = this.state.preloadData.professionalName || 'Profesional';
+                this.selectProfessional(professionalId, professionalName, false);
+            }, 100);
+        } else if (this.state.wizardStep1Complete) {
             this.state.currentStep = 2;
             this.showStep(2);
             this.updateProgressIndicator();
@@ -349,23 +447,29 @@ class BookingWizard {
             response.forEach(dateInfo => {
                 availableDatesMap[dateInfo.date] = dateInfo;
             });
-            
+
             // Combinar todos los días con la información de disponibilidad
             return allDates.map(dateInfo => {
                 const availableInfo = availableDatesMap[dateInfo.date];
+                // Crear fecha local sin conversión de zona horaria
+                const [year, month, day] = dateInfo.date.split('-');
+                const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                
                 if (availableInfo) {
                     return {
                         ...dateInfo,
+                        dayNumber: dateObj.getDate(), // Recalcular dayNumber
                         slotsCount: availableInfo.slotsCount || 0,
                         hasSlots: (availableInfo.slotsCount || 0) > 0,
-                        monthName: this.getMonthName(new Date(dateInfo.date))
+                        monthName: this.getMonthName(dateObj)
                     };
                 } else {
                     return {
                         ...dateInfo,
+                        dayNumber: dateObj.getDate(), // Recalcular dayNumber
                         slotsCount: 0,
                         hasSlots: false,
-                        monthName: this.getMonthName(new Date(dateInfo.date))
+                        monthName: this.getMonthName(dateObj)
                     };
                 }
             });
@@ -380,26 +484,34 @@ class BookingWizard {
      */
     generateDateRange(startDate, endDate) {
         const dates = [];
-        const current = new Date(startDate);
+        
+        // Crear fecha local sin problemas de zona horaria
+        let currentDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
         const today = new Date().toISOString().split('T')[0]; // Fecha de hoy en formato YYYY-MM-DD
         
-        while (current <= endDate) {
-            const dateStr = current.toISOString().split('T')[0];
+        while (currentDateStr <= endDateStr) {
+            // Crear fecha local para cada iteración
+            const [year, month, day] = currentDateStr.split('-');
+            const current = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            
             const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
             const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
             
             dates.push({
-                date: dateStr,
+                date: currentDateStr,
                 dayName: dayNames[current.getDay()],
                 dayNumber: current.getDate(),
                 monthName: monthNames[current.getMonth()],
                 slotsCount: 0,
                 hasSlots: false,
                 isWeekend: current.getDay() === 0 || current.getDay() === 6,
-                isToday: dateStr === today // Agregar detección del día actual
+                isToday: currentDateStr === today // Agregar detección del día actual
             });
             
-            current.setDate(current.getDate() + 1);
+            // Incrementar la fecha como string
+            const nextDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day) + 1);
+            currentDateStr = nextDate.toISOString().split('T')[0];
         }
         
         return dates;
@@ -556,6 +668,14 @@ class BookingWizard {
         
         // Actualizar visibilidad de detalles del servicio
         this.updateServiceDetailsVisibility();
+        
+        // Si es el paso 3 y hay datos de modificación, precargar los datos del paciente
+        if (stepNumber === 3 && this.state.isModification && this.state.preloadData) {
+            // Usar setTimeout para asegurar que el DOM esté completamente renderizado
+            setTimeout(() => {
+                this.preloadPatientData(this.state.preloadData.patient);
+            }, 100);
+        }
     }
 
     /**
@@ -825,8 +945,11 @@ class BookingWizard {
 
     /**
      * Selecciona un profesional y carga las fechas disponibles
+     * @param {string} professionalId - ID del profesional
+     * @param {string} professionalName - Nombre del profesional
+     * @param {boolean} resetDate - Si debe resetear la fecha seleccionada
      */
-    selectProfessional(professionalId, professionalName) {
+    selectProfessional(professionalId, professionalName, resetDate = true) {
         // Limpiar selección anterior
         document.querySelectorAll('.professional-card.selected').forEach(card => {
             card.classList.remove('selected');
@@ -845,10 +968,12 @@ class BookingWizard {
             this.elements.selectedProfessionalDisplay.textContent = professionalName;
         }
 
-        // Limpiar fechas y horarios anteriores
-        this.state.availableDates = [];
-        this.calendar.selectedDate = null;
-        this.state.selectedTime = null;
+        // Limpiar fechas y horarios anteriores si es necesario
+        if (resetDate) {
+            this.state.availableDates = [];
+            this.calendar.selectedDate = null;
+            this.state.selectedTime = null;
+        }
         
         // Cargar nuevas fechas disponibles
         this.loadInitialDates()
@@ -877,11 +1002,15 @@ class BookingWizard {
             email: formData.get('email') || '',
             notes: formData.get('notes') || ''
         };
+        
+        // Si es una modificación, agregar el ID del turno original
+        if (this.state.isModification && this.state.preloadData) {
+            bookingData.original_appointment_id = this.state.preloadData.appointmentId;
+        }
 
         try {
             this.setLoading(true);
-            const result = await this.submitBooking(bookingData);
-            this.showBookingSuccess(result);
+            await this.submitBooking(bookingData);
         } catch (error) {
             this.showBookingError(error.message);
         } finally {
@@ -893,26 +1022,39 @@ class BookingWizard {
      * Envía la reserva al servidor
      */
     async submitBooking(bookingData) {
-        const url = this.buildApiUrl('create');
-        
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify(bookingData)
-        });
+        try {
+            this.setLoading(true);
+            
+            // Agregar datos de modificación si es una modificación
+            if (this.state.isModification && this.state.preloadData) {
+                bookingData.appointment_id = this.state.preloadData.appointmentId;
+                bookingData.modify_token = this.state.preloadData.modifyToken;
+                bookingData.is_modification = true;
+            }
+            
+            const url = this.buildApiUrl('create');
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(bookingData)
+            });
 
-        const responseData = await response.json();
-
-        if (!response.ok) {
-            // Manejar errores controlados del servidor
-            const errorMessage = responseData.message || responseData.error || 'Error al procesar la reserva';
-            throw new Error(errorMessage);
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showBookingSuccess(result);
+            } else {
+                this.showBookingError(result.message || 'Error al procesar la reserva');
+            }
+        } catch (error) {
+            console.error('Error submitting booking:', error);
+            this.showBookingError('Error de conexión. Por favor, inténtalo de nuevo.');
+        } finally {
+            this.setLoading(false);
         }
-
-        return responseData;
     }
 
     /**
@@ -932,6 +1074,14 @@ class BookingWizard {
         const successScreen = document.getElementById('booking-success-screen');
         if (successScreen) {
             successScreen.classList.remove('d-none');
+            
+            // Actualizar título si es una modificación
+            if (this.state.isModification) {
+                const successTitle = successScreen.querySelector('h2');
+                if (successTitle) {
+                    successTitle.textContent = '¡Turno modificado con éxito!';
+                }
+            }
         }
     }
 

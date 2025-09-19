@@ -29,55 +29,48 @@ class SendWhatsAppNotificationHandler
 
     public function __invoke(SendWhatsAppNotification $message): void
     {
-        $appointmentRepository = $this->entityManager->getRepository(Appointment::class);
-        $notificationRepository = $this->entityManager->getRepository(Notification::class);
-        
-        $appointment = $appointmentRepository->find($message->getAppointmentId());
-        
-        if (!$appointment) {
-            $this->logger->error('Appointment not found for WhatsApp notification', [
-                'appointment_id' => $message->getAppointmentId()
-            ]);
-            return;
-        }
-
-        // Buscar la notificación correspondiente
-        $notification = $notificationRepository->findOneBy([
-            'appointment' => $appointment,
-            'type' => $message->getMessageType(),
-            'status' => 'PENDING'
-        ]);
-
+        $notification = $this->entityManager->getRepository(Notification::class)
+            ->find($message->getNotificationId());
+    
         if (!$notification) {
             $this->logger->error('Notification not found for WhatsApp', [
-                'appointment_id' => $message->getAppointmentId(),
-                'message_type' => $message->getMessageType()
+                'notification_id' => $message->getNotificationId()
             ]);
             return;
         }
-
+    
+        $appointment = $notification->getAppointment();
+    
+        if (!$appointment) {
+            $this->logger->error('Appointment not found in notification', [
+                'notification_id' => $notification->getId()
+            ]);
+            return;
+        }
+    
         try {
             $success = $this->whatsappService->sendAppointmentNotification(
                 $appointment, 
-                $message->getMessageType()
+                $notification->getType()->value
             );
-
+    
             if ($success) {
-                $notification->setStatus('SENT');
+                $notification->setStatus(NotificationStatusEnum::SENT);
                 $notification->setSentAt(new \DateTime());
-                $this->logger->info('WhatsApp notification sent successfully');
             } else {
-                $notification->setStatus('FAILED');
-                $this->logger->error('Failed to send WhatsApp notification');
+                $notification->setStatus(NotificationStatusEnum::FAILED);
+                $notification->setErrorMessage('WhatsApp service returned false');
             }
-
+    
         } catch (\Exception $e) {
-            $notification->setStatus('FAILED');
+            $notification->setStatus(NotificationStatusEnum::FAILED);
+            $notification->setErrorMessage($e->getMessage());
             $this->logger->error('Exception sending WhatsApp notification', [
+                'notification_id' => $notification->getId(),
                 'error' => $e->getMessage()
             ]);
         }
-
+    
         $this->entityManager->flush();
     }
 }

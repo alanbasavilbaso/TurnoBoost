@@ -854,3 +854,31 @@
     align-items: center;
     z-index: 9999;
 }
+
+/* Estilo para el ícono de fuente */
+.source-icon {
+    font-size: 14px;
+    margin-left: 4px;
+    color: #000000; /* Negro */
+    opacity: 0.8;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Para appointment-time */
+.appointment-time .source-icon,
+.fc-event-time .source-icon {
+    right: 3px;
+    position: absolute;
+}
+
+/* Para appointment-block */
+.appointment-title .source-icon {
+    float: left;
+    margin-right: 3px;
+}
+
+/* Para FullCalendar */
+.fc-event-title .source-icon {
+    margin-right: 3px;
+}

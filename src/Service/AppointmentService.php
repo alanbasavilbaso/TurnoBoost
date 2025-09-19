@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Entity\Appointment;
 use App\Entity\AppointmentSourceEnum;
+use App\Entity\AuditLog;
 use App\Entity\Company;
 use App\Entity\Professional;
 use App\Entity\Service;
@@ -15,6 +16,7 @@ use App\Repository\AppointmentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\Location;
 use App\Entity\ProfessionalBlock;
+use App\Service\AuditService;
 
 class AppointmentService
 {
@@ -24,6 +26,7 @@ class AppointmentService
     private PatientService $patientService;
     private AppointmentRepository $appointmentRepository;
     private NotificationService $notificationService;
+    private AuditService $auditService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -31,7 +34,8 @@ class AppointmentService
         ServiceRepository $serviceRepository,
         PatientService $patientService,
         AppointmentRepository $appointmentRepository,
-        NotificationService $notificationService
+        NotificationService $notificationService,
+        AuditService $auditService
     ) {
         $this->entityManager = $entityManager;
         $this->professionalRepository = $professionalRepository;
@@ -39,12 +43,19 @@ class AppointmentService
         $this->patientService = $patientService;
         $this->appointmentRepository = $appointmentRepository;
         $this->notificationService = $notificationService;
+        $this->auditService = $auditService;
     }
 
     /**
      * Crea una nueva cita con todas las validaciones necesarias
      */
-    public function createAppointment(array $data, Company $company, bool $force = false, AppointmentSourceEnum $source = AppointmentSourceEnum::USER): Appointment
+    public function createAppointment(
+        array $data, 
+        Company $company, 
+        bool $force = false, 
+        AppointmentSourceEnum $source = AppointmentSourceEnum::USER,
+        bool $sendNotifications = true
+    ): Appointment
     {
         // Validar y obtener datos básicos
         $appointmentData = $this->validateAndParseData($data);
@@ -91,8 +102,28 @@ class AppointmentService
         $this->entityManager->persist($appointment);
         $this->entityManager->flush();
         
-        // Programar notificaciones automáticamente
-        $this->notificationService->scheduleAppointmentNotifications($appointment);
+        // Registrar en audit_log
+        $this->auditService->logChange(
+            'Appointment',
+            $appointment->getId(),
+            'create',
+            null,
+            [
+                'patient_id' => $patient->getId(),
+                'professional_id' => $professional->getId(),
+                'service_id' => $service->getId(),
+                'location_id' => $location->getId(),
+                'scheduled_at' => $appointment->getScheduledAt()->format('Y-m-d H:i:s'),
+                'duration_minutes' => $duration,
+                'source' => $source->value,
+                'notes' => $appointmentData['notes']
+            ]
+        );
+        
+        // Programar notificaciones automáticamente (solo si se especifica)
+        if ($sendNotifications) {
+            $this->notificationService->scheduleAppointmentNotifications($appointment);
+        }
         
         return $appointment;
     }
@@ -281,7 +312,7 @@ class AppointmentService
     /**
      * Ejecuta todas las validaciones de la cita
      */
-    private function validateAppointment(
+    public function validateAppointment(
         \DateTime $scheduledAt,
         int $durationMinutes, 
         Professional $professional,
@@ -295,7 +326,6 @@ class AppointmentService
             $service->getId(),
             null
         );
-        // var_dump($available);exit;
       
         if (!$available['available']) {
             if (isset($available['details']['appointments']) && $available['details']['appointments'] > 0) {
@@ -319,7 +349,6 @@ class AppointmentService
     /**
      * Valida que no haya bloqueos que interfieran con la cita
      */
-    // Corregir el método validateBlockConflicts (líneas 205-246)
     private function validateBlockConflicts(
         \DateTime $scheduledAt,
         \DateTime $endTime,
@@ -329,78 +358,160 @@ class AppointmentService
         $appointmentStartTime = $scheduledAt->format('H:i:s');
         $appointmentEndTime = $endTime->format('H:i:s');
         $dayOfWeek = (int)$scheduledAt->format('N'); // 0=Lunes, 6=Domingo
-        
-        // Buscar bloqueos que puedan interferir
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('pb')
-            ->from(ProfessionalBlock::class, 'pb')
-            ->where('pb.professional = :professional')
-            ->andWhere('pb.active = true')
-            ->setParameter('professional', $professional);
-        
-        // Filtrar por tipo de bloque
-        $qb->andWhere(
-            $qb->expr()->orX(
-                // Bloque de día único - CORREGIDO: usar comparación directa de fechas
-                $qb->expr()->andX(
-                    $qb->expr()->eq('pb.blockType', ':singleDay'),
-                    $qb->expr()->eq('pb.startDate', ':appointmentDateObj')
-                ),
-                // Bloque de rango de fechas
-                $qb->expr()->andX(
-                    $qb->expr()->eq('pb.blockType', ':dateRange'),
-                    $qb->expr()->lte('pb.startDate', ':appointmentDateObj'),
-                    $qb->expr()->gte('pb.endDate', ':appointmentDateObj')
-                ),
-                // Bloque de patrón semanal
-                $qb->expr()->andX(
-                    $qb->expr()->eq('pb.blockType', ':weekdaysPattern'),
-                    $qb->expr()->like('pb.weekdaysPattern', ':dayOfWeekPattern')
+        // var_dump($appointmentDate);
+        // var_dump($dayOfWeek);
+        // exit;
+        $sql = "
+            SELECT 
+                pb.*
+            FROM 
+                professional_blocks pb
+
+            WHERE pb.professional_id = :professionalId
+            AND pb.active = true
+            AND (
+                (pb.block_type = 'single_day' AND pb.start_date = :appointmentDate)
+            OR
+                (pb.block_type = 'date_range' AND pb.start_date <= :appointmentDate AND pb.end_date >= :appointmentDate)
+            OR
+                (
+                    pb.block_type = 'weekdays_pattern' 
+                    AND 
+                    pb.start_date <= :appointmentDate AND (pb.end_date IS NULL OR pb.end_date >= :appointmentDate)
+                    AND 
+                    pb.weekdays_pattern LIKE '%' || :dayOfWeek || '%'
                 )
-            )
-        )
-        ->setParameter('singleDay', 'single_day')
-        ->setParameter('dateRange', 'date_range')
-        ->setParameter('weekdaysPattern', 'weekdays_pattern')
-        ->setParameter('appointmentDateObj', (clone $scheduledAt)->setTime(0, 0, 0)) // Fecha sin hora
-        ->setParameter('dayOfWeekPattern', '%' . $dayOfWeek . '%');
+            OR 
+                (
+                    pb.block_type = 'monthly_recurring' 
+	            	AND 
+      	          	pb.start_date <= :appointmentDate AND (pb.end_date IS NULL OR pb.end_date >= :appointmentDate)
+                )
+        );";
         
-        $blocks = $qb->getQuery()->getResult();
+        $params = [
+            'professionalId' => $professional->getId(),
+            'appointmentDate' => $appointmentDate,
+            'dayOfWeek' => $dayOfWeek
+        ];
         
+        $stmt = $this->entityManager->getConnection()->prepare($sql);
+        $blocks = $stmt->executeQuery($params)->fetchAllAssociative();
+        
+
+        // $finalSql = $sql;
+        // foreach ($params as $key => $value) {
+        //     $finalSql = str_replace(":$key", "'$value'", $finalSql);
+        // }
+        // var_dump($finalSql);
+        // exit;
+
         foreach ($blocks as $block) {
             $blockAffectsAppointment = false;
-            
             // Verificar si el bloque afecta la cita según su tipo
-            switch ($block->getBlockType()) {
+            switch ($block['block_type']) {
                 case 'single_day':
-                    $blockAffectsAppointment = $this->checkTimeOverlap(
-                        $appointmentStartTime, $appointmentEndTime,
-                        $block->getStartTime(), $block->getEndTime()
-                    );
+                    // Verificar que la fecha del bloque coincida con la fecha de la cita
+                    $blockDate = date('Y-m-d', strtotime($block['start_date']));
+                    if ($blockDate === $appointmentDate) {
+                        // Si start_time es null, bloquea todo el día
+                        if ($block['start_time'] === null) {
+                            $blockAffectsAppointment = true;
+                        } else {
+                            $blockStartTime = \DateTime::createFromFormat('H:i:s', $block['start_time']);
+                            
+                            // Si end_time es null, bloquea desde start_time hasta el final del día
+                            if ($block['end_time'] === null) {
+                                $blockEndTime = \DateTime::createFromFormat('H:i:s', '23:59:59');
+                            } else {
+                                $blockEndTime = \DateTime::createFromFormat('H:i:s', $block['end_time']);
+                            }
+                            
+                            $blockAffectsAppointment = $this->checkTimeOverlap(
+                                $appointmentStartTime, $appointmentEndTime,
+                                $blockStartTime, $blockEndTime
+                            );
+                        }
+                    }
                     break;
                     
                 case 'date_range':
-                    $blockAffectsAppointment = $this->checkTimeOverlap(
-                        $appointmentStartTime, $appointmentEndTime,
-                        $block->getStartTime(), $block->getEndTime()
-                    );
-                    break;
-                    
-                case 'weekdays_pattern':
-                    // Verificar si el día de la semana está en el patrón
-                    $weekdays = explode(',', $block->getWeekdaysPattern());
-                    if (in_array((string)$dayOfWeek, $weekdays)) {
+                    // Si start_time es null, bloquea todo el día
+                    if ($block['start_time'] === null) {
+                        $blockAffectsAppointment = true;
+                    } else {
+                        $blockStartTime = \DateTime::createFromFormat('H:i:s', $block['start_time']);
+                        
+                        // Si end_time es null, bloquea desde start_time hasta el final del día
+                        if ($block['end_time'] === null) {
+                            $blockEndTime = \DateTime::createFromFormat('H:i:s', '23:59:59');
+                        } else {
+                            $blockEndTime = \DateTime::createFromFormat('H:i:s', $block['end_time']);
+                        }
+                        
                         $blockAffectsAppointment = $this->checkTimeOverlap(
                             $appointmentStartTime, $appointmentEndTime,
-                            $block->getStartTime(), $block->getEndTime()
+                            $blockStartTime, $blockEndTime
                         );
+                    }
+                    break;
+                
+                case 'weekdays_pattern':
+                    // Verificar si el día de la semana está en el patrón
+                    $weekdays = explode(',', $block['weekdays_pattern']);
+                    if (in_array((string)$dayOfWeek, $weekdays)) {
+                        // Si start_time es null, bloquea todo el día
+                        if ($block['start_time'] === null) {
+                            $blockAffectsAppointment = true;
+                        } else {
+                            $blockStartTime = \DateTime::createFromFormat('H:i:s', $block['start_time']);
+                            
+                            // Si end_time es null, bloquea desde start_time hasta el final del día
+                            if ($block['end_time'] === null) {
+                                $blockEndTime = \DateTime::createFromFormat('H:i:s', '23:59:59');
+                            } else {
+                                $blockEndTime = \DateTime::createFromFormat('H:i:s', $block['end_time']);
+                            }
+                            
+                            $blockAffectsAppointment = $this->checkTimeOverlap(
+                                $appointmentStartTime, $appointmentEndTime,
+                                $blockStartTime, $blockEndTime
+                            );
+                        }
+                    }
+                    break;
+
+                case 'monthly_recurring':
+                    // Verificar que el día del mes coincida
+                    $appointmentDay = (int)$scheduledAt->format('d');
+                    $blockDay = (int)date('d', strtotime($block['start_date']));
+                    
+                    if ($appointmentDay === $blockDay) {
+                        // Si start_time es null, bloquea todo el día
+                        if ($block['start_time'] === null) {
+                            $blockAffectsAppointment = true;
+                        } else {
+                            $blockStartTime = \DateTime::createFromFormat('H:i:s', $block['start_time']);
+                            
+                            // Si end_time es null, bloquea desde start_time hasta el final del día
+                            if ($block['end_time'] === null) {
+                                $blockEndTime = \DateTime::createFromFormat('H:i:s', '23:59:59');
+                            } else {
+                                $blockEndTime = \DateTime::createFromFormat('H:i:s', $block['end_time']);
+                            }
+                            
+                            $blockAffectsAppointment = $this->checkTimeOverlap(
+                                $appointmentStartTime, $appointmentEndTime,
+                                $blockStartTime, $blockEndTime
+                            );
+                        }
                     }
                     break;
             }
             
             if ($blockAffectsAppointment) {
                 throw new \InvalidArgumentException(
-                    'Hay un bloqueo de agenda para el horario elegido, con el motivo: ' . $block->getReason()
+                    'Hay un bloqueo de agenda para el horario elegido, con el motivo: ' . $block['reason']
                 );
             }
         }
@@ -510,39 +621,45 @@ class AppointmentService
     {
         $this->validateToken($appointmentId, $token);
         
-        $appointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
-        
-        if (!$appointment) {
-            throw new \InvalidArgumentException('Turno no encontrado');
+        // Buscar el turno activo de la cadena
+        $activeAppointment = $this->findActiveAppointmentFromChain($appointmentId);
+        if (!$activeAppointment) {
+            throw new \InvalidArgumentException('No se encontró un turno activo para confirmar');
         }
         
-        if ($appointment->getProfessional()->getCompany() !== $company) {
+        if ($activeAppointment->getProfessional()->getCompany() !== $company) {
             throw new \InvalidArgumentException('Turno no pertenece a esta empresa');
         }
         
-        if ($appointment->getStatus() === StatusEnum::CANCELLED) {
+        if ($activeAppointment->getStatus() === StatusEnum::CANCELLED) {
             throw new \InvalidArgumentException('Este turno ya fue cancelado');
         }
         
-        if ($appointment->getStatus() === StatusEnum::CONFIRMED) {
+        if ($activeAppointment->getStatus() === StatusEnum::CONFIRMED) {
             throw new \InvalidArgumentException('Este turno ya fue confirmado');
         }
         
         // Confirmar el turno
-        $appointment->setStatus(StatusEnum::CONFIRMED);
+        $oldStatus = $activeAppointment->getStatus()->value;
+        $activeAppointment->setStatus(StatusEnum::CONFIRMED);
+        $activeAppointment->setConfirmedAt(new \DateTime());
         $this->entityManager->flush();
-        
-        // Log de auditoría
-        $this->auditService->log(
-            'appointment_confirmed_by_link',
+
+        // Registrar en auditoría
+        $this->auditService->logChange(
             'Appointment',
-            $appointment->getId(),
-            ['method' => 'secure_link']
+            $activeAppointment->getId(),
+            'appointment_confirmed_by_link',
+            ['status' => $oldStatus],
+            ['status' => 'confirmed', 'confirmed_at' => $activeAppointment->getConfirmedAt()->format('Y-m-d H:i:s')]
         );
         
-        return $appointment;
+        return $activeAppointment;
     }
 
+    /**
+     * Validar token y cancelar appointment
+     */
     /**
      * Validar token y cancelar appointment
      */
@@ -550,33 +667,39 @@ class AppointmentService
     {
         $this->validateToken($appointmentId, $token);
         
-        $appointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
-        
-        if (!$appointment) {
-            throw new \InvalidArgumentException('Turno no encontrado');
+        // Buscar el turno activo de la cadena
+        $activeAppointment = $this->findActiveAppointmentFromChain($appointmentId);
+        if (!$activeAppointment) {
+            throw new \InvalidArgumentException('No se encontró un turno activo para cancelar');
         }
         
-        if ($appointment->getProfessional()->getCompany() !== $company) {
+        if ($activeAppointment->getProfessional()->getCompany() !== $company) {
             throw new \InvalidArgumentException('Turno no pertenece a esta empresa');
         }
         
-        if ($appointment->getStatus() === StatusEnum::CANCELLED) {
+        if ($activeAppointment->getStatus() === StatusEnum::CANCELLED) {
             throw new \InvalidArgumentException('Este turno ya fue cancelado');
         }
         
         // Cancelar el turno
-        $appointment->setStatus(StatusEnum::CANCELLED);
+        $oldStatus = $activeAppointment->getStatus()->value;
+        $activeAppointment->setStatus(StatusEnum::CANCELLED);
+        $activeAppointment->setCancelledAt(new \DateTime());
         $this->entityManager->flush();
-        
-        // Log de auditoría
-        $this->auditService->log(
-            'appointment_cancelled_by_link',
+
+        // Enviar notificaciones de cancelación
+        $this->notificationService->cancelAppointmentNotifications($activeAppointment);
+
+        // Registrar en auditoría
+        $this->auditService->logChange(
             'Appointment',
-            $appointment->getId(),
-            ['method' => 'secure_link']
+            $activeAppointment->getId(),
+            'appointment_cancelled_by_link',
+            ['status' => $oldStatus],
+            ['status' => 'cancelled', 'cancelled_at' => $activeAppointment->getCancelledAt()->format('Y-m-d H:i:s')]
         );
         
-        return $appointment;
+        return $activeAppointment;
     }
 
     /**
@@ -605,11 +728,6 @@ class AppointmentService
             throw new \InvalidArgumentException('Token inválido');
         }
         
-        // Verificar expiración
-        if (time() > $data['expires']) {
-            throw new \InvalidArgumentException('El enlace ha expirado');
-        }
-        
         // Verificar que el appointment ID coincida
         if ($data['appointment_id'] !== $appointmentId) {
             throw new \InvalidArgumentException('Token inválido para este turno');
@@ -625,5 +743,387 @@ class AppointmentService
         }
         
         return $location;
+    }
+
+    /**
+     * Modificar un turno existente
+     */
+    public function modifyAppointment(int $originalAppointmentId, string $token, array $newAppointmentData, Company $company): Appointment
+    {
+        // Validar token
+        $this->validateToken($originalAppointmentId, $token);
+        
+        // Buscar el turno activo de la cadena
+        $activeAppointment = $this->findActiveAppointmentFromChain($originalAppointmentId);
+        if (!$activeAppointment) {
+            throw new \InvalidArgumentException('No se encontró un turno activo para modificar');
+        }
+        
+        // Verificar que el turno pertenezca a la empresa
+        if ($activeAppointment->getCompany() !== $company) {
+            throw new \InvalidArgumentException('Turno no encontrado');
+        }
+        
+        // Validar reglas de modificación de la empresa
+        $this->validateCompanyModificationRules($activeAppointment, $company);
+        
+        // Validar límite de modificaciones
+        if (!$activeAppointment->canBeModified($company->getMaximumEdits())) {
+            throw new \InvalidArgumentException('Se ha alcanzado el límite máximo de modificaciones para este turno');
+        }
+        
+        // Crear el nuevo turno (sin enviar notificaciones de confirmación)
+        $newAppointment = $this->createAppointment($newAppointmentData, $company, false, AppointmentSourceEnum::USER, false);
+        
+        // Configurar rastreo de modificaciones
+        $rootAppointment = $activeAppointment->getRootAppointment();
+        $newAppointment->setOriginalAppointment($rootAppointment);
+        $newAppointment->setPreviousAppointment($activeAppointment);
+        
+        // Incrementar contador en la cita original
+        $rootAppointment->incrementModificationCount();
+        
+        // Cancelar el turno activo (sin enviar email)
+        $activeAppointment->setStatus(StatusEnum::CANCELLED);
+        $activeAppointment->setCancelledAt(new \DateTime());
+        
+        // Persistir cambios
+        $this->entityManager->flush();
+        
+        // Sincronizar el modification_count en todos los turnos relacionados
+        $this->syncModificationCountForRelatedAppointments($rootAppointment);
+
+        // Enviar notificaciones de modificación para el nuevo turno
+        $this->notificationService->modifyAppointmentNotifications($newAppointment);
+        
+        // Registrar en auditoría
+        $this->auditService->logChange(
+            'Appointment',
+            $activeAppointment->getId(),
+            'modify',
+            [
+                'original_appointment_id' => $activeAppointment->getId(),
+                'original_date' => $activeAppointment->getScheduledAt()->format('Y-m-d H:i:s'),
+                'original_service' => $activeAppointment->getService()->getName(),
+                'original_professional' => $activeAppointment->getProfessional()->getName(),
+                'modification_count' => $rootAppointment->getModificationCount(),
+                'root_appointment_id' => $rootAppointment->getId()
+            ],
+            [
+                'new_appointment_id' => $newAppointment->getId(),
+                'new_date' => $newAppointment->getScheduledAt()->format('Y-m-d H:i:s'),
+                'new_service' => $newAppointment->getService()->getName(),
+                'new_professional' => $newAppointment->getProfessional()->getName()
+            ]
+        );
+        
+        return $newAppointment;
+    }
+
+    /**
+     * Validar reglas de modificación de la empresa
+     */
+    private function validateCompanyModificationRules(Appointment $appointment, Company $company): void
+    {
+        // Verificar si la empresa permite modificaciones
+        if (!$company->isEditableBookings()) {
+            throw new \InvalidArgumentException('Esta empresa no permite modificar turnos');
+        }
+
+        
+        // Verificar si el turno puede ser editado
+        if (!$appointment->canBeEdited()) {
+            throw new \InvalidArgumentException('Este turno no puede ser modificado');
+        }
+        
+        // Verificar tiempo mínimo para modificación
+        $now = new \DateTime();
+        $minEditTime = $company->getMinimumEditTime() ?? 0; // en minutos
+        $timeDiff = $appointment->getScheduledAt()->getTimestamp() - $now->getTimestamp();
+        
+        if ($timeDiff < $minEditTime * 60) {
+            throw new \InvalidArgumentException('No se puede modificar el turno con tan poca antelación');
+        }
+    }
+
+    /**
+     * Verificar si un turno puede ser modificado considerando el límite de modificaciones
+     */
+    public function canAppointmentBeModified(Appointment $appointment, Company $company): bool
+    {
+        try {
+            $this->validateCompanyModificationRules($appointment, $company);
+            return $appointment->canBeModified($company->getMaximumEdits());
+        } catch (\InvalidArgumentException $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Validar token para preload de datos de modificación
+     * 
+     * @param int $appointmentId ID del turno
+     * @param string $token Token de modificación
+     * @return array|null Datos del turno si el token es válido, null si no
+     */
+    public function validateTokenForPreload(int $appointmentId, string $token): ?array
+    {
+        try {
+            $secret = $_ENV['APP_SECRET'] ?? 'default-secret';
+            $parts = explode('.', $token);
+            
+            if (count($parts) !== 2) {
+                return null;
+            }
+            
+            [$payload, $signature] = $parts;
+            
+            // Verificar firma
+            $expectedSignature = hash_hmac('sha256', $payload, $secret);
+            if (!hash_equals($expectedSignature, $signature)) {
+                return null;
+            }
+            
+            // Decodificar payload
+            $data = json_decode(base64_decode($payload), true);
+            if (!$data || $data['appointment_id'] !== $appointmentId) {
+                return null;
+            }
+            
+            // Buscar el turno
+            $appointment = $this->entityManager->getRepository(Appointment::class)->find($appointmentId);
+            if (!$appointment) {
+                return null;
+            }
+            
+            // Retornar datos del turno para preload
+            return [
+                'appointment' => $appointment,
+                'patient' => [
+                    'first_name' => $appointment->getPatient()?->getFirstName(),
+                    'last_name' => $appointment->getPatient()?->getLastName(),
+                    'email' => $appointment->getPatient()?->getEmail(),
+                    'phone' => $appointment->getPatient()?->getPhone(),
+                ],
+                'service_id' => $appointment->getService()?->getId(),
+                'professional_id' => $appointment->getProfessional()->getId(),
+                'location_id' => $appointment->getLocation()?->getId(),
+                'original_date' => $appointment->getScheduledAt()->format('Y-m-d'),
+                'original_time' => $appointment->getScheduledAt()->format('H:i'),
+            ];
+            
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Encuentra el turno activo de una cadena de modificaciones
+     * Si el turno dado es el root y no tiene modificaciones, lo retorna
+     * Si el turno dado es una modificación o el root tiene modificaciones, busca el más reciente
+     */
+    public function findActiveAppointmentFromChain(int $appointmentId): ?Appointment
+    {
+        $appointment = $this->appointmentRepository->find($appointmentId);
+        
+        if (!$appointment) {
+            return null;
+        }
+        
+        // Determinar el ID del turno root
+        $rootId = $appointment->getOriginalAppointment()?->getId() ?? $appointment->getId();
+        
+        // Buscar el turno más reciente de esta cadena
+        // Primero intentamos encontrar modificaciones del root
+        $latestModification = $this->appointmentRepository->createQueryBuilder('a')
+            ->where('a.originalAppointment = :rootId')
+            ->andWhere('a.status IN (:activeStatuses)')
+            ->setParameter('rootId', $rootId)
+            ->setParameter('activeStatuses', [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED])
+            ->orderBy('a.modificationCount', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+        
+        // Si encontramos una modificación activa, la retornamos
+        if ($latestModification) {
+            return $latestModification;
+        }
+        
+        // Si no hay modificaciones activas, verificamos si el root está activo
+        $rootAppointment = $this->appointmentRepository->find($rootId);
+        if ($rootAppointment && in_array($rootAppointment->getStatus(), [StatusEnum::SCHEDULED, StatusEnum::CONFIRMED])) {
+            return $rootAppointment;
+        }
+        
+        // Si llegamos aquí, no hay turnos activos en la cadena
+        return null;
+    }
+
+
+    /**
+     * Sincroniza el modification_count en todos los turnos relacionados
+     */
+    private function syncModificationCountForRelatedAppointments(Appointment $rootAppointment): void
+    {
+        $modificationCount = $rootAppointment->getModificationCount();
+        
+        // Buscar todos los turnos que tienen este como original_appointment_id
+        $relatedAppointments = $this->entityManager->getRepository(Appointment::class)
+            ->findBy(['originalAppointment' => $rootAppointment]);
+        
+        // Actualizar el modification_count en todos los turnos relacionados
+        foreach ($relatedAppointments as $appointment) {
+            $appointment->setModificationCount($modificationCount);
+        }
+        
+        // No necesitamos flush aquí, se hará en el método que llama a este
+    }
+
+    /**
+     * Filtra slots disponibles excluyendo aquellos que están bloqueados
+     */
+    public function filterAvailableSlots(array $slots, int $professionalId, string $appointmentDate): array
+    {
+        if (empty($slots)) {
+            return $slots;
+        }
+
+        // Obtener todos los bloques activos para este profesional y fecha
+        $blocks = $this->getActiveBlocks($professionalId, $appointmentDate);
+        // var_dump($blocks);exit;
+        if (empty($blocks)) {
+            return $slots;
+        }
+
+        $filteredSlots = [];
+        $dayOfWeek = (int)(new \DateTime($appointmentDate))->format('w'); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+        $appointmentDay = (int)(new \DateTime($appointmentDate))->format('j'); // Día del mes
+
+        foreach ($slots as $slot) {
+            $slotBlocked = false;
+            
+            // Crear DateTime objects para el slot
+            $slotStart = new \DateTime($appointmentDate . ' ' . $slot['time']);
+            $slotEnd = new \DateTime($appointmentDate . ' ' . $slot['end_time']);
+            
+            foreach ($blocks as $block) {
+                $blockAffectsSlot = false;
+                
+                switch ($block['block_type']) {
+                    case 'single_day':
+                        // Verificar si la fecha del bloque coincide con la fecha de la cita
+                        if ($block['start_date'] === $appointmentDate) {
+                            $blockAffectsSlot = $this->checkSlotTimeOverlap($block, $slotStart, $slotEnd);
+                        }
+                        break;
+                        
+                    case 'date_range':
+                        // Verificar si la fecha de la cita está dentro del rango
+                        if ($appointmentDate >= $block['start_date'] && $appointmentDate <= $block['end_date']) {
+                            $blockAffectsSlot = $this->checkSlotTimeOverlap($block, $slotStart, $slotEnd);
+                        }
+                        break;
+                        
+                    case 'weekdays_pattern':
+                        // Verificar si el día de la semana está en el patrón
+                        $weekdaysPattern = explode(',', $block['weekdays_pattern']);
+                        if (in_array((string)$dayOfWeek, $weekdaysPattern)) {
+                            $blockAffectsSlot = $this->checkSlotTimeOverlap($block, $slotStart, $slotEnd);
+                        }
+                        break;
+                        
+                    case 'monthly_recurring':
+                        // Verificar si el día del mes coincide
+                        $blockDay = (int)(new \DateTime($block['start_date']))->format('j');
+                        if ($appointmentDay === $blockDay) {
+                            $blockAffectsSlot = $this->checkSlotTimeOverlap($block, $slotStart, $slotEnd);
+                        }
+                        break;
+                }
+                
+                if ($blockAffectsSlot) {
+                    $slotBlocked = true;
+                    break; // No necesitamos verificar más bloques para este slot
+                }
+            }
+            
+            // Solo agregar el slot si no está bloqueado
+            if (!$slotBlocked) {
+                $filteredSlots[] = $slot;
+            }
+        }
+        
+        return $filteredSlots;
+    }
+
+    /**
+     * Verifica si un bloque afecta a un slot específico basado en tiempo
+     */
+    private function checkSlotTimeOverlap(array $block, \DateTime $slotStart, \DateTime $slotEnd): bool
+    {
+        // Si start_time o end_time son null, el bloque afecta todo el día
+        if ($block['start_time'] === null || $block['end_time'] === null) {
+            return true;
+        }
+        
+        // Convertir las horas del bloque a DateTime objects
+        $blockStart = new \DateTime($slotStart->format('Y-m-d') . ' ' . $block['start_time']);
+        $blockEnd = new \DateTime($slotStart->format('Y-m-d') . ' ' . $block['end_time']);
+        
+        // Si end_time es null, el bloque va hasta el final del día
+        if ($block['end_time'] === null) {
+            $blockEnd = new \DateTime($slotStart->format('Y-m-d') . ' 23:59:59');
+        }
+        
+        // Convertir DateTime objects a strings para checkTimeOverlap
+        $slotStartTime = $slotStart->format('H:i:s');
+        $slotEndTime = $slotEnd->format('H:i:s');
+        
+        // Verificar si hay solapamiento
+        return $this->checkTimeOverlap($slotStartTime, $slotEndTime, $blockStart, $blockEnd);
+    }
+
+    /**
+     * Obtiene todos los bloques activos para un profesional y fecha
+     */
+    private function getActiveBlocks(int $professionalId, string $appointmentDate): array
+    {
+        // Obtener el día de la semana (0=Domingo, 1=Lunes, ..., 6=Sábado)
+        $dayOfWeek = (new \DateTime($appointmentDate))->format('w');
+        
+        $sql = "
+            SELECT pb.*
+            FROM professional_blocks pb
+            WHERE pb.professional_id = :professional_id 
+            AND pb.active = true 
+            AND ( 
+                (pb.block_type = 'single_day' AND pb.start_date = :appointment_date) 
+            OR 
+                (pb.block_type = 'date_range' AND pb.start_date <= :appointment_date AND pb.end_date >= :appointment_date) 
+            OR 
+                ( 
+                    pb.block_type = 'weekdays_pattern' 
+                    AND 
+                    pb.start_date <= :appointment_date AND (pb.end_date IS NULL OR pb.end_date >= :appointment_date) 
+                    AND 
+                    pb.weekdays_pattern LIKE '%' || :day_of_week || '%'
+                ) 
+            OR 
+                (                
+                    pb.block_type = 'monthly_recurring' 
+                    AND 
+                    pb.start_date <= :appointment_date AND (pb.end_date IS NULL OR pb.end_date >= :appointment_date) 
+                ) 
+            )
+        ";
+        
+        $params = [
+            'professional_id' => $professionalId,
+            'appointment_date' => $appointmentDate,
+            'day_of_week' => $dayOfWeek
+        ];
+        
+        return $this->entityManager->getConnection()->fetchAllAssociative($sql, $params);
     }
 }

@@ -28,6 +28,9 @@ https://tuturno.io/test35
 --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- 
 correr worker en local:
         php bin/console messenger:consume async -vv
+
+configurar job cada pocos minutos para que ejecute las notificaiones scheduled:
+        php bin/console app:process-notifications
 --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- 
 
 
@@ -234,7 +237,7 @@ worker
 php bin/console messenger:failed:show
 
 # Eliminar todos los mensajes fallidos
-php bin/console messenger:failed:remove --force
+php bin/console messenger:failed:remove --all --force
 
 # Reiniciar el worker limpio
 php bin/console messenger:consume async

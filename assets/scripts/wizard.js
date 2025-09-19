@@ -407,8 +407,8 @@ class WizardManager {
         
         let servicesHtml = '';
         Object.entries(servicesConfiguration).forEach(([serviceId, config]) => {
-            const dayKeys = ['availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday', 'availableSunday'];
-            const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+            const dayKeys = ['availableSunday', 'availableMonday', 'availableTuesday', 'availableWednesday', 'availableThursday', 'availableFriday', 'availableSaturday'];
+            const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
             
             const availableDays = dayKeys
                 .map((key, index) => config[key] ? dayNames[index] : null)

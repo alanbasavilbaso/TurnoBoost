@@ -81,7 +81,7 @@ class AppointmentRepository extends ServiceEntityRepository
             LEFT JOIN appointments a ON (
                 p.id = a.professional_id
                 AND DATE(a.scheduled_at) = CAST(:date AS DATE)
-                AND a.status != 'CANCELLED'
+                AND UPPER(a.status) != 'CANCELLED'
                 AND (
                     -- Verificar solapamiento de horarios
                     -- a.scheduled_at::TIME BETWEEN CAST(:startTime AS TIME) AND CAST(:endTime AS TIME)

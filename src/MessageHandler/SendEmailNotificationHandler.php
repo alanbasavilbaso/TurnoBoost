@@ -32,7 +32,8 @@ class SendEmailNotificationHandler
         try {
             $this->emailService->sendAppointmentNotification(
                 $notification->getAppointment(),
-                $notification->getType()->value
+                $notification->getType()->value,
+                $notification->getId()  // ← Agregar notification_id
             );
             
             $notification->setStatus(NotificationStatusEnum::SENT);
