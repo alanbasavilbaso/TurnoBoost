@@ -538,37 +538,6 @@ class AppointmentService
     }
 
     /**
-     * Valida que el horario esté dentro de la disponibilidad del profesional
-     */
-    private function validateProfessionalAvailability(
-        \DateTime $scheduledAt,
-        \DateTime $endTime,
-        Professional $professional
-    ): void {
-        $dayOfWeek = (int)$scheduledAt->format('N'); // 0=Domingo, 1=Lunes
-        $availabilities = $professional->getAvailabilitiesForWeekday($dayOfWeek);
-        
-        $isWithinAvailability = false;
-        $startTimeSlot = $scheduledAt->format('H:i:s');
-        $endTimeSlot = $endTime->format('H:i:s');
-        
-        foreach ($availabilities as $availability) {
-            if ($startTimeSlot >= $availability->getStartTime()->format('H:i:s') && 
-                $endTimeSlot <= $availability->getEndTime()->format('H:i:s')) {
-                $isWithinAvailability = true;
-                break;
-            }
-        }
-        
-        if (!$isWithinAvailability) {
-            throw new \InvalidArgumentException(
-                'El horario seleccionado está fuera de la disponibilidad del profesional.',
-                1
-            );
-        }
-    }
-
-    /**
      * Convierte una cita a array para respuestas JSON
      */
     public function appointmentToArray(Appointment $appointment): array
@@ -582,6 +551,7 @@ class AppointmentService
             'patientFirstName' => $appointment->getPatient()->getFirstName(),
             'patientLastName' => $appointment->getPatient()->getLastName(),
             'patientEmail' => $appointment->getPatient()->getEmail(),
+            'patientPhone' => $appointment->getPatient()->getPhone(),
             'professionalId' => $appointment->getProfessional()->getId(),
             'professionalName' => $appointment->getProfessional()->getName(),
             'serviceId' => $appointment->getService()->getId(),
@@ -660,9 +630,6 @@ class AppointmentService
     /**
      * Validar token y cancelar appointment
      */
-    /**
-     * Validar token y cancelar appointment
-     */
     public function cancelAppointmentByToken(int $appointmentId, string $token, Company $company): Appointment
     {
         $this->validateToken($appointmentId, $token);
@@ -687,8 +654,8 @@ class AppointmentService
         $activeAppointment->setCancelledAt(new \DateTime());
         $this->entityManager->flush();
 
-        // Enviar notificaciones de cancelación
-        $this->notificationService->cancelAppointmentNotifications($activeAppointment);
+        // Enviar notificaciones de cancelación (respetando configuración de la empresa)
+        $this->notificationService->sendAppointmentCancellationNotification($activeAppointment);
 
         // Registrar en auditoría
         $this->auditService->logChange(

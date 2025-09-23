@@ -256,7 +256,8 @@ class AgendaController extends AbstractController
         // Convertir días de trabajo a formato FullCalendar (0=Domingo, 1=Lunes, ..., 6=Sábado)
         $daysOfWeek = array_map(function($day) {
             // Convertir de BD format (0=Lunes) a FullCalendar format (0=Domingo)
-            return ($day + 1) % 7; // 0->1, 1->2, ..., 5->6, 6->0
+            // return ($day + 1) % 7; // 0->1, 1->2, ..., 5->6, 6->0
+            return ($day); // 0->1, 1->2, ..., 5->6, 6->0
         }, $workingDays);
         
 
@@ -277,43 +278,6 @@ class AgendaController extends AbstractController
             'slotMaxTime' => $endTime . ':00',
             'slotDuration' => '00:15:00'
         ]);
-    }
-
-
-    /**
-     * API para obtener el siguiente slot disponible
-     */
-    #[Route('/next-available-slot', name: 'app_agenda_next_slot', methods: ['GET'])]
-    public function getNextAvailableSlot(Request $request): JsonResponse
-    {
-        $professionalId = $request->query->get('professional_id');
-        $serviceId = $request->query->get('service_id');
-        $fromDate = $request->query->get('from_date') ? 
-            new \DateTime($request->query->get('from_date')) : 
-            new \DateTime();
-
-        if (!$professionalId || !$serviceId) {
-            return new JsonResponse(['error' => 'Professional y Service son requeridos'], 400);
-        }
-
-        $professional = $this->professionalRepository->find($professionalId);
-        $service = $this->serviceRepository->find($serviceId);
-        
-        if (!$professional || !$service) {
-            return new JsonResponse(['error' => 'Professional o Service no encontrado'], 404);
-        }
-
-        $nextSlot = $this->timeSlotService->getNextAvailableSlot(
-            $professional, 
-            $service, 
-            $fromDate
-        );
-        
-        if (!$nextSlot) {
-            return new JsonResponse(['error' => 'No hay slots disponibles en los próximos 30 días'], 404);
-        }
-        
-        return new JsonResponse($nextSlot);
     }
 
     #[Route('/appointment', name: 'app_agenda_create_appointment', methods: ['POST'])]

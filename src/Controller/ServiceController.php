@@ -6,6 +6,7 @@ use App\Entity\Service;
 use App\Entity\User;
 use App\Form\ServiceType;
 use App\Repository\ServiceRepository;
+use App\Service\ImageUploadService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,6 +19,10 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_ADMIN')]
 class ServiceController extends AbstractController
 {
+    public function __construct(
+        private ImageUploadService $imageUploadService
+    ) {}
+
     #[Route('/', name: 'app_service_index', methods: ['GET'])]
     public function index(Request $request, ServiceRepository $serviceRepository): Response
     {
@@ -76,9 +81,52 @@ class ServiceController extends AbstractController
         
         if ($form->isSubmitted()) {
             if ($form->isValid()) {
+                // Manejar subida de imagen 1
+                $imageFile1 = $form->get('imageFile1')->getData();
+                if ($imageFile1) {
+                    try {
+                        $imageUrl1 = $this->imageUploadService->uploadServiceImage1($imageFile1, $service->getId() ?: 0);
+                        $service->setImageUrl1($imageUrl1);
+                    } catch (\Exception $e) {
+                        $this->addFlash('error', 'Error al subir la imagen principal: ' . $e->getMessage());
+                    }
+                }
+
+                // Manejar subida de imagen 2
+                $imageFile2 = $form->get('imageFile2')->getData();
+                if ($imageFile2) {
+                    try {
+                        $imageUrl2 = $this->imageUploadService->uploadServiceImage2($imageFile2, $service->getId() ?: 0);
+                        $service->setImageUrl2($imageUrl2);
+                    } catch (\Exception $e) {
+                        $this->addFlash('error', 'Error al subir la imagen secundaria: ' . $e->getMessage());
+                    }
+                }
+
                 $service->setUpdatedAt(new \DateTime());
                 $entityManager->persist($service);
                 $entityManager->flush();
+
+                // Si hay imágenes y no se subieron antes (porque no había ID), subirlas ahora
+                if ($imageFile1 && !$service->getImageUrl1()) {
+                    try {
+                        $imageUrl1 = $this->imageUploadService->uploadServiceImage1($imageFile1, $service->getId());
+                        $service->setImageUrl1($imageUrl1);
+                        $entityManager->flush();
+                    } catch (\Exception $e) {
+                        $this->addFlash('warning', 'Servicio creado pero error al subir imagen principal: ' . $e->getMessage());
+                    }
+                }
+
+                if ($imageFile2 && !$service->getImageUrl2()) {
+                    try {
+                        $imageUrl2 = $this->imageUploadService->uploadServiceImage2($imageFile2, $service->getId());
+                        $service->setImageUrl2($imageUrl2);
+                        $entityManager->flush();
+                    } catch (\Exception $e) {
+                        $this->addFlash('warning', 'Servicio creado pero error al subir imagen secundaria: ' . $e->getMessage());
+                    }
+                }
                 
                 $this->addFlash('success', 'Servicio creado exitosamente.');
                 return $this->redirectToRoute('app_service_index');
@@ -148,6 +196,38 @@ class ServiceController extends AbstractController
         
         if ($form->isSubmitted()) {
             if ($form->isValid()) {
+                // Manejar subida de imagen 1
+                $imageFile1 = $form->get('imageFile1')->getData();
+                if ($imageFile1) {
+                    try {
+                        // Eliminar imagen anterior si existe
+                        if ($service->getImageUrl1()) {
+                            $this->imageUploadService->deleteImage($service->getImageUrl1());
+                        }
+                        
+                        $imageUrl1 = $this->imageUploadService->uploadServiceImage1($imageFile1, $service->getId());
+                        $service->setImageUrl1($imageUrl1);
+                    } catch (\Exception $e) {
+                        $this->addFlash('error', 'Error al subir la imagen principal: ' . $e->getMessage());
+                    }
+                }
+
+                // Manejar subida de imagen 2
+                $imageFile2 = $form->get('imageFile2')->getData();
+                if ($imageFile2) {
+                    try {
+                        // Eliminar imagen anterior si existe
+                        if ($service->getImageUrl2()) {
+                            $this->imageUploadService->deleteImage($service->getImageUrl2());
+                        }
+                        
+                        $imageUrl2 = $this->imageUploadService->uploadServiceImage2($imageFile2, $service->getId());
+                        $service->setImageUrl2($imageUrl2);
+                    } catch (\Exception $e) {
+                        $this->addFlash('error', 'Error al subir la imagen secundaria: ' . $e->getMessage());
+                    }
+                }
+
                 $service->setUpdatedAt(new \DateTime());
                 $entityManager->flush();
                 

@@ -38,6 +38,10 @@ class Professional
     #[ORM\Column(type: 'boolean', options: ['default' => true])]
     private bool $onlineBookingEnabled = true;
 
+    // NUEVO CAMPO DE IMAGEN
+    #[ORM\Column(type: 'string', length: 500, nullable: true)]
+    private ?string $profileImageUrl = null;
+
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $createdAt;
 
@@ -346,5 +350,17 @@ class Professional
         return $this->scheduleBlocks->exists(
             fn($key, ScheduleBlock $block) => $block->isActiveAt($datetime)
         );
+    }
+
+    // NUEVO MÉTODO PARA IMAGEN DE PERFIL
+    public function getProfileImageUrl(): ?string
+    {
+        return $this->profileImageUrl;
+    }
+
+    public function setProfileImageUrl(?string $profileImageUrl): self
+    {
+        $this->profileImageUrl = $profileImageUrl;
+        return $this;
     }
 }

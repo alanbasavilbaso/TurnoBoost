@@ -81,6 +81,33 @@
                 </div>
                 {{ form_errors(form.onlineBookingEnabled) }}
             </div>
+            
+            <!-- Imagen de Perfil -->
+            <div class="image-upload-section mb-4">
+                <h6 class="image-section-title">
+                    <i class="fas fa-camera me-2"></i>
+                    Imagen de Perfil
+                </h6>
+                
+                <div class="image-upload-container">
+                    {% if is_edit and professional.profileImageUrl %}
+                        <div class="current-image-preview">
+                            <img src="{{ professional.profileImageUrl }}" alt="Imagen actual" class="img-thumbnail">
+                            <small class="text-muted d-block mt-1">Imagen actual</small>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="file-input-wrapper">
+                        {{ form_label(form.profileImageFile, 'Seleccionar nueva imagen') }}
+                        {{ form_widget(form.profileImageFile) }}
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Formatos permitidos: JPG, PNG, GIF. Tamaño máximo: 5MB
+                        </small>
+                        {{ form_errors(form.profileImageFile) }}
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Step 2: Horarios de Disponibilidad -->
@@ -277,7 +304,7 @@
             </div>
         </div>
         
-        {{ form_rest(form) }}  <!-- Esta línea está renderizando el campo services automáticamente -->
+        {{ form_rest(form, {'profileImageFile': false}) }}  <!-- Excluir profileImageFile del form_rest -->
         
         <!-- Input hidden para configuraciones de servicios existentes -->
         <input type="hidden" id="existing-service-configs" value="{{ existing_service_configs|json_encode|e('html_attr') }}">

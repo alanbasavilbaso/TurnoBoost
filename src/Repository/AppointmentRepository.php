@@ -174,21 +174,4 @@ class AppointmentRepository extends ServiceEntityRepository
         // Si no hay horarios especiales, verificar disponibilidad regular
         return (int)$queryResult['professional_availability'] > 0;
     }
-    
-    /**
-     * Obtiene todas las citas de un profesional en un día específico
-     */
-    public function findByProfessionalAndDate(int $professionalId, \DateTime $date): array
-    {
-        return $this->createQueryBuilder('a')
-            ->where('a.professional = :professionalId')
-            ->andWhere('DATE(a.scheduledAt) = :date')
-            ->andWhere('a.status != :cancelledStatus')
-            ->setParameter('professionalId', $professionalId)
-            ->setParameter('date', $date->format('Y-m-d'))
-            ->setParameter('cancelledStatus', 'CANCELLED')
-            ->orderBy('a.scheduledAt', 'ASC')
-            ->getQuery()
-            ->getResult();
-    }
 }

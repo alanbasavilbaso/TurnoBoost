@@ -48,3 +48,8 @@ services:
             $entityManager: '@doctrine.orm.entity_manager'
             $messageBus: '@messenger.default_bus'
             $logger: '@logger'
+    
+    App\Service\ImageUploadService:
+        arguments:
+            $httpClient: '@http_client'
+            $blobToken: '%env(BLOB_READ_WRITE_TOKEN)%'

@@ -48,6 +48,13 @@ class Service
     #[ORM\Column(type: 'string', enumType: ServiceTypeEnum::class, options: ['default' => 'regular'])]
     private ServiceTypeEnum $serviceType = ServiceTypeEnum::REGULAR;
 
+    // NUEVOS CAMPOS DE IMAGEN
+    #[ORM\Column(type: 'string', length: 500, nullable: true)]
+    private ?string $imageUrl1 = null;
+
+    #[ORM\Column(type: 'string', length: 500, nullable: true)]
+    private ?string $imageUrl2 = null;
+
     // NUEVO CAMPO PARA FRECUENCIA
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $frequencyWeeks = null;
@@ -316,6 +323,29 @@ class Service
     public function setCompany(Company $company): self
     {
         $this->company = $company;
+        return $this;
+    }
+
+    // NUEVOS MÉTODOS PARA IMÁGENES
+    public function getImageUrl1(): ?string
+    {
+        return $this->imageUrl1;
+    }
+
+    public function setImageUrl1(?string $imageUrl1): self
+    {
+        $this->imageUrl1 = $imageUrl1;
+        return $this;
+    }
+
+    public function getImageUrl2(): ?string
+    {
+        return $this->imageUrl2;
+    }
+
+    public function setImageUrl2(?string $imageUrl2): self
+    {
+        $this->imageUrl2 = $imageUrl2;
         return $this;
     }
 }

@@ -25,6 +25,13 @@ class Company
     #[ORM\Column(type: 'boolean', options: ['default' => true])]
     private bool $active = true;
 
+    // NUEVOS CAMPOS DE IMAGEN
+    #[ORM\Column(type: 'string', length: 500, nullable: true)]
+    private ?string $logoUrl = null;
+
+    #[ORM\Column(type: 'string', length: 500, nullable: true)]
+    private ?string $coverUrl = null;
+
     #[ORM\OneToMany(mappedBy: 'company', targetEntity: Location::class, cascade: ['persist', 'remove'])]
     private Collection $locations;
 
@@ -762,5 +769,28 @@ class Company
             'location' => 'Por Local',
             'professional' => 'Por Profesional'
         ];
+    }
+
+    // NUEVOS MÉTODOS PARA IMÁGENES
+    public function getLogoUrl(): ?string
+    {
+        return $this->logoUrl;
+    }
+
+    public function setLogoUrl(?string $logoUrl): self
+    {
+        $this->logoUrl = $logoUrl;
+        return $this;
+    }
+
+    public function getCoverUrl(): ?string
+    {
+        return $this->coverUrl;
+    }
+
+    public function setCoverUrl(?string $coverUrl): self
+    {
+        $this->coverUrl = $coverUrl;
+        return $this;
     }
 }

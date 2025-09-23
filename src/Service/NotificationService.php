@@ -97,86 +97,6 @@ class NotificationService
     }
 
     /**
-     * Envía notificaciones de confirmación para un nuevo turno
-     */
-    public function sendAppointmentConfirmationNotification(Appointment $appointment): array
-    {
-        $company = $appointment->getCompany();
-        $results = ['email' => ['sent' => false], 'whatsapp' => ['sent' => false]];
-        
-        try {
-            // Notificación por email (si está habilitada)
-            if ($company->isEmailNotificationsEnabled()) {
-                $this->createAndDispatchEmailNotification(
-                    $appointment, 
-                    NotificationTypeEnum::CONFIRMATION->value, 
-                    new \DateTime()
-                );
-                $results['email']['sent'] = true;
-            }
-            
-            // Notificación por WhatsApp (si está habilitada)
-            if ($company->isWhatsappNotificationsEnabled()) {
-                $this->createAndDispatchWhatsAppNotification(
-                    $appointment, 
-                    NotificationTypeEnum::CONFIRMATION->value, 
-                    new \DateTime()
-                );
-                $results['whatsapp']['sent'] = true;
-            }
-            
-        } catch (\Exception $e) {
-            $this->logger->error('Error sending appointment confirmation notifications', [
-                'appointment_id' => $appointment->getId(),
-                'error' => $e->getMessage()
-            ]);
-            throw $e;
-        }
-        
-        return $results;
-    }
-
-    /**
-     * Envía notificaciones de modificación para un turno actualizado
-     */
-    public function sendAppointmentModificationNotification(Appointment $appointment): array
-    {
-        $company = $appointment->getCompany();
-        $results = ['email' => ['sent' => false], 'whatsapp' => ['sent' => false]];
-        
-        try {
-            // Notificación por email (si está habilitada)
-            if ($company->isEmailNotificationsEnabled()) {
-                $this->createAndDispatchEmailNotification(
-                    $appointment, 
-                    NotificationTypeEnum::MODIFICATION->value, 
-                    new \DateTime()
-                );
-                $results['email']['sent'] = true;
-            }
-            
-            // Notificación por WhatsApp (si está habilitada)
-            if ($company->isWhatsappNotificationsEnabled()) {
-                $this->createAndDispatchWhatsAppNotification(
-                    $appointment, 
-                    NotificationTypeEnum::MODIFICATION->value, 
-                    new \DateTime()
-                );
-                $results['whatsapp']['sent'] = true;
-            }
-            
-        } catch (\Exception $e) {
-            $this->logger->error('Error sending appointment modification notifications', [
-                'appointment_id' => $appointment->getId(),
-                'error' => $e->getMessage()
-            ]);
-            throw $e;
-        }
-        
-        return $results;
-    }
-
-    /**
      * Envía notificaciones de cancelación para un turno cancelado
      */
     public function sendAppointmentCancellationNotification(Appointment $appointment): array
@@ -335,23 +255,6 @@ class NotificationService
         // Despachar mensaje a la cola
         $message = new SendWhatsAppNotification($notification->getId());
         $this->messageBus->dispatch($message);
-    }
-
-    public function cancelAppointmentNotifications(Appointment $appointment): void
-    {
-        // Enviar notificación de cancelación por email
-        $this->createAndDispatchEmailNotification(
-            $appointment,
-            NotificationTypeEnum::CANCELLATION->value,
-            new \DateTime()
-        );
-    
-        // Enviar notificación de cancelación por WhatsApp
-        $this->createAndDispatchWhatsAppNotification(
-            $appointment,
-            NotificationTypeEnum::CANCELLATION->value,
-            new \DateTime()
-        );
     }
 
     public function modifyAppointmentNotifications(Appointment $appointment): void

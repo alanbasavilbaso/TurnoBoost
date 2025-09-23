@@ -221,6 +221,9 @@ class BookingWizard {
                 this.state.selectedLocationId = window.bookingData.preloadData.locationId;
                 this.state.wizardStep1Complete = false;
                 
+                if (this.state.selectedProfessional)
+                    this.preselectProfessionalAfterLoad();
+
                 // Mostrar información de modificación
                 this.showModificationInfo();
             }
@@ -315,13 +318,6 @@ class BookingWizard {
             this.state.currentStep = 1;
             this.showStep(1);
             this.updateProgressIndicator();
-            
-            // Preseleccionar el profesional después de que el DOM esté listo
-            setTimeout(() => {
-                const professionalId = this.state.preloadData.professionalId;
-                const professionalName = this.state.preloadData.professionalName || 'Profesional';
-                this.selectProfessional(professionalId, professionalName, false);
-            }, 100);
         } else if (this.state.wizardStep1Complete) {
             this.state.currentStep = 2;
             this.showStep(2);
@@ -600,9 +596,7 @@ class BookingWizard {
         
         // Después de renderizar las fechas, seleccionar automáticamente la primera disponible
         if (!this.state.selectedDate) {
-            setTimeout(() => {
-                this.selectFirstAvailableDate();
-            }, 100);
+            this.selectFirstAvailableDate();
         }
     }
 
@@ -611,12 +605,12 @@ class BookingWizard {
      */
     bindEvents() {
         // Navigation buttons
-        if (this.elements.prevStepBtn) {
-            this.elements.prevStepBtn.addEventListener('click', () => this.previousStep());
-        }
-        
         if (this.elements.nextStepBtn) {
             this.elements.nextStepBtn.addEventListener('click', () => this.nextStep());
+        }
+        
+        if (this.elements.prevStepBtn) {
+            this.elements.prevStepBtn.addEventListener('click', () => this.previousStep());
         }
         
         if (this.elements.confirmBookingBtn) {
@@ -648,6 +642,22 @@ class BookingWizard {
     }
 
     /**
+     * Preselecciona el profesional después de cargar las tarjetas
+     */
+    preselectProfessionalAfterLoad() {
+        const professionalId = this.state.preloadData.professionalId;
+        const professionalName = this.state.preloadData.professionalName || 'Profesional';
+        
+        // Verificar si la tarjeta del profesional existe
+        const professionalCard = document.querySelector(`[data-professional-id="${professionalId}"]`);
+        if (professionalCard) {
+            this.selectProfessional(professionalId, professionalName, false);
+        } else {
+            console.warn(`Professional card not found for ID: ${professionalId}`);
+        }
+    }
+
+    /**
      * Muestra un paso específico del wizard
      */
     showStep(stepNumber) {
@@ -671,10 +681,9 @@ class BookingWizard {
         
         // Si es el paso 3 y hay datos de modificación, precargar los datos del paciente
         if (stepNumber === 3 && this.state.isModification && this.state.preloadData) {
-            // Usar setTimeout para asegurar que el DOM esté completamente renderizado
-            setTimeout(() => {
-                this.preloadPatientData(this.state.preloadData.patient);
-            }, 100);
+            this.preloadPatientData(this.state.preloadData.patient);
+        } else if (stepNumber === 3 && !this.state.isModification) {
+            this.autoFillPatientForm();
         }
     }
 
@@ -1017,6 +1026,121 @@ class BookingWizard {
             this.setLoading(false);
         }
     }
+    
+    /**
+     * Guarda los datos del paciente en localStorage
+     */
+    savePatientDataToStorage(patientData) {
+        try {
+            const dataToSave = {
+                firstname: patientData.firstname || '',
+                lastname: patientData.lastname || '',
+                phone: patientData.phone || '',
+                email: patientData.email || '',
+                savedAt: new Date().toISOString()
+            };
+            localStorage.setItem('turnoboost_patient_data', JSON.stringify(dataToSave));
+            console.log('Datos del paciente guardados en localStorage');
+        } catch (error) {
+            console.error('Error al guardar datos en localStorage:', error);
+        }
+    }
+
+    /**
+     * Carga los datos del paciente desde localStorage
+     */
+    loadPatientDataFromStorage() {
+        try {
+            const savedData = localStorage.getItem('turnoboost_patient_data');
+            if (savedData) {
+                const patientData = JSON.parse(savedData);
+                
+                // Verificar que los datos no sean muy antiguos (30 días)
+                const savedDate = new Date(patientData.savedAt);
+                const now = new Date();
+                const daysDiff = (now - savedDate) / (1000 * 60 * 60 * 24);
+                
+                if (daysDiff <= 30) {
+                    return patientData;
+                } else {
+                    // Datos muy antiguos, eliminarlos
+                    this.clearPatientDataFromStorage();
+                }
+            }
+        } catch (error) {
+            console.error('Error al cargar datos desde localStorage:', error);
+        }
+        return null;
+    }
+
+    /**
+     * Elimina los datos del paciente de localStorage
+     */
+    clearPatientDataFromStorage() {
+        try {
+            localStorage.removeItem('turnoboost_patient_data');
+            console.log('Datos del paciente eliminados de localStorage');
+        } catch (error) {
+            console.error('Error al eliminar datos de localStorage:', error);
+        }
+    }
+
+    /**
+     * Autocompleta el formulario con datos guardados
+     */
+    autoFillPatientForm() {
+        const savedData = this.loadPatientDataFromStorage();
+        if (!savedData) return;
+
+        // Autocompletar campos si existen
+        const fields = [
+            { id: 'patient-firstname', value: savedData.firstname },
+            { id: 'patient-lastname', value: savedData.lastname },
+            { id: 'patient-phone', value: savedData.phone },
+            { id: 'patient-email', value: savedData.email }
+        ];
+
+        fields.forEach(field => {
+            const element = document.getElementById(field.id);
+            if (element && field.value) {
+                element.value = field.value;
+            }
+        });
+    }
+
+    /**
+     * Limpia los datos guardados (método público)
+     */
+    clearSavedData() {
+        this.clearPatientDataFromStorage();
+        
+        // Limpiar formulario
+        const fields = ['patient-firstname', 'patient-lastname', 'patient-phone', 'patient-email'];
+        fields.forEach(fieldId => {
+            const element = document.getElementById(fieldId);
+            if (element) {
+                element.value = '';
+            }
+        });
+
+        // Mostrar confirmación
+        const message = document.createElement('div');
+        message.className = 'alert alert-success fade show mt-3';
+        message.innerHTML = `
+            <i class="fas fa-check-circle me-2"></i>
+            Datos eliminados correctamente.
+        `;
+
+        const contactForm = document.getElementById('contact-form');
+        if (contactForm) {
+            contactForm.parentNode.insertBefore(message, contactForm);
+            setTimeout(() => {
+                if (message.parentNode) {
+                    message.remove();
+                }
+            }, 3000);
+        }
+    }
 
     /**
      * Envía la reserva al servidor
@@ -1061,6 +1185,22 @@ class BookingWizard {
      * Muestra mensaje de éxito
      */
     showBookingSuccess(result) {
+        debugger;
+        // Verificar si el usuario quiere guardar sus datos
+        const rememberDataCheckbox = document.getElementById('remember-data');
+        const shouldSaveData = !rememberDataCheckbox || rememberDataCheckbox.checked;
+        
+        // Guardar datos del paciente para futuras reservas si está permitido
+        if (shouldSaveData && result.appointment) {
+            const patientData = {
+                firstname: result.appointment.patientFirstName || '',
+                lastname: result.appointment.patientLastName || '',
+                phone: result.appointment.patientPhone || '',
+                email: result.appointment.patientEmail || ''
+            };
+            this.savePatientDataToStorage(patientData);
+        }
+        
         // Ocultar el formulario de reserva
         const bookingContainer = document.querySelector('.container-fluid');
         if (bookingContainer) {

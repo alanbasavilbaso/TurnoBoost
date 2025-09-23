@@ -19,7 +19,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\JsonResponse;
-
+use App\Service\ImageUploadService;
 
 #[Route('/profesionales')]
 #[IsGranted('ROLE_ADMIN')]
@@ -28,15 +28,18 @@ class ProfessionalController extends AbstractController
     private RequestStack $requestStack;
     private ServiceRepository $serviceRepository;
     private EntityManagerInterface $entityManager;
+    private ImageUploadService $imageUploadService;
     
     public function __construct(
         RequestStack $requestStack, 
         ServiceRepository $serviceRepository,
-        EntityManagerInterface $entityManager
+        EntityManagerInterface $entityManager,
+        ImageUploadService $imageUploadService
     ) {
         $this->requestStack = $requestStack;
         $this->serviceRepository = $serviceRepository;
         $this->entityManager = $entityManager;
+        $this->imageUploadService = $imageUploadService;
     }
 
     #[Route('/', name: 'app_professional_index', methods: ['GET'])]
@@ -181,6 +184,17 @@ class ProfessionalController extends AbstractController
         $form->handleRequest($request);
     
         if ($form->isSubmitted() && $form->isValid()) {
+            // Manejar subida de imagen de perfil
+            $profileImageFile = $form->get('profileImageFile')->getData();
+            if ($profileImageFile) {
+                try {
+                    $profileImageUrl = $this->imageUploadService->uploadProfessionalProfile($profileImageFile, $professional->getId() ?: 0);
+                    $professional->setProfileImageUrl($profileImageUrl);
+                } catch (\Exception $e) {
+                    $this->addFlash('error', 'Error al subir la imagen de perfil: ' . $e->getMessage());
+                }
+            }
+
             // Procesar horarios de disponibilidad
             $this->processAvailabilityData($form, $professional, $entityManager);
             
@@ -189,6 +203,17 @@ class ProfessionalController extends AbstractController
             
             $entityManager->persist($professional);
             $entityManager->flush();
+
+            // Si hay imagen y no se subió antes (porque no había ID), subirla ahora
+            if ($profileImageFile && !$professional->getProfileImageUrl()) {
+                try {
+                    $profileImageUrl = $this->imageUploadService->uploadProfessionalProfile($profileImageFile, $professional->getId());
+                    $professional->setProfileImageUrl($profileImageUrl);
+                    $entityManager->flush();
+                } catch (\Exception $e) {
+                    $this->addFlash('warning', 'Profesional creado pero error al subir imagen de perfil: ' . $e->getMessage());
+                }
+            }
 
             $this->addFlash('success', 'Profesional creado exitosamente.');
             return $this->redirectToRoute('app_professional_index');
@@ -254,6 +279,22 @@ class ProfessionalController extends AbstractController
                 }
             } else {
                 try {
+                    // Manejar subida de imagen de perfil
+                    $profileImageFile = $form->get('profileImageFile')->getData();
+                    if ($profileImageFile) {
+                        try {
+                            // Eliminar imagen anterior si existe
+                            if ($professional->getProfileImageUrl()) {
+                                $this->imageUploadService->deleteImage($professional->getProfileImageUrl());
+                            }
+                            
+                            $profileImageUrl = $this->imageUploadService->uploadProfessionalProfile($profileImageFile, $professional->getId());
+                            $professional->setProfileImageUrl($profileImageUrl);
+                        } catch (\Exception $e) {
+                            $this->addFlash('error', 'Error al subir la imagen de perfil: ' . $e->getMessage());
+                        }
+                    }
+
                     $professional->setUpdatedAt(new \DateTime());
                     
                     // Eliminar disponibilidades existentes
@@ -265,7 +306,6 @@ class ProfessionalController extends AbstractController
                     $this->processAvailabilityData($form, $professional, $entityManager);
                     
                     // Procesar servicios seleccionados
-                    // En el método edit/create, después de procesar availability:
                     $this->processServices($form, $professional, $entityManager);
                     
                     $entityManager->flush();

@@ -20,6 +20,8 @@ use Symfony\Component\Validator\Constraints\Regex;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Form\Extension\Core\Type\FileType;
+use Symfony\Component\Validator\Constraints\File;
 
 class ProfessionalType extends AbstractType
 {
@@ -207,6 +209,31 @@ class ProfessionalType extends AbstractType
                 ]
             ]);
         }
+        
+        // Agregar campo de imagen de perfil
+        $builder->add('profileImageFile', FileType::class, [
+            'label' => 'Foto de Perfil',
+            'mapped' => false,
+            'required' => false,
+            'attr' => [
+                'class' => 'form-control',
+                'accept' => 'image/*'
+            ],
+            'constraints' => [
+                new File([
+                    'maxSize' => '2M',
+                    'mimeTypes' => [
+                        'image/jpeg',
+                        'image/png',
+                        'image/gif',
+                        'image/webp'
+                    ],
+                    'mimeTypesMessage' => 'Por favor sube una imagen válida (JPEG, PNG, GIF, WebP)',
+                    'maxSizeMessage' => 'El archivo no puede ser mayor a 2MB'
+                ])
+            ],
+            'help' => 'Te recomendamos tenga un tamaño mínimo de 100x100px y un peso máximo de 2MB. Formatos: JPEG, PNG, GIF, WebP'
+        ]);
     }
 
     public function configureOptions(OptionsResolver $resolver): void

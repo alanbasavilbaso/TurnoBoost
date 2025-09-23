@@ -1,0 +1,11 @@
+## API REST de Vercel Blob:
+Método Endpoint Headers Descripción PUT https://blob.vercel-storage.com/{filename} Authorization: Bearer {token} Subir archivo DELETE https://blob.vercel-storage.com/{filename} Authorization: Bearer {token} Eliminar archivo GET {url_devuelta} Ninguno Acceder al archivo
+
+
+## Respuesta de la API:
+{
+  "url": "https://abc123.public.blob.vercel-storage.com/locations/loc1_abc123.jpg",
+  "pathname": "locations/loc1_abc123.jpg",
+  "contentType": "image/jpeg",
+  "contentDisposition": "inline; filename=\"loc1_abc123.jpg\""
+}

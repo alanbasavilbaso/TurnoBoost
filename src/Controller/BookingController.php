@@ -759,7 +759,7 @@ class BookingController extends AbstractController
             ]);
 
         } catch (\Exception $e) {
-            var_dump($e->getMessage());
+            // var_dump($e->getMessage());
             return $this->render('booking/appointment_error.html.twig', [
                 'error' => 'Ocurrió un error al procesar tu solicitud. Por favor, inténtalo de nuevo.',
                 'domain' => $domain,
@@ -1082,7 +1082,7 @@ class BookingController extends AbstractController
             ]);
 
         } catch (\Exception $e) {
-            var_dump($e->getMessage());
+            // var_dump($e->getMessage());
             return $this->render('booking/appointment_error.html.twig', [
                 'error' => 'Ocurrió un error al procesar tu solicitud. Por favor, inténtalo de nuevo.',
                 'domain' => $domain,

@@ -14,6 +14,8 @@ use Symfony\Component\Form\Extension\Core\Type\MoneyType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\Extension\Core\Type\FileType;
+use Symfony\Component\Validator\Constraints\File;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\NotBlank;
@@ -164,6 +166,52 @@ class ServiceType extends AbstractType
                     'class' => 'frequency-field',
                     'style' => 'display: none;' // Oculto por defecto
                 ]
+            ])
+            ->add('imageFile1', FileType::class, [
+                'label' => 'Imagen Principal',
+                'mapped' => false,
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-control',
+                    'accept' => 'image/*'
+                ],
+                'constraints' => [
+                    new File([
+                        'maxSize' => '3M',
+                        'mimeTypes' => [
+                            'image/jpeg',
+                            'image/png',
+                            'image/gif',
+                            'image/webp'
+                        ],
+                        'mimeTypesMessage' => 'Por favor sube una imagen válida (JPEG, PNG, GIF, WebP)',
+                        'maxSizeMessage' => 'El archivo no puede ser mayor a 3MB'
+                    ])
+                ],
+                'help' => ''
+            ])
+            ->add('imageFile2', FileType::class, [
+                'label' => 'Imagen Secundaria',
+                'mapped' => false,
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-control',
+                    'accept' => 'image/*'
+                ],
+                'constraints' => [
+                    new File([
+                        'maxSize' => '3M',
+                        'mimeTypes' => [
+                            'image/jpeg',
+                            'image/png',
+                            'image/gif',
+                            'image/webp'
+                        ],
+                        'mimeTypesMessage' => 'Por favor sube una imagen válida (JPEG, PNG, GIF, WebP)',
+                        'maxSizeMessage' => 'El archivo no puede ser mayor a 3MB'
+                    ])
+                ],
+                'help' => ''
             ]);
     }
 

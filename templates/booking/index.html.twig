@@ -22,7 +22,10 @@
 {% block body %}
 <div class="header-container position-fixed top-0 start-0 end-0">
     <div class="row p-2">
-        <div class="col-10 offset-1">
+        <div class="col-10 offset-1 d-flex align-items-center">
+            {% if company.logoUrl %}
+                <img src="{{ company.logoUrl }}?w=80&h=40&fit=crop&auto=compress,format" alt="{{ company.name }}" class="company-logo me-3">
+            {% endif %}
             <span class="h5 mb-0 company-name">{{ company.name }}</span>
         </div>
     </div>
@@ -35,6 +38,11 @@
                     <!-- Selector de ubicación cuando hay múltiples -->
                     <div class="card shadow-lg border-0 mb-4">
                         <div class="card-header bg-primary text-white text-center py-4">
+                            {% if company.coverUrl %}
+                                <div class="mb-3">
+                                    <img src="{{ company.coverUrl }}?w=800&h=200&fit=crop&auto=compress,format" alt="{{ company.name }}" class="company-cover">
+                                </div>
+                            {% endif %}
                             <h1 class="h3 mb-1">{{ company.name }}</h1>
                             <p class="mb-0 opacity-75">Selecciona una ubicación para continuar</p>
                         </div>
@@ -86,6 +94,11 @@
                     <!-- Selector de servicios -->
                     <div class="card shadow-lg border-0 mb-4">
                         <div class="card-header bg-primary text-white text-center py-4">
+                            {% if company.coverUrl %}
+                                <div class="mb-3">
+                                    <img src="{{ company.coverUrl }}?w=800&h=200&fit=crop&auto=compress,format" alt="{{ company.name }}" class="company-cover">
+                                </div>
+                            {% endif %}
                             <h1 class="h3 mb-1">{{ company.name }}</h1>
                             <p class="mb-0 opacity-75">{{ selectedLocation.name }}</p>
                             <p class="mb-0 opacity-75">{{ company.description }}</p>
@@ -103,6 +116,36 @@
                                 {% for service in services %}
                                     <div class="col-12 col-md-6 col-lg-4">
                                         <div class="card h-100 border-2 service-card" style="cursor: pointer;" onclick="selectService({{ service.id }})">
+                                            {% if service.imageUrl1 or service.imageUrl2 %}
+                                                <div class="service-image-gallery">
+                                                    <div class="service-image-container" id="service-gallery-{{ service.id }}">
+                                                        {% if service.imageUrl1 %}
+                                                            <div class="service-image-slide">
+                                                                <img src="{{ service.imageUrl1 }}?w=400&h=150&fit=crop&auto=compress,format" alt="{{ service.name }} - Imagen 1" loading="lazy">
+                                                            </div>
+                                                        {% endif %}
+                                                        {% if service.imageUrl2 %}
+                                                            <div class="service-image-slide">
+                                                                <img src="{{ service.imageUrl2 }}?w=400&h=150&fit=crop&auto=compress,format" alt="{{ service.name }} - Imagen 2" loading="lazy">
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    
+                                                    {% if service.imageUrl1 and service.imageUrl2 %}
+                                                        <button class="service-gallery-nav prev" onclick="event.stopPropagation(); prevServiceImage({{ service.id }})">
+                                                            <i class="fas fa-chevron-left"></i>
+                                                        </button>
+                                                        <button class="service-gallery-nav next" onclick="event.stopPropagation(); nextServiceImage({{ service.id }})">
+                                                            <i class="fas fa-chevron-right"></i>
+                                                        </button>
+                                                        
+                                                        <div class="service-gallery-indicators">
+                                                            <div class="service-gallery-dot active" onclick="event.stopPropagation(); showServiceImage({{ service.id }}, 0)"></div>
+                                                            <div class="service-gallery-dot" onclick="event.stopPropagation(); showServiceImage({{ service.id }}, 1)"></div>
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
                                             <div class="card-body d-flex flex-column">
                                                 <h5 class="card-title">{{ service.name }}</h5>
                                                 {% if service.description %}
@@ -238,9 +281,13 @@
                                                     <div class="professional-card" 
                                                         data-professional-id="{{ professional.id }}" 
                                                         data-professional-name="{{ professional.name }}">
-                                                        <div class="professional-avatar">
-                                                            {{ professional.name|first|upper }}
-                                                        </div>
+                                                        {% if professional.profileImageUrl %}
+                                                            <img src="{{ professional.profileImageUrl }}?w=120&h=120&fit=crop&auto=compress,format" alt="{{ professional.name }}" class="professional-image">
+                                                        {% else %}
+                                                            <div class="professional-avatar">
+                                                                {{ professional.name|first|upper }}
+                                                            </div>
+                                                        {% endif %}
                                                         <h6>{{ professional.name }}</h6>
                                                         {% if professional.specialty %}
                                                             <p class="text-muted small mb-0">{{ professional.specialty }}</p>
@@ -331,9 +378,22 @@
                                                     <label for="patient-email" class="form-label">Email</label>
                                                     <input type="email" class="form-control" id="patient-email" name="email">
                                                 </div>
+                                                <!-- En el formulario de contacto, después del campo de notas -->
                                                 <div class="col-12">
                                                     <label for="patient-notes" class="form-label">Notas adicionales</label>
                                                     <textarea class="form-control" id="patient-notes" name="notes" rows="3" placeholder="Información adicional que consideres importante..."></textarea>
+                                                </div>
+                                                
+                                                <!-- Nuevo checkbox para recordar datos -->
+                                                <div class="col-12 mt-3">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="remember-data" name="remember_data" checked>
+                                                        <label class="form-check-label" for="remember-data">
+                                                            <i class="fas fa-save me-1"></i>
+                                                            Recordar mis datos para futuras reservas
+                                                            <small class="text-muted d-block">Tus datos se guardarán temporalmente por 30 días</small>
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </form>
@@ -528,5 +588,54 @@
             currentUrl.searchParams.set('service', serviceId);
             window.location.href = currentUrl.toString();
         }
+    </script>
+    <script>
+        // Funciones para la galería de imágenes de servicios
+        const serviceGalleries = {};
+        
+        function initServiceGallery(serviceId) {
+            if (!serviceGalleries[serviceId]) {
+                serviceGalleries[serviceId] = {
+                    currentIndex: 0,
+                    totalImages: document.querySelectorAll(`#service-gallery-${serviceId} .service-image-slide`).length
+                };
+            }
+        }
+        
+        function showServiceImage(serviceId, index) {
+            initServiceGallery(serviceId);
+            const gallery = serviceGalleries[serviceId];
+            const container = document.getElementById(`service-gallery-${serviceId}`);
+            const dots = container.parentElement.querySelectorAll('.service-gallery-dot');
+            
+            gallery.currentIndex = index;
+            container.style.transform = `translateX(-${index * 100}%)`;
+            
+            dots.forEach((dot, i) => {
+                dot.classList.toggle('active', i === index);
+            });
+        }
+        
+        function nextServiceImage(serviceId) {
+            initServiceGallery(serviceId);
+            const gallery = serviceGalleries[serviceId];
+            const nextIndex = (gallery.currentIndex + 1) % gallery.totalImages;
+            showServiceImage(serviceId, nextIndex);
+        }
+        
+        function prevServiceImage(serviceId) {
+            initServiceGallery(serviceId);
+            const gallery = serviceGalleries[serviceId];
+            const prevIndex = gallery.currentIndex === 0 ? gallery.totalImages - 1 : gallery.currentIndex - 1;
+            showServiceImage(serviceId, prevIndex);
+        }
+        
+        // Auto-inicializar galerías al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('[id^="service-gallery-"]').forEach(gallery => {
+                const serviceId = gallery.id.replace('service-gallery-', '');
+                initServiceGallery(serviceId);
+            });
+        });
     </script>
 {% endblock %}

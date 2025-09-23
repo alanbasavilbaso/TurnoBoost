@@ -572,9 +572,7 @@ class AgendaManager {
 
                     profSlot.appendChild(aptBlock);
                 });
-                
-                // Ya no buscamos bloques en cada slot, se renderizan por profesional
-                
+                                
                 // Altura del slot proporcional al intervalo de tiempo
                 const slotHeight = 35;
                 profSlot.style.position = 'relative';
@@ -1135,10 +1133,17 @@ class AgendaManager {
         // Agregar filtro de fecha según la vista
         if (this.currentDate) {
             if (viewType === 'week') {
-                const currentDate = new Date(this.currentDate);
+                // const currentDate = new Date(this.currentDate);
+                const dateStr = this.currentDate.getFullYear() + '-' + 
+                        String(this.currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                        String(this.currentDate.getDate()).padStart(2, '0');
+                let currentDate = new Date(dateStr + 'T00:00:00Z');
+                currentDate = this.toUTC(currentDate);
+
                 const dayOfWeek = currentDate.getDay();
                 const startOfWeek = new Date(currentDate);
-                startOfWeek.setDate(currentDate.getDate() - dayOfWeek - 1);
+                startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
+                
                 const endOfWeek = new Date(startOfWeek);
                 endOfWeek.setDate(startOfWeek.getDate() + 6);
                 
@@ -1201,8 +1206,13 @@ class AgendaManager {
             // Agregar filtro de fecha según la vista
             if (this.currentDate) {
                 if (viewType === 'week') {
+                    const dateStr = this.currentDate.getFullYear() + '-' + 
+                        String(this.currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                        String(this.currentDate.getDate()).padStart(2, '0');
+                    let currentDate = new Date(dateStr + 'T00:00:00Z');
+                    currentDate = this.toUTC(currentDate);
                     // Vista semanal: enviar start y end (domingo a sábado)
-                    const currentDate = this.toUTC(new Date(this.currentDate));
+                    // const currentDate = this.toUTC(new Date(this.currentDate));
                     
                     // Calcular el domingo de la semana actual
                     const dayOfWeek = currentDate.getDay() // 0 = domingo, 1 = lunes, etc.

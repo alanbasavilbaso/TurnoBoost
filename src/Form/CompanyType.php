@@ -11,6 +11,8 @@ use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\Extension\Core\Type\FileType;
+use Symfony\Component\Validator\Constraints\File;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\NotBlank;
@@ -304,6 +306,52 @@ class CompanyType extends AbstractType
                     ])
                 ],
                 'help' => 'Define cuántas horas antes de la reserva se enviará el segundo recordatorio por WhatsApp al cliente'
+            ])
+            ->add('logoFile', FileType::class, [
+                'label' => 'Logo de la Empresa',
+                'mapped' => false,
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-control',
+                    'accept' => 'image/*'
+                ],
+                'constraints' => [
+                    new File([
+                        'maxSize' => '2M',
+                        'mimeTypes' => [
+                            'image/jpeg',
+                            'image/png',
+                            'image/gif',
+                            'image/webp'
+                        ],
+                        'mimeTypesMessage' => 'Por favor sube una imagen válida (JPEG, PNG, GIF, WebP)',
+                        'maxSizeMessage' => 'El archivo no puede ser mayor a 2MB'
+                    ])
+                ],
+                'help' => 'Tamaño máximo: 2MB. Formatos: JPEG, PNG, GIF, WebP'
+            ])
+            ->add('coverFile', FileType::class, [
+                'label' => 'Imagen de Portada',
+                'mapped' => false,
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-control',
+                    'accept' => 'image/*'
+                ],
+                'constraints' => [
+                    new File([
+                        'maxSize' => '5M',
+                        'mimeTypes' => [
+                            'image/jpeg',
+                            'image/png',
+                            'image/gif',
+                            'image/webp'
+                        ],
+                        'mimeTypesMessage' => 'Por favor sube una imagen válida (JPEG, PNG, GIF, WebP)',
+                        'maxSizeMessage' => 'El archivo no puede ser mayor a 5MB'
+                    ])
+                ],
+                'help' => 'Te recomendamos un tamaño mínimo de 820x360px y un peso máximo de 5MB. Formatos: JPEG, PNG, GIF, WebP'
             ])
             ->add('submit', SubmitType::class, [
                 'label' => 'Guardar Configuración',

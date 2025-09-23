@@ -39,6 +39,64 @@
         {{ form_widget(form.description, {'attr': {'class': 'form-control', 'rows': '3'}}) }}
     </div>
     
+    <!-- Sección de Imágenes -->
+    <hr class="my-4">
+    <h6 class="mb-3">
+        <i class="fas fa-images text-primary me-2"></i>
+        Imágenes del Servicio
+        <p class="text-muted small">
+            ¡Carga hasta 2 imágenes de tu servicio! Te recomendamos que tengan un tamaño mínimo de 200x200px y un peso máximo de 3MB.
+        </p>
+    </h6>
+    
+    <div class="row">
+        <!-- Imagen Principal -->
+        <div class="col-md-6">
+            <div class="image-upload-section">
+                {{ form_label(form.imageFile1, 'Imagen Principal', {'label_attr': {'class': 'form-label'}}) }}
+                
+                {% if service.imageUrl1 %}
+                    <div class="current-image-preview mb-2">
+                        <img src="{{ service.imageUrl1 }}" alt="Imagen principal actual" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                        <small class="text-muted d-block">Imagen principal actual</small>
+                    </div>
+                {% endif %}
+                
+                {{ form_widget(form.imageFile1, {'attr': {'class': 'form-control', 'accept': 'image/*'}}) }}
+                {{ form_help(form.imageFile1) }}
+                
+                {% if form.imageFile1.vars.errors|length > 0 %}
+                    <div class="text-danger small mt-1">
+                        {{ form_errors(form.imageFile1) }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Imagen Secundaria -->
+        <div class="col-md-6">
+            <div class="image-upload-section">
+                {{ form_label(form.imageFile2, 'Imagen Secundaria', {'label_attr': {'class': 'form-label'}}) }}
+                
+                {% if service.imageUrl2 %}
+                    <div class="current-image-preview mb-2">
+                        <img src="{{ service.imageUrl2 }}" alt="Imagen secundaria actual" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                        <small class="text-muted d-block">Imagen secundaria actual</small>
+                    </div>
+                {% endif %}
+                
+                {{ form_widget(form.imageFile2, {'attr': {'class': 'form-control', 'accept': 'image/*'}}) }}
+                {{ form_help(form.imageFile2) }}
+                
+                {% if form.imageFile2.vars.errors|length > 0 %}
+                    <div class="text-danger small mt-1">
+                        {{ form_errors(form.imageFile2) }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <!-- Configuración de Reservas -->
     <hr class="my-4">
     <h6 class="mb-3 hide">
@@ -87,8 +145,7 @@
     {% if is_edit and service.appointments|length > 0 %}
         <div class="alert alert-info">
             <i class="fas fa-info-circle me-2"></i>
-            <strong>Nota:</strong> Este servicio tiene {{ service.appointments|length }} cita(s) asociada(s). 
-            Los cambios en precio y duración no afectarán las citas existentes.
+            <strong>Nota:</strong> Los cambios en precio y duración no afectarán las citas existentes.
         </div>
     {% endif %}
     

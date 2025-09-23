@@ -50,6 +50,62 @@
                         {% endif %}
                     </div>
 
+                    <!-- Sección de Imágenes -->
+                    <div class="mb-4">
+                        <h6 class="form-section-title">
+                            <i class="fas fa-images me-2"></i>
+                            Imágenes de la Empresa
+                        </h6>
+                        
+                        <div class="row">
+                            <!-- Logo -->
+                            <div class="col-md-6">
+                                <div class="image-upload-section">
+                                    {{ form_label(form.logoFile, 'Logo de la Empresa', {'label_attr': {'class': 'form-label'}}) }}
+                                    
+                                    {% if company.logoUrl %}
+                                        <div class="current-image-preview mb-2">
+                                            <img src="{{ company.logoUrl }}" alt="Logo actual" class="img-thumbnail" style="max-width: 150px; max-height: 150px;">
+                                            <small class="text-muted d-block">Logo actual</small>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {{ form_widget(form.logoFile, {'attr': {'class': 'form-control', 'accept': 'image/*'}}) }}
+                                    {{ form_help(form.logoFile) }}
+                                    
+                                    {% if form.logoFile.vars.errors|length > 0 %}
+                                        <div class="text-danger small mt-1">
+                                            {{ form_errors(form.logoFile) }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <!-- Portada -->
+                            <div class="col-md-6">
+                                <div class="image-upload-section">
+                                    {{ form_label(form.coverFile, 'Imagen de Portada', {'label_attr': {'class': 'form-label'}}) }}
+                                    
+                                    {% if company.coverUrl %}
+                                        <div class="current-image-preview mb-2">
+                                            <img src="{{ company.coverUrl }}" alt="Portada actual" class="img-thumbnail" style="max-width: 200px; max-height: 120px;">
+                                            <small class="text-muted d-block">Portada actual</small>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {{ form_widget(form.coverFile, {'attr': {'class': 'form-control', 'accept': 'image/*'}}) }}
+                                    {{ form_help(form.coverFile) }}
+                                    
+                                    {% if form.coverFile.vars.errors|length > 0 %}
+                                        <div class="text-danger small mt-1">
+                                            {{ form_errors(form.coverFile) }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mb-4">
                         {{ form_label(form.domain, 'Dominio para Reservas', {'label_attr': {'class': 'form-label'}}) }}
                         <i class="fas fa-info-circle info-icon ms-1" 
