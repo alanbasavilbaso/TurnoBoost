@@ -57,7 +57,11 @@ class BookingController extends AbstractController
         // var_dump($a->getOriginalAppointment()->getModificationCount());
         // exit;
         if (!$this->domainRoutingService->isValidDomainRoute($domain)) {
-            throw $this->createNotFoundException('Domain not found or not available');
+            // En lugar de lanzar excepción, renderizar página 404 personalizada
+            return $this->render('error/domain_not_found.html.twig', [
+                'domain' => $domain,
+                'message' => 'La página que buscas no existe.'
+            ], new Response('', 404));
         }
         
         return $this->renderBookingPage($domain, $request);
