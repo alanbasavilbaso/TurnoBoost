@@ -236,7 +236,29 @@ class Company
     )]
     private int $secondReminderHoursBeforeAppointment = 2;
 
-    
+    /**
+     * Número de teléfono para la empresa (formato: 54XXXXXXXXXX)
+     * Solo números argentinos con código de país 54
+     */
+    #[ORM\Column(type: 'string', length: 15, nullable: true)]
+    #[Assert\Regex(
+        pattern: '/^54[0-9]{10}$/',
+        message: 'El número debe ser un teléfono argentino válido (54 + 10 dígitos)'
+    )]
+    private ?string $phone = null;
+
+    /**
+     * Estado de conexión de WhatsApp
+     */
+    #[ORM\Column(type: 'string', length: 20, nullable: true)]
+    private ?string $whatsappConnectionStatus = null;
+
+    /**
+     * Última vez que se verificó el estado de WhatsApp
+     */
+    #[ORM\Column(type: 'datetime', nullable: true)]
+    private ?\DateTime $whatsappLastChecked = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -792,5 +814,129 @@ class Company
     {
         $this->coverUrl = $coverUrl;
         return $this;
+    }
+
+    public function getPhone(): ?string
+    {
+        return $this->phone;
+    }
+
+    public function setPhone(?string $phone): self
+    {
+        $this->phone = $phone;
+        return $this;
+    }
+
+    public function getWhatsappConnectionStatus(): ?string
+    {
+        return $this->whatsappConnectionStatus;
+    }
+
+    public function setWhatsappConnectionStatus(?string $status): self
+    {
+        $this->whatsappConnectionStatus = $status;
+        return $this;
+    }
+
+    public function getWhatsappLastChecked(): ?\DateTime
+    {
+        return $this->whatsappLastChecked;
+    }
+
+    public function setWhatsappLastChecked(?\DateTime $lastChecked): self
+    {
+        $this->whatsappLastChecked = $lastChecked;
+        return $this;
+    }
+
+    /**
+     * Verifica si WhatsApp está conectado
+     */
+    public function isWhatsappConnected(): bool
+    {
+        return $this->whatsappConnectionStatus === 'connected';
+    }
+
+    /**
+     * Obtiene el teléfono formateado para WhatsApp
+     */
+    public function getFormattedPhone(): ?string
+    {
+        if (!$this->phone) {
+            return null;
+        }
+        
+        // Si el teléfono ya incluye +54, lo formateamos para mostrar
+        if (str_starts_with($this->phone, '+54')) {
+            $number = substr($this->phone, 3); // Remover +54
+            
+            if (strlen($number) >= 10) {
+                // Formato: +54 11 1234 5678
+                $areaCode = substr($number, 0, strlen($number) === 10 ? 2 : (strlen($number) === 11 ? 3 : 4));
+                $phoneNumber = substr($number, strlen($areaCode));
+                
+                if (strlen($phoneNumber) >= 6) {
+                    $firstPart = substr($phoneNumber, 0, 4);
+                    $secondPart = substr($phoneNumber, 4);
+                    return "+54 {$areaCode} {$firstPart} {$secondPart}";
+                }
+                
+                return "+54 {$areaCode} {$phoneNumber}";
+            }
+        }
+        
+        return $this->phone;
+    }
+
+    /**
+     * Obtiene el teléfono sin el prefijo +54 para mostrar en el formulario
+     */
+    public function getPhoneWithoutPrefix(): ?string
+    {
+        if (!$this->phone) {
+            return null;
+        }
+        
+        // Si el teléfono incluye +54, lo removemos
+        if (str_starts_with($this->phone, '+54')) {
+            $number = substr($this->phone, 3); // Remover +54
+            
+            // Formatear para mostrar: 11 1234 5678
+            if (strlen($number) >= 10) {
+                $areaCode = substr($number, 0, strlen($number) === 10 ? 2 : (strlen($number) === 11 ? 3 : 4));
+                $phoneNumber = substr($number, strlen($areaCode));
+                
+                if (strlen($phoneNumber) >= 6) {
+                    $firstPart = substr($phoneNumber, 0, 4);
+                    $secondPart = substr($phoneNumber, 4);
+                    return "{$areaCode} {$firstPart} {$secondPart}";
+                }
+                
+                return "{$areaCode} {$phoneNumber}";
+            }
+            
+            return $number;
+        }
+        
+        // Si no tiene +54, devolver tal como está
+        return $this->phone;
+    }
+
+    /**
+     * Obtiene el teléfono sin formato para uso interno
+     */
+    public function getPhoneForWhatsApp(): ?string
+    {
+        if (!$this->phone) {
+            return null;
+        }
+        
+        // Si no tiene +54, lo agregamos
+        if (!str_starts_with($this->phone, '+54')) {
+            $cleanNumber = preg_replace('/\D/', '', $this->phone);
+            return '+54' . $cleanNumber;
+        }
+        
+        return $this->phone;
     }
 }

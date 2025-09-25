@@ -50,6 +50,109 @@
                         {% endif %}
                     </div>
 
+                    <!-- Configuración de WhatsApp -->
+                    <h6 class="fw-bold mb-3">
+                        <i class="fab fa-whatsapp me-2 text-success"></i>
+                        Configuración de WhatsApp
+                        <div class="field-description">
+                            Configura tu número de WhatsApp para enviar notificaciones y recordatorios automáticos.
+                        </div>
+                    </h6>
+
+                    <div class="config-field-group">
+                        {{ form_label(form.phone, 'Teléfono para WhatsApp', {'label_attr': {'class': 'form-label'}}) }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-success text-white">
+                                <i class="fab fa-whatsapp me-1"></i>
+                                +54
+                            </span>
+                            {{ form_widget(form.phone, {
+                                'value': company.phoneWithoutPrefix,
+                                'attr': {
+                                    'class': 'form-control', 
+                                    'id': 'whatsapp-phone',
+                                    'placeholder': '11 1234 5678',
+                                    'pattern': '^[0-9]{2,4}[0-9]{6,8}$',
+                                    'title': 'Ingresa el número sin el +54 (ej: 11 1234 5678)'
+                                }
+                            }) }}
+                            <button type="button" class="btn btn-primary" id="validate-whatsapp-btn" disabled>
+                                <i class="fab fa-whatsapp me-1"></i>
+                                Conectar
+                            </button>
+                        </div>
+                        <small class="text-muted">
+                            Número de teléfono argentino para WhatsApp (código de área + número). Ejemplo: 11 1234 5678
+                        </small>
+                        {% if form.phone.vars.errors|length > 0 %}
+                            <div class="text-danger small mt-1">
+                                {{ form_errors(form.phone) }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- WhatsApp Status Section -->
+                    <div id="whatsapp-status-section" class="config-field-group" style="display: none;">
+                        <div class="whatsapp-status-section">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <div>
+                                    <strong>Estado de Conexión:</strong>
+                                    <span id="whatsapp-status" class="badge ms-2">
+                                        {% if company.whatsappConnectionStatus == 'connected' %}
+                                            <span class="badge bg-success">Conectado</span>
+                                        {% elseif company.whatsappConnectionStatus == 'disconnected' %}
+                                            <span class="badge bg-warning">Desconectado</span>
+                                        {% elseif company.whatsappConnectionStatus == 'initializing' %}
+                                            <span class="badge bg-info">Inicializando...</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Sin verificar</span>
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="verify-whatsapp-btn">
+                                    <i class="fas fa-sync-alt me-1"></i>
+                                    Verificar Estado
+                                </button>
+                            </div>
+
+                            <div id="whatsapp-last-checked" style="display: none;">
+                                <small class="text-muted">
+                                    Última verificación: <span id="last-checked-time">{{ company.whatsappLastChecked ? company.whatsappLastChecked|date('d/m/Y H:i') : 'Nunca' }}</span>
+                                </small>
+                            </div>
+
+                            <!-- QR Code Section -->
+                            <div id="whatsapp-qr-section" class="mt-3" style="display: none;">
+                                <div class="alert alert-info">
+                                    <h6><i class="fab fa-whatsapp me-2"></i>Conectar WhatsApp</h6>
+                                    <p class="mb-2">Escanea el código QR con tu teléfono para conectar WhatsApp:</p>
+                                    <div class="text-center">
+                                        <div id="qr-code-container" class="mb-3">
+                                            <!-- QR code will be inserted here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Connection Success -->
+                            <div id="whatsapp-success-section" class="mt-3" style="display: none;">
+                                <div class="alert alert-success">
+                                    <h6><i class="fas fa-check-circle me-2"></i>¡WhatsApp Conectado!</h6>
+                                    <p class="mb-0">Tu número de WhatsApp está conectado y listo para enviar notificaciones.</p>
+                                </div>
+                            </div>
+
+                            <!-- Error Section -->
+                            <div id="whatsapp-error-section" class="mt-3" style="display: none;">
+                                <div class="alert alert-danger">
+                                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Error de Conexión</h6>
+                                    <p class="mb-0" id="whatsapp-error-message">Ha ocurrido un error al conectar WhatsApp.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    
                     <!-- Sección de Imágenes -->
                     <div class="mb-4">
                         <h6 class="form-section-title">

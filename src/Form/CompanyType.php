@@ -3,6 +3,7 @@
 namespace App\Form;
 
 use App\Entity\Company;
+use App\Form\DataTransformer\PhoneTransformer;
 use App\Validator\DomainNotExcluded;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
@@ -307,6 +308,23 @@ class CompanyType extends AbstractType
                 ],
                 'help' => 'Define cuántas horas antes de la reserva se enviará el segundo recordatorio por WhatsApp al cliente'
             ])
+            ->add('phone', TextType::class, [
+                'label' => 'Teléfono para WhatsApp',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-control',
+                    'placeholder' => '11 1234 5678',
+                    'pattern' => '^[0-9]{2,4}[0-9]{6,8}$',
+                    'title' => 'Ingresa el número sin el +54 (ej: 11 1234 5678)'
+                ],
+                'help' => 'Número de teléfono argentino para WhatsApp (código de área + número). Ejemplo: 11 1234 5678',
+                'constraints' => [
+                    new Regex([
+                        'pattern' => '/^[0-9\s]{10,14}$/',
+                        'message' => 'El número debe tener entre 10 y 12 dígitos'
+                    ])
+                ]
+            ])
             ->add('logoFile', FileType::class, [
                 'label' => 'Logo de la Empresa',
                 'mapped' => false,
@@ -359,6 +377,8 @@ class CompanyType extends AbstractType
                     'class' => 'btn btn-primary'
                 ]
             ]);
+
+            $builder->get('phone')->addModelTransformer(new PhoneTransformer());
     }
 
     public function configureOptions(OptionsResolver $resolver): void

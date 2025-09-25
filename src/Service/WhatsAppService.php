@@ -14,7 +14,6 @@ class WhatsAppService
     private LoggerInterface $logger;
     private AppointmentService $appointmentService;
     private string $whatsappServiceUrl;
-    private string $originHeader;
     private string $apiAuthHeader;
     private string $userAgentHeader;
 
@@ -23,7 +22,6 @@ class WhatsAppService
         LoggerInterface $logger,
         AppointmentService $appointmentService,
         string $whatsappServiceUrl,
-        string $originHeader,
         string $apiAuthHeader,
         string $userAgentHeader
     ) {
@@ -31,7 +29,6 @@ class WhatsAppService
         $this->logger = $logger;
         $this->appointmentService = $appointmentService;
         $this->whatsappServiceUrl = $whatsappServiceUrl;
-        $this->originHeader = $originHeader;
         $this->apiAuthHeader = $apiAuthHeader;
         $this->userAgentHeader = $userAgentHeader;
     }
@@ -50,7 +47,6 @@ class WhatsAppService
     private function getCommonHeaders(): array
     {
         return [
-            'Origin' => $this->originHeader,
             'X-API-Auth' => $this->apiAuthHeader,
             'User-Agent' => $this->userAgentHeader,
             'Content-Type' => 'application/json'
@@ -238,5 +234,56 @@ class WhatsAppService
         } catch (\Exception $e) {
             return ['status' => 'error', 'connected' => false];
         }
+    }
+
+    /**
+     * Obtiene el estado del QR para una empresa
+     */
+    public function getQRStatus(string $phone): array
+    {
+        try {
+            $cleanPhone = $this->cleanPhoneNumber($phone);
+            
+            $response = $this->httpClient->request('GET', 
+                $this->whatsappServiceUrl . '/api/whatsapp/session/' . $cleanPhone . '/qr', [
+                'headers' => $this->getCommonHeaders(),
+                'timeout' => 30
+            ]);
+            return $response->toArray();
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get QR status', [
+                'phone' => $cleanPhone,
+                'error' => $e->getMessage()
+            ]);
+            return [
+                'success' => false,
+                'message' => 'Error al obtener estado del QR: ' . $e->getMessage(),
+                'needsQR' => false,
+                'qrCode' => null
+            ];
+        }
+    }
+
+    /**
+     * Valida que el teléfono sea argentino
+     */
+    public function validateArgentinePhone(string $phone): bool
+    {
+        $cleanPhone = $this->cleanPhoneNumber($phone);
+        return preg_match('/^54[0-9]{10}$/', $cleanPhone) === 1;
+    }
+
+    /**
+     * Formatea un teléfono argentino
+     */
+    public function formatArgentinePhone(string $phone): string
+    {
+        $cleanPhone = $this->cleanPhoneNumber($phone);
+        
+        if (!$this->validateArgentinePhone($cleanPhone)) {
+            throw new \InvalidArgumentException('El teléfono debe ser argentino (54 + 10 dígitos)');
+        }
+        
+        return $cleanPhone;
     }
 }
