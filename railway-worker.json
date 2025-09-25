@@ -1,0 +1,9 @@
+{
+  "build": {
+    "builder": "nixpacks",
+    "buildCommand": "composer install --no-dev --optimize-autoloader"
+  },
+  "deploy": {
+    "startCommand": "sh ./run-worker.sh"
+  }
+}
