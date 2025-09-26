@@ -92,8 +92,13 @@
             {% elseif showServiceSelector %}
                 <div class="col-12 col-lg-8">
                     {% if company.coverUrl %}
-                        <div class="mb-3">
-                            <img id="alan" src="{{ company.coverUrl }}?w=800&h=400&fit=crop&auto=compress,format" alt="{{ company.name }}" class="company-cover">
+                        <div class="mb-3 company-cover-container">
+                            <img src="{{ company.coverUrl }}?w=800&h=400&fit=crop&auto=compress,format" alt="{{ company.name }}" class="company-cover">
+                            {% if company.logoUrl %}
+                                <div class="company-logo-overlay">
+                                    <img src="{{ company.logoUrl }}?w=200&h=200&fit=crop&auto=compress,format" alt="{{ company.name }} Logo" class="company-logo-centered">
+                                </div>
+                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
