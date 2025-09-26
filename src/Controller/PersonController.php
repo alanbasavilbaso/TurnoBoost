@@ -7,6 +7,7 @@ use App\Entity\Appointment;
 use App\Entity\Professional;
 use App\Entity\Service;
 use App\Form\PersonType;
+use App\Service\PatientService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -22,11 +23,10 @@ class PersonController extends AbstractController
     #[Route('/', name: 'app_person_index', methods: ['GET'])]
     public function index(Request $request, EntityManagerInterface $entityManager): Response
     {
-        $user = $this->getUser();
-        $company = $user->getCompany();
+        $company = $this->getUser()->getCompany();
         
         if (!$company) {
-            $this->addFlash('error', 'Debe estar asociado a una empresa para gestionar clientes.');
+            $this->addFlash('error', 'No se encontró la empresa asociada.');
             return $this->redirectToRoute('app_index');
         }
     
@@ -38,11 +38,12 @@ class PersonController extends AbstractController
         // Obtener el parámetro de búsqueda
         $search = $request->query->get('search', '');
         
-        // Query base para contar total de clientes
+        // Query base para contar total de clientes (solo activos)
         $countQueryBuilder = $entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
             ->select('COUNT(p.id)')
             ->where('p.company = :company')
+            ->andWhere('p.deletedAt IS NULL') // Solo pacientes no eliminados
             ->setParameter('company', $company);
             
         if (!empty($search)) {
@@ -52,10 +53,11 @@ class PersonController extends AbstractController
         
         $totalPatients = $countQueryBuilder->getQuery()->getSingleScalarResult();
         
-        // Query para obtener clientes de la página actual
+        // Query para obtener clientes de la página actual (solo activos)
         $queryBuilder = $entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
             ->where('p.company = :company')
+            ->andWhere('p.deletedAt IS NULL') // Solo pacientes no eliminados
             ->setParameter('company', $company)
             ->orderBy('p.firstName', 'ASC')
             ->addOrderBy('p.lastName', 'ASC')
@@ -350,25 +352,19 @@ class PersonController extends AbstractController
     }
 
     #[Route('/{id}', name: 'app_person_delete', methods: ['POST'])]
-    public function delete(Request $request, Patient $patient, EntityManagerInterface $entityManager): Response
+    public function delete(Request $request, Patient $patient, EntityManagerInterface $entityManager, PatientService $patientService): Response
     {
         if (!$this->canAccess($patient)) {
-            $this->addFlash('error', 'No tiene permisos para eliminar este cliente.');
+            $this->addFlash('error', 'No tiene permisos para ver este cliente.');
             return $this->redirectToRoute('app_person_index');
         }
-
+        
         if ($this->isCsrfTokenValid('delete'.$patient->getId(), $request->request->get('_token'))) {
-            // Verificar si tiene citas asociadas
-            if ($patient->getAppointments()->count() > 0) {
-                $this->addFlash('error', 'No se puede eliminar el cliente porque tiene citas asociadas.');
-                return $this->redirectToRoute('app_person_index');
-            }
-
-            $entityManager->remove($patient);
-            $entityManager->flush();
+            // Usar el servicio para hacer borrado lógico
+            $patientService->deletePatient($patient);
             $this->addFlash('success', 'Cliente eliminado exitosamente.');
         }
-
+    
         return $this->redirectToRoute('app_person_index');
     }
 

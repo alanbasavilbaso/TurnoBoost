@@ -46,6 +46,9 @@ class Patient
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $updatedAt;
 
+    #[ORM\Column(type: 'datetime', nullable: true)]
+    private ?\DateTimeInterface $deletedAt = null;
+
     #[ORM\OneToMany(mappedBy: 'patient', targetEntity: Appointment::class)]
     private Collection $appointments;
 
@@ -182,6 +185,44 @@ class Patient
     {
         $this->updatedAt = $updatedAt;
         return $this;
+    }
+
+    public function getDeletedAt(): ?\DateTimeInterface
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(?\DateTimeInterface $deletedAt): self
+    {
+        $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+    public function isDeleted(): bool
+    {
+        return $this->deletedAt !== null;
+    }
+
+    public function delete(): self
+    {
+        $this->deletedAt = new \DateTime();
+        return $this;
+    }
+
+    public function restore(): self
+    {
+        $this->deletedAt = null;
+        return $this;
+    }
+
+    // Método de conveniencia para obtener el nombre completo con indicador de eliminado
+    public function getFullNameWithStatus(): string
+    {
+        $name = $this->getFullName();
+        if ($this->isDeleted()) {
+            $name .= ' (eliminado)';
+        }
+        return $name;
     }
 
     /**

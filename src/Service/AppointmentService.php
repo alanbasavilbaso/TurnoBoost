@@ -73,6 +73,7 @@ class AppointmentService
             $this->validateUserRestrictions($appointmentData, $company);
         }
         
+        
         // Ejecutar validaciones generales (solo si no se fuerza)
         if (!$force) {
             $this->validateAppointment(
@@ -83,10 +84,10 @@ class AppointmentService
                 $location
             );
         }
-        
+
         // Crear o buscar paciente
         $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $company);
-        
+                
         // Crear la cita
         $appointment = new Appointment();
         $appointment->setCompany($company)
@@ -266,7 +267,7 @@ class AppointmentService
         return [
             'professionalId' => $professionalId,
             'serviceId' => $serviceId,
-            'locationId' => $locationId, // Agregar esta línea
+            'locationId' => $locationId,
             'scheduledAt' => $scheduledAt,
             'patientData' => $patientData,
             'notes' => $data['notes'] ?? null

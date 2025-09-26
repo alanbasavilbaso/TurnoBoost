@@ -162,10 +162,20 @@ class AgendaController extends AbstractController
             $endTime = clone $appointment->getScheduledAt();
             $endTime->modify('+' . $appointment->getDurationMinutes() . ' minutes');
 
+            // Verificar si el paciente está eliminado (soft delete)
+            $patient = $appointment->getPatient();
+            $isPatientDeleted = $patient->isDeleted();
+            
+            // Construir el título con indicador de eliminado si es necesario
+            $patientFullName = $patient->getName();
+            if ($isPatientDeleted) {
+                $patientFullName .= ' (eliminado)';
+            }
+
             $events[] = [
                 'id' => $appointment->getId(),
                 'title' => sprintf('%s (%s)', 
-                    $appointment->getPatient()->getName(),
+                    $patientFullName,
                     $appointment->getService()?->getName() ?? 'Sin servicio'
                 ),
                 'start' => $appointment->getScheduledAt()->format('Y-m-d\\TH:i:s'),
@@ -178,7 +188,8 @@ class AgendaController extends AbstractController
                     'patientEmail' => $appointment->getPatient()->getEmail(),
                     'patientPhone' => $appointment->getPatient()->getPhone(),
                     'patientFirstName' => $appointment->getPatient()->getFirstName(),
-                    'patientLastName' => $appointment->getPatient()->getLastName(),
+                    'patientLastName' => $appointment->getPatient()->getLastName() . ($isPatientDeleted ? ' (eliminado)' : ''),
+                    'patientDeleted' => $isPatientDeleted,
                     'email' => $appointment->getPatient()->getEmail(),
                     'serviceName' => $appointment->getService()?->getName(),
                     'serviceId' => $appointment->getService()?->getId(),
@@ -361,6 +372,16 @@ class AgendaController extends AbstractController
             return new JsonResponse(['error' => 'Acceso denegado'], 403);
         }
 
+        // Verificar si el paciente está eliminado (soft delete)
+        $patient = $appointment->getPatient();
+        $isPatientDeleted = $patient->isDeleted();
+        
+        // Construir el nombre del paciente con indicador si está eliminado
+        $patientFullName = $patient->getName();
+        if ($isPatientDeleted) {
+            $patientFullName .= ' (eliminado)';
+        }
+
         // Calcular hora de finalización
         $endTime = clone $appointment->getScheduledAt();
         $endTime->modify('+' . $appointment->getDurationMinutes() . ' minutes');
@@ -369,7 +390,7 @@ class AgendaController extends AbstractController
             'id' => $appointment->getId(),
             'title' => sprintf('%s - %s (%s)', 
                 $appointment->getProfessional()->getName(),
-                $appointment->getPatient()->getName(),
+                $patientFullName,
                 $appointment->getService()?->getName() ?? 'Sin servicio'
             ),
             'start' => $appointment->getScheduledAt()->format('Y-m-d\\TH:i:s'),
@@ -380,9 +401,10 @@ class AgendaController extends AbstractController
             'serviceName' => $appointment->getService()?->getName(),
             'patientId' => $appointment->getPatient()->getId(),
             'patientFirstName' => $appointment->getPatient()->getFirstName(),
-            'patientLastName' => $appointment->getPatient()->getLastName(),
+            'patientLastName' => $appointment->getPatient()->getLastName() . ($isPatientDeleted ? ' (eliminado)' : ''),
             'patientEmail' => $appointment->getPatient()->getEmail(),
             'patientPhone' => $appointment->getPatient()->getPhone(),
+            'patientDeleted' => $isPatientDeleted,
             // 'patientBirthDate' => $appointment->getPatient()->getBirthDate()?->format('Y-m-d'),
             'durationMinutes' => $appointment->getDurationMinutes(),
             'status' => $appointment->getStatus()->value,
@@ -671,6 +693,7 @@ class AgendaController extends AbstractController
         $patients = $this->entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
             ->where('p.company = :company')
+            ->andWhere('p.deletedAt IS NULL') // Solo pacientes no eliminados
             ->andWhere('(
                 p.firstName LIKE :query OR 
                 p.lastName LIKE :query OR

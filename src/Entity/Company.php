@@ -143,6 +143,18 @@ class Company
     private bool $requireContactData = false;
 
     /**
+     * Requiere específicamente el email del cliente para crear reservas
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    private bool $requireEmail = false;
+
+    /**
+     * Requiere específicamente el teléfono del cliente para crear reservas
+     */
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    private bool $requirePhone = false;
+
+    /**
      * Nivel de limitación de citas: 'company', 'location', 'professional'
      */
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'company'])]
@@ -237,13 +249,13 @@ class Company
     private int $secondReminderHoursBeforeAppointment = 2;
 
     /**
-     * Número de teléfono para la empresa (formato: 54XXXXXXXXXX)
-     * Solo números argentinos con código de país 54
+     * Número de teléfono para la empresa (formato: +54XXXXXXXXXX)
+     * Números argentinos con código de país +54
      */
-    #[ORM\Column(type: 'string', length: 15, nullable: true)]
+    #[ORM\Column(type: 'string', length: 20, nullable: true)]
     #[Assert\Regex(
-        pattern: '/^54[0-9]{10}$/',
-        message: 'El número debe ser un teléfono argentino válido (54 + 10 dígitos)'
+        pattern: '/^[0-9]{8,12}$/',
+        message: 'El número debe tener entre 8 y 12 dígitos'
     )]
     private ?string $phone = null;
 
@@ -650,6 +662,28 @@ class Company
         return $this;
     }
 
+    public function isRequireEmail(): bool
+    {
+        return $this->requireEmail;
+    }
+
+    public function setRequireEmail(bool $requireEmail): self
+    {
+        $this->requireEmail = $requireEmail;
+        return $this;
+    }
+
+    public function isRequirePhone(): bool
+    {
+        return $this->requirePhone;
+    }
+
+    public function setRequirePhone(bool $requirePhone): self
+    {
+        $this->requirePhone = $requirePhone;
+        return $this;
+    }
+
     public function getBookingLimitLevel(): string
     {
         return $this->bookingLimitLevel;
@@ -857,73 +891,27 @@ class Company
         return $this->whatsappConnectionStatus === 'connected';
     }
 
+
     /**
-     * Obtiene el teléfono formateado para WhatsApp
+     * Obtiene el teléfono sin formato para uso interno
      */
-    public function getFormattedPhone(): ?string
+    public function getPhoneDigitsOnly(): ?string
     {
         if (!$this->phone) {
             return null;
         }
         
-        // Si el teléfono ya incluye +54, lo formateamos para mostrar
+        // Si el teléfono incluye +54, lo removemos y devolvemos solo dígitos
         if (str_starts_with($this->phone, '+54')) {
-            $number = substr($this->phone, 3); // Remover +54
-            
-            if (strlen($number) >= 10) {
-                // Formato: +54 11 1234 5678
-                $areaCode = substr($number, 0, strlen($number) === 10 ? 2 : (strlen($number) === 11 ? 3 : 4));
-                $phoneNumber = substr($number, strlen($areaCode));
-                
-                if (strlen($phoneNumber) >= 6) {
-                    $firstPart = substr($phoneNumber, 0, 4);
-                    $secondPart = substr($phoneNumber, 4);
-                    return "+54 {$areaCode} {$firstPart} {$secondPart}";
-                }
-                
-                return "+54 {$areaCode} {$phoneNumber}";
-            }
+            return substr($this->phone, 3); // Remover +54 y devolver solo dígitos
         }
         
+        // Si no tiene +54, devolver tal como está (solo dígitos)
         return $this->phone;
     }
 
     /**
      * Obtiene el teléfono sin el prefijo +54 para mostrar en el formulario
-     */
-    public function getPhoneWithoutPrefix(): ?string
-    {
-        if (!$this->phone) {
-            return null;
-        }
-        
-        // Si el teléfono incluye +54, lo removemos
-        if (str_starts_with($this->phone, '+54')) {
-            $number = substr($this->phone, 3); // Remover +54
-            
-            // Formatear para mostrar: 11 1234 5678
-            if (strlen($number) >= 10) {
-                $areaCode = substr($number, 0, strlen($number) === 10 ? 2 : (strlen($number) === 11 ? 3 : 4));
-                $phoneNumber = substr($number, strlen($areaCode));
-                
-                if (strlen($phoneNumber) >= 6) {
-                    $firstPart = substr($phoneNumber, 0, 4);
-                    $secondPart = substr($phoneNumber, 4);
-                    return "{$areaCode} {$firstPart} {$secondPart}";
-                }
-                
-                return "{$areaCode} {$phoneNumber}";
-            }
-            
-            return $number;
-        }
-        
-        // Si no tiene +54, devolver tal como está
-        return $this->phone;
-    }
-
-    /**
-     * Obtiene el teléfono sin formato para uso interno
      */
     public function getPhoneForWhatsApp(): ?string
     {

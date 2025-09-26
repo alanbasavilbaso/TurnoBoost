@@ -40,7 +40,7 @@
                         <div class="card-header bg-primary text-white text-center py-4">
                             {% if company.coverUrl %}
                                 <div class="mb-3">
-                                    <img src="{{ company.coverUrl }}?w=800&h=200&fit=crop&auto=compress,format" alt="{{ company.name }}" class="company-cover">
+                                    <img src="{{ company.coverUrl }}?w=1100&h=200&fit=crop&auto=compress,format" alt="{{ company.name }}" class="company-cover">
                                 </div>
                             {% endif %}
                             <h1 class="h3 mb-1">{{ company.name }}</h1>
@@ -90,19 +90,122 @@
                     </div>
                 </div>
             {% elseif showServiceSelector %}
+                <div class="col-12 col-lg-8">
+                    {% if company.coverUrl %}
+                        <div class="mb-3">
+                            <img id="alan" src="{{ company.coverUrl }}?w=800&h=400&fit=crop&auto=compress,format" alt="{{ company.name }}" class="company-cover">
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="col-4 d-none d-lg-block">                
+                    {% if selectedLocation and selectedLocation.address %}
+                        <div class="company-info-card">
+                            <div class="card shadow-sm border-0 h-100">
+                                <div class="card-header bg-light" style="padding: 0;">
+                                    <div style="display: flex; justify-content: center;">
+                                        <iframe style="border-radius: 20px; width: 100%;" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1636.2920079717642!2d-60.02155029353328!3d-34.891790757886085!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x95bea54bd7b33e49%3A0x5d52dd4f1973db59!2sGral.%20Rodr%C3%ADguez%20215%2C%20Chivilcoy%2C%20Provincia%20de%20Buenos%20Aires%2C%20Argentina!5e0!3m2!1ses!2sus!4v1758843450766!5m2!1ses!2sus"  height="250" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Dirección -->
+                                    <div class="contact-item mb-1">
+                                        <div class="d-flex align-items-start">
+                                            <div class="contact-icon">
+                                                <i class="fas fa-map-marker-alt text-primary"></i>
+                                            </div>
+                                            <div class="contact-details">
+                                                <strong>Dirección:</strong> <span class="text-muted">{{ selectedLocation.address }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Teléfono de la ubicación -->
+                                    {% if selectedLocation.phone %}
+                                    <div class="contact-item mb-1">
+                                        <div class="d-flex align-items-start">
+                                            <div class="contact-icon">
+                                                <i class="fas fa-phone text-primary"></i>
+                                            </div>
+                                            <div class="contact-details">
+                                                <strong>Teléfono:</strong>
+                                                <a href="tel:{{ selectedLocation.phone }}" class="text-decoration-none text-black">
+                                                    {{ selectedLocation.phone }}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- WhatsApp de la empresa -->
+                                    {% if company.phone %}
+                                    <div class="contact-item mb-1">
+                                        <div class="d-flex align-items-start">
+                                            <a href="https://wa.me/{{ company.phone|replace({' ': '', '-': '', '(': '', ')': ''}) }}" 
+                                                target="_blank" 
+                                                class="btn btn-link text-black"
+                                                style="padding:0;">
+                                                <i class="fab fa-whatsapp text-primary"></i>
+                                                ¡Contáctanos por Whatsapp!
+                                            </a>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Email de la ubicación -->
+                                    {# {% if selectedLocation.email %}
+                                    <div class="contact-item mb-3">
+                                        <div class="d-flex align-items-start">
+                                            <div class="contact-icon">
+                                                <i class="fas fa-envelope text-primary"></i>
+                                            </div>
+                                            <div class="contact-details">
+                                                <strong>Email:</strong>
+                                                <a href="mailto:{{ selectedLocation.email }}" class="text-decoration-none">
+                                                    {{ selectedLocation.email }}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %} #}
+
+                                    <!-- Horarios si están disponibles -->
+                                    {% if locationSchedule is defined and locationSchedule|length > 0 %}
+                                    <div class="contact-item">
+                                        <div class="d-flex align-items-center">
+                                            <div class="contact-icon">
+                                                <i class="fas fa-clock text-primary"></i>
+                                            </div>
+                                            <div class="contact-details">
+                                                <button type="button" 
+                                                        class="btn btn-link p-0 text-decoration-none schedule-tooltip-btn" 
+                                                        data-bs-toggle="tooltip" 
+                                                        data-bs-placement="top" 
+                                                        data-bs-html="true"
+                                                        data-bs-title="{% for schedule in locationSchedule %}<strong>{{ schedule.day }}:</strong> {{ schedule.times }}{% if not loop.last %}<br>{% endif %}{% endfor %}">
+                                                    <strong>Ver horario</strong> 
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Botón para mobile - Ubicación y horario -->
+                <div class="col-12 d-lg-none mb-3">
+                    <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#locationModal">
+                        <i class="fas fa-map-marker-alt me-2"></i>
+                        Ubicación y horario
+                    </button>
+                </div>
+
                 <div class="col-12">
                     <!-- Selector de servicios -->
                     <div class="card shadow-lg border-0 mb-4">
-                        <div class="card-header bg-primary text-white text-center py-4">
-                            {% if company.coverUrl %}
-                                <div class="mb-3">
-                                    <img src="{{ company.coverUrl }}?w=800&h=200&fit=crop&auto=compress,format" alt="{{ company.name }}" class="company-cover">
-                                </div>
-                            {% endif %}
-                            <h1 class="h3 mb-1">{{ company.name }}</h1>
-                            <p class="mb-0 opacity-75">{{ selectedLocation.name }}</p>
-                            <p class="mb-0 opacity-75">{{ company.description }}</p>
-                        </div>
+
                         <div class="card-body p-4">
                             <div class="alert alert-info d-flex align-items-center mb-4">
                                 <i class="fas fa-list-alt me-2"></i>
@@ -161,12 +264,12 @@
                                                 {% endif %}
                                                 
                                                 <div class="service-badges mt-auto">
-                                                    {% if service.defaultDurationMinutes %}
+                                                    {% if service.shouldShowDurationOnBooking() and service.defaultDurationMinutes %}
                                                         <span class="badge bg-info me-2">
                                                             <i class="fas fa-clock me-1"></i>{{ service.defaultDurationMinutes }} min
                                                         </span>
                                                     {% endif %}
-                                                    {% if service.price %}
+                                                    {% if service.shouldShowPriceOnBooking() and service.price %}
                                                         <span class="badge bg-success">
                                                             <i class="fas fa-dollar-sign me-1"></i>{{ service.price|number_format(0, ',', '.') }}
                                                         </span>
@@ -409,10 +512,12 @@
                                     <div class="service-summary">
                                         <h6 class="mb-1 text-dark fw-bold">{{ selectedService ? selectedService.name : 'Servicio seleccionado' }}</h6>
                                         <div class="service-details" id="service-details" style="display: none;">
-                                            <p class="mb-0 text-muted small">
-                                                <i class="fas fa-dollar-sign me-1"></i>
-                                                <span id="selected-price">{{ selectedService ? selectedService.price : '$0' }}</span>
-                                            </p>
+                                            {% if selectedService and selectedService.shouldShowPriceOnBooking() %}
+                                                <p class="mb-0 text-muted small">
+                                                    <i class="fas fa-dollar-sign me-1"></i>
+                                                    <span id="selected-price">{{ selectedService ? selectedService.price : '$0' }}</span>
+                                                </p>
+                                            {% endif %}
                                             <p class="mb-0 text-muted small">
                                                 <i class="fas fa-calendar me-1"></i>
                                                 <span id="selected-date">--</span>
@@ -474,13 +579,15 @@
                             </div>
                         </div>
                         
-                        <div class="detail-item">
-                            <i class="fas fa-clock text-primary"></i>
-                            <div class="detail-content">
-                                <strong>Duración</strong>
-                                <span id="success-duration"></span>
+                        {% if selectedService and selectedService.shouldShowDurationOnBooking() %}
+                            <div class="detail-item">
+                                <i class="fas fa-clock text-primary"></i>
+                                <div class="detail-content">
+                                    <strong>Duración</strong>
+                                    <span id="success-duration"></span>
+                                </div>
                             </div>
-                        </div>
+                        {% endif %}
                         
                         <div class="detail-item">
                             <i class="fas fa-map-marker-alt text-primary"></i>
@@ -490,13 +597,15 @@
                             </div>
                         </div>
                         
-                        <div class="detail-item">
-                            <i class="fas fa-dollar-sign text-primary"></i>
-                            <div class="detail-content">
-                                <strong>Precio</strong>
-                                <span id="success-price"></span>
+                        {% if selectedService and selectedService.shouldShowPriceOnBooking() %}
+                            <div class="detail-item">
+                                <i class="fas fa-dollar-sign text-primary"></i>
+                                <div class="detail-content">
+                                    <strong>Precio</strong>
+                                    <span id="success-price"></span>
+                                </div>
                             </div>
-                        </div>
+                        {% endif %}
                     </div>
                     
                     <div class="notification-info">
@@ -538,11 +647,118 @@
     </div>
 </div>
 
+
+<!-- Modal de Ubicación y Horario para Mobile -->
+<div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="locationModalLabel">
+                    <i class="fas fa-map-marker-alt me-2"></i>
+                    Ubicación y horario
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {% if selectedLocation and selectedLocation.address %}
+                    <!-- Mapa de Google -->
+                    <div class="mb-4">
+                        <iframe 
+                            style="border-radius: 15px; width: 100%;" 
+                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1636.2920079717642!2d-60.02155029353328!3d-34.891790757886085!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x95bea54bd7b33e49%3A0x5d52dd4f1973db59!2sGral.%20Rodr%C3%ADguez%20215%2C%20Chivilcoy%2C%20Provincia%20de%20Buenos%20Aires%2C%20Argentina!5e0!3m2!1ses!2sus!4v1758843450766!5m2!1ses!2sus" 
+                            height="200" 
+                            style="border:0;" 
+                            allowfullscreen="" 
+                            loading="lazy" 
+                            referrerpolicy="no-referrer-when-downgrade">
+                        </iframe>
+                    </div>
+
+                    <!-- Información de contacto -->
+                    <div class="contact-info-mobile">
+                        <!-- Dirección -->
+                        <div class="contact-item-mobile mb-3">
+                            <div class="d-flex align-items-start">
+                                <div class="contact-icon-mobile me-3">
+                                    <i class="fas fa-map-marker-alt text-primary fs-5"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted">{{ selectedLocation.address }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Teléfono de la ubicación -->
+                        {% if selectedLocation.phone %}
+                        <div class="contact-item-mobile mb-3">
+                            <div class="d-flex align-items-start">
+                                <div class="contact-icon-mobile me-3">
+                                    <i class="fas fa-phone text-primary fs-5"></i>
+                                </div>
+                                <div>
+                                    <a href="tel:{{ selectedLocation.phone }}" class="text-decoration-none text-dark">
+                                        {{ selectedLocation.phone }}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- WhatsApp de la empresa -->
+                        {% if company.phone %}
+                        <div class="contact-item-mobile mb-3">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <a href="https://wa.me/{{ company.phone|replace({' ': '', '-': '', '(': '', ')': ''}) }}" 
+                                        target="_blank" 
+                                        class="btn btn-success w-100">
+                                        <i class="fab fa-whatsapp me-2"></i>
+                                        ¡Contáctanos por WhatsApp!
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Horarios si están disponibles -->
+                        {% if locationSchedule is defined and locationSchedule|length > 0 %}
+                        <div class="contact-item-mobile">
+                            <div class="d-flex align-items-start">
+                                <div class="contact-icon-mobile me-3">
+                                    <i class="fas fa-clock text-primary fs-5"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <strong class="d-block mb-2">Horarios:</strong>
+                                    <div class="schedule-list">
+                                        {% for schedule in locationSchedule %}
+                                            <div class="schedule-item-mobile mb-1">
+                                                <small class="text-muted">
+                                                    <strong>{{ schedule.day }}:</strong> {{ schedule.times }}
+                                                </small>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Hidden data for JavaScript -->
 <script>
     window.bookingData = {
         selectedService: {{ selectedService ? selectedService.id : 'null' }},
         selectedServiceDuration: {{ selectedService ? selectedService.defaultDurationMinutes : 'null' }},
+        selectedServiceShowPrice: {{ selectedService ? (selectedService.shouldShowPriceOnBooking() ? 'true' : 'false') : 'false' }},
+        selectedServiceShowDuration: {{ selectedService ? (selectedService.shouldShowDurationOnBooking() ? 'true' : 'false') : 'false' }},
         selectedProfessional: {{ selectedProfessional ? selectedProfessional.id : 'null' }},
         wizardStep1Complete: {{ wizardStep1Complete ? 'true' : 'false' }},
         professionals: {{ professionals|json_encode|raw }},
@@ -635,6 +851,12 @@
             document.querySelectorAll('[id^="service-gallery-"]').forEach(gallery => {
                 const serviceId = gallery.id.replace('service-gallery-', '');
                 initServiceGallery(serviceId);
+            });
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl, {
+                    trigger: 'hover focus' // Para desktop hover, para mobile click/focus
+                });
             });
         });
     </script>

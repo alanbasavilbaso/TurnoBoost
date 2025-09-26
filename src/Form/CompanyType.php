@@ -59,7 +59,7 @@ class CompanyType extends AbstractType
                 'attr' => [
                     'class' => 'form-control',
                     'placeholder' => 'ej: mi-clinica-dental',
-                    'pattern' => '[a-z0-9-]+',
+                    'pattern' => '[a-z0-9\\-]+',
                     'title' => 'Solo letras minúsculas, números y guiones'
                 ],
                 'help' => 'Este será usado como URL para las reservas online: turnoboost.com/tu-dominio',
@@ -177,6 +177,22 @@ class CompanyType extends AbstractType
                     'class' => 'form-check-input'
                 ],
                 'help' => 'Si habilitas esta opción, al generar una nueva reserva desde la agenda, el cliente debe tener asociado como mínimo email o teléfono.'
+            ])
+            ->add('requireEmail', CheckboxType::class, [
+                'label' => 'Requerir Email',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input'
+                ],
+                'help' => 'Los clientes deben proporcionar un email al reservar citas.'
+            ])
+            ->add('requirePhone', CheckboxType::class, [
+                'label' => 'Requerir Teléfono',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input'
+                ],
+                'help' => 'Los clientes deben proporcionar un teléfono al reservar citas.'
             ])
             ->add('bookingLimitLevel', ChoiceType::class, [
                 'label' => 'Limitar por',
@@ -313,15 +329,15 @@ class CompanyType extends AbstractType
                 'required' => false,
                 'attr' => [
                     'class' => 'form-control',
-                    'placeholder' => '11 1234 5678',
-                    'pattern' => '^[0-9]{2,4}[0-9]{6,8}$',
-                    'title' => 'Ingresa el número sin el +54 (ej: 11 1234 5678)'
+                    'placeholder' => '1112345678',
+                    'pattern' => '^[0-9]{8,12}$',
+                    'title' => 'Ingresa solo los dígitos del número (8 a 12 dígitos)'
                 ],
-                'help' => 'Número de teléfono argentino para WhatsApp (código de área + número). Ejemplo: 11 1234 5678',
+                'help' => 'Solo los dígitos del número de teléfono (sin +54). Ejemplo: 1112345678',
                 'constraints' => [
                     new Regex([
-                        'pattern' => '/^[0-9\s]{10,14}$/',
-                        'message' => 'El número debe tener entre 10 y 12 dígitos'
+                        'pattern' => '/^[0-9]{8,12}$/',
+                        'message' => 'El número debe tener entre 8 y 12 dígitos'
                     ])
                 ]
             ])

@@ -8,46 +8,53 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class PatientService
 {
-    public function __construct(
-        private EntityManagerInterface $entityManager
-    ) {}
+    private EntityManagerInterface $entityManager;
+
+    public function __construct(EntityManagerInterface $entityManager)
+    {
+        $this->entityManager = $entityManager;
+    }
 
     public function findOrCreatePatient(array $patientData, Company $company): Patient
     {
         if (isset($patientData['id']) && $patientData['id']) {
             $patient = $this->entityManager->getRepository(Patient::class)->find($patientData['id']);
             
-            if ($patient && $patient->getCompany() === $company) {
-                // Si el paciente existe, simplemente lo devolvemos sin modificar nada
+            if ($patient && $patient->getCompany() === $company && !$patient->isDeleted()) {
+                // Si el paciente existe y no está eliminado, simplemente lo devolvemos sin modificar nada
                 return $patient;
             }
         }
         
-        // Buscar paciente existente por email o teléfono
+        // Buscar paciente existente por email o teléfono (solo pacientes no eliminados)
         if (isset($patientData['email']) || isset($patientData['phone'])) {
             $qb = $this->entityManager->getRepository(Patient::class)->createQueryBuilder('p')
                 ->where('p.company = :company')
+                ->andWhere('p.deletedAt IS NULL') // Solo pacientes no eliminados
                 ->setParameter('company', $company);
             
-            if (isset($patientData['email'])) {
+            if (isset($patientData['email']) && isset($patientData['phone'])) {
+                // Si tenemos ambos, buscar por ambos campos
+                $qb->andWhere('p.email = :email AND p.phone = :phone')
+                   ->setParameter('email', $patientData['email'])
+                   ->setParameter('phone', $patientData['phone']);
+            } elseif (isset($patientData['email'])) {
+                // Solo email
                 $qb->andWhere('p.email = :email')
                    ->setParameter('email', $patientData['email']);
-            }
-            
-            if (isset($patientData['phone'])) {
-                $qb->orWhere('p.phone = :phone')
+            } elseif (isset($patientData['phone'])) {
+                // Solo teléfono
+                $qb->andWhere('p.phone = :phone')
                    ->setParameter('phone', $patientData['phone']);
             }
             
             $existingPatient = $qb->getQuery()->getOneOrNullResult();
-            
+                    
             if ($existingPatient) {
                 return $existingPatient;
             }
         }
-        // var_dump($patientData);
-        // var_dump($patientData['last_name']);
-        // exit;
+
         // Crear nuevo paciente solo si no existe
         $patient = new Patient();
         $patient->setCompany($company)
@@ -60,21 +67,37 @@ class PatientService
         
         return $patient;
     }
-    
-    public function searchPatients(string $query, Company $company, int $limit = 10): array
+
+    /**
+     * Soft delete a patient
+     */
+    public function deletePatient(Patient $patient): void
+    {
+        $patient->delete();
+        $this->entityManager->flush();
+    }
+
+    /**
+     * Restore a soft deleted patient
+     */
+    public function restorePatient(Patient $patient): void
+    {
+        $patient->restore();
+        $this->entityManager->flush();
+    }
+
+    /**
+     * Get all active (non-deleted) patients for a company
+     */
+    public function getActivePatients(Company $company): array
     {
         return $this->entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
             ->where('p.company = :company')
-            ->andWhere('(
-                p.name LIKE :query OR 
-                p.email LIKE :query OR 
-                p.phone LIKE :query
-            )')
+            ->andWhere('p.deletedAt IS NULL')
             ->setParameter('company', $company)
-            ->setParameter('query', '%' . $query . '%')
-            ->orderBy('p.name', 'ASC')
-            ->setMaxResults($limit)
+            ->orderBy('p.firstName', 'ASC')
+            ->addOrderBy('p.lastName', 'ASC')
             ->getQuery()
             ->getResult();
     }

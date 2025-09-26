@@ -247,7 +247,7 @@ class BookingWizard {
      * Actualiza el precio mostrado
      */
     updatePriceDisplay() {
-        if (this.elements.selectedPriceDisplay && this.state.selectedService) {
+        if (this.elements.selectedPriceDisplay && this.state.selectedService && window.bookingData?.selectedServiceShowPrice) {
             const price = this.state.selectedService.price || '$0';
             this.elements.selectedPriceDisplay.textContent = price;
         }
@@ -1185,7 +1185,6 @@ class BookingWizard {
      * Muestra mensaje de éxito
      */
     showBookingSuccess(result) {
-        debugger;
         // Verificar si el usuario quiere guardar sus datos
         const rememberDataCheckbox = document.getElementById('remember-data');
         const shouldSaveData = !rememberDataCheckbox || rememberDataCheckbox.checked;
@@ -1262,10 +1261,13 @@ class BookingWizard {
             datetimeElement.textContent = date.toLocaleDateString('es-ES', options);
         }
 
-        // Duración
+        // Duración (solo si debe mostrarse)
         const durationElement = document.getElementById('success-duration');
-        if (durationElement && result.appointment) {
+        if (durationElement && result.appointment && window.bookingData?.selectedServiceShowDuration) {
             durationElement.textContent = `${result.appointment?.duration} Minutos`;
+            durationElement.parentElement.style.display = 'flex';
+        } else if (durationElement) {
+            durationElement.parentElement.style.display = 'none';
         }
 
         // Ubicación
@@ -1274,10 +1276,13 @@ class BookingWizard {
             locationElement.textContent = result.appointment?.locationName;
         }
 
-        // Precio
+        // Precio (solo si debe mostrarse)
         const priceElement = document.getElementById('success-price');
-        if (priceElement && result.appointment) {
+        if (priceElement && result.appointment && window.bookingData?.selectedServiceShowPrice) {
             priceElement.textContent = `$${result.appointment?.price?.toString() || '0'}`;
+            priceElement.parentElement.style.display = 'flex';
+        } else if (priceElement) {
+            priceElement.parentElement.style.display = 'none';
         }
 
         // Email
@@ -1449,6 +1454,12 @@ class BookingWizard {
             // Mostrar detalles solo en step 2 (fecha/hora) y step 3 (confirmación)
             const shouldShow = this.state.currentStep >= 2;
             this.elements.serviceDetails.style.display = shouldShow ? 'block' : 'none';
+        }
+        
+        // Manejar visibilidad del precio
+        const priceElement = this.elements.selectedPriceDisplay?.parentElement;
+        if (priceElement) {
+            priceElement.style.display = window.bookingData?.selectedServiceShowPrice ? 'block' : 'none';
         }
     }
 }

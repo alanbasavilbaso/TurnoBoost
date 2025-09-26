@@ -22,6 +22,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use App\Entity\AppointmentSourceEnum;
 use App\Service\AuditService;
+use phpDocumentor\Reflection\DocBlock\Tags\Var_;
 
 class BookingController extends AbstractController
 {
@@ -1167,17 +1168,89 @@ class BookingController extends AbstractController
                 return new JsonResponse(['success' => false, 'message' => 'Invalid JSON data'], 400);
             }
 
-            // Validar datos requeridos
-            $requiredFields = ['service_id', 'professional_id', 'date', 'time', 'location_id', 'name', 'lastname', 'email', 'phone'];
-            foreach ($requiredFields as $field) {
-                if (!isset($data[$field]) || empty($data[$field])) {
-                    return new JsonResponse(['success' => false, 'message' => "Missing required field: $field"], 400);
-                }
-            }
-
             // Obtener la empresa por dominio
             $company = $this->getCompanyByDomain($domain);
             
+            // Validar datos requeridos básicos
+            $requiredFields = ['service_id', 'professional_id', 'date', 'time', 'location_id', 'name', 'lastname'];
+            
+            // Validar campos de contacto según la configuración de la empresa
+            $emailRequired = $company->isRequireEmail();
+            $phoneRequired = $company->isRequirePhone();
+            $contactDataRequired = $company->isRequireContactData();
+            
+            // Agregar email y/o phone a campos requeridos si están específicamente requeridos
+            if ($emailRequired) {
+                $requiredFields[] = 'email';
+            }
+            
+            if ($phoneRequired) {
+                $requiredFields[] = 'phone';
+            }
+            
+            // Validar campos básicos
+            foreach ($requiredFields as $field) {
+                if (!isset($data[$field]) || empty($data[$field])) {
+                    $fieldNames = [
+                        'service_id' => 'servicio',
+                        'professional_id' => 'profesional',
+                        'date' => 'fecha',
+                        'time' => 'hora',
+                        'location_id' => 'ubicación',
+                        'name' => 'nombre',
+                        'lastname' => 'apellido',
+                        'email' => 'email',
+                        'phone' => 'teléfono'
+                    ];
+                    
+                    $fieldName = $fieldNames[$field] ?? $field;
+                    return new JsonResponse([
+                        'success' => false, 
+                        'message' => "El campo {$fieldName} es obligatorio"
+                    ], 400);
+                }
+            }
+            
+            // Si requiere datos de contacto pero no específicamente email o phone,
+            // entonces debe tener al menos uno de los dos
+            if ($contactDataRequired && !$emailRequired && !$phoneRequired) {
+                $hasEmail = isset($data['email']) && !empty($data['email']);
+                $hasPhone = isset($data['phone']) && !empty($data['phone']);
+                
+                if (!$hasEmail && !$hasPhone) {
+                    return new JsonResponse([
+                        'success' => false, 
+                        'message' => 'Se requiere al menos un email o teléfono para realizar la reserva'
+                    ], 400);
+                }
+            }
+            
+            // Validaciones de formato para email y teléfono
+            if (isset($data['email']) && !empty($data['email'])) {
+                if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+                    return new JsonResponse([
+                        'success' => false, 
+                        'message' => 'El email no es válido'
+                    ], 400);
+                }
+            }
+            
+            if (isset($data['phone']) && !empty($data['phone'])) {
+                // Limpiar el teléfono: remover espacios, guiones, paréntesis
+                $cleanPhone = preg_replace('/[^\d+]/', '', $data['phone']);
+                
+                // Validar formato de teléfono argentino
+                // Puede empezar con +54 o no, y tener entre 8 y 12 dígitos después del código de país
+                if (!preg_match('/^(\+54)?[0-9]{8,12}$/', $cleanPhone)) {
+                    return new JsonResponse([
+                        'success' => false, 
+                        'message' => 'El teléfono no es válido. Debe contener entre 8 y 12 dígitos'
+                    ], 400);
+                }
+                
+                // Actualizar el dato con el teléfono limpio
+                $data['phone'] = $cleanPhone;
+            }
             
             // Preparar los datos en el formato que espera AppointmentService
             $appointmentData = [
@@ -1232,6 +1305,7 @@ class BookingController extends AbstractController
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['success' => false, 'message' => $e->getMessage()], 400);
         } catch (\Exception $e) {
+            var_dump($e->getMessage());
             return new JsonResponse(['success' => false, 'message' => 'Error interno del servidor'], 500);
         }
     }

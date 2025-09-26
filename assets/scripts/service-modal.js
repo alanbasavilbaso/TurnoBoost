@@ -122,3 +122,92 @@ class ServiceModalManager extends EntityModalManager {
 document.addEventListener('DOMContentLoaded', function() {
     new ServiceModalManager();
 });
+
+
+// Función para inicializar el formulario de servicios
+function initializeServiceForm() {
+    const serviceTypeInputs = document.querySelectorAll('input[name="service[serviceType]"]');
+    const frequencyRow = document.querySelector('.frequency-row');
+    const frequencyField = document.querySelector('.frequency-field');
+    const frequencyInputs = document.querySelectorAll('input[name="service[frequencyWeeks]"]');
+    
+    // Lógica para opciones de reserva online
+    const onlineBookingCheckbox = document.getElementById('service_onlineBookingEnabled');
+    const bookingOptions = document.getElementById('bookingOptions');
+    
+    if (!serviceTypeInputs.length) return;
+    
+    // Crear elemento para mostrar el mensaje dinámico
+    let frequencyMessage = document.querySelector('.frequency-message');
+    if (!frequencyMessage) {
+        frequencyMessage = document.createElement('div');
+        frequencyMessage.className = 'alert alert-info mt-2 frequency-message';
+        frequencyMessage.style.display = 'none';
+        
+        // Insertar el mensaje después del campo de frecuencia
+        if (frequencyField) {
+            frequencyField.appendChild(frequencyMessage);
+        }
+    }
+    
+    function toggleFrequencyField() {
+        const selectedValue = document.querySelector('input[name="service[serviceType]"]:checked')?.value;
+        
+        if (selectedValue === 'recurring') {
+            if (frequencyRow) frequencyRow.style.display = 'flex';
+            if (frequencyField) frequencyField.style.display = 'flex';
+        } else {
+            if (frequencyRow) frequencyRow.style.display = 'none';
+            if (frequencyField) frequencyField.style.display = 'none';
+            // Limpiar selección de frecuencia
+            frequencyInputs.forEach(input => {
+                input.checked = false;
+            });
+            if (frequencyMessage) frequencyMessage.style.display = 'none';
+        }
+    }
+    
+    function toggleBookingOptions() {
+        if (onlineBookingCheckbox && bookingOptions) {
+            bookingOptions.style.display = onlineBookingCheckbox.checked ? 'flex' : 'none';
+        }
+    }
+    
+    function updateFrequencyMessage() {
+        const selectedFrequency = document.querySelector('input[name="service[frequencyWeeks]"]:checked')?.value;
+        
+        if (selectedFrequency && frequencyMessage) {
+            const weeks = parseInt(selectedFrequency);
+            let message;
+            
+            if (weeks === 1) {
+                message = 'Los turnos se repetirían cada semana';
+            } else {
+                message = `Los turnos se repetirían cada ${weeks} semanas`;
+            }
+            
+            frequencyMessage.innerHTML = `<i class="fas fa-info-circle"></i> ${message}`;
+            frequencyMessage.style.display = 'flex';
+        } else if (frequencyMessage) {
+            frequencyMessage.style.display = 'none';
+        }
+    }
+    
+    // Ejecutar al cargar
+    toggleFrequencyField();
+    toggleBookingOptions();
+    
+    // Event listeners
+    serviceTypeInputs.forEach(input => {
+        input.addEventListener('change', toggleFrequencyField);
+    });
+    
+    frequencyInputs.forEach(input => {
+        input.addEventListener('change', updateFrequencyMessage);
+    });
+    
+    // Event listener para opciones de reserva online
+    if (onlineBookingCheckbox) {
+        onlineBookingCheckbox.addEventListener('change', toggleBookingOptions);
+    }
+}

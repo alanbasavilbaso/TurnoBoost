@@ -146,63 +146,55 @@ document.addEventListener('DOMContentLoaded', function() {
         descriptionField.addEventListener('input', updateCharCount);
         descriptionField.addEventListener('keyup', updateCharCount);
     }
-
     // WhatsApp phone input formatting and validation
     if (phoneInput) {
+        // Validar si tiene +54 y sacarlo del valor al cargar la página
+        const initialValue = phoneInput.value;
+        if (initialValue && initialValue.startsWith('+54')) {
+            phoneInput.value = initialValue.substring(3); // Quitar +54 y mostrar solo dígitos
+        }
+        
         // Enable/disable connect button based on input
         phoneInput.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+            let value = e.target.value;
             
-            // Format the number (area code + number)
-            if (value.length >= 2) {
-                if (value.length <= 4) {
-                    // Area code only
-                    value = value.substring(0, 4);
-                } else {
-                    // Area code + number
-                    const areaCode = value.substring(0, value.length <= 4 ? value.length : (value.length <= 6 ? 2 : (value.length <= 10 ? 3 : 4)));
-                    const number = value.substring(areaCode.length);
-                    
-                    if (number.length > 0) {
-                        // Format number in groups
-                        if (number.length <= 4) {
-                            value = areaCode + ' ' + number;
-                        } else {
-                            value = areaCode + ' ' + number.substring(0, 4) + ' ' + number.substring(4, 8);
-                        }
-                    } else {
-                        value = areaCode;
-                    }
-                }
+            // Remove all non-digits
+            let digits = value.replace(/\D/g, '');
+            
+            // Limit to 12 digits maximum
+            if (digits.length > 12) {
+                digits = digits.substring(0, 12);
             }
             
-            e.target.value = value;
+            e.target.value = digits;
             
             // Enable/disable connect button
-            const cleanValue = e.target.value.replace(/\D/g, '');
             if (validateWhatsAppBtn) {
-                validateWhatsAppBtn.disabled = cleanValue.length < 10;
+                validateWhatsAppBtn.disabled = digits.length < 8; // Minimum 8 digits
             }
         });
 
         // Validate phone format on blur
         phoneInput.addEventListener('blur', function(e) {
-            const value = e.target.value.replace(/\D/g, '');
-            if (value && (value.length < 10 || value.length > 12)) {
-                e.target.setCustomValidity('El número debe tener entre 10 y 12 dígitos');
+            const value = e.target.value;
+            const digitsOnly = value.replace(/\D/g, '');
+            
+            if (value && (digitsOnly.length < 8 || digitsOnly.length > 12)) {
+                e.target.setCustomValidity('El número debe tener entre 8 y 12 dígitos');
             } else {
                 e.target.setCustomValidity('');
             }
         });
 
-        // Check initial state
-        const initialValue = phoneInput.value.replace(/\D/g, '');
+        // Check initial state after processing
+        const processedValue = phoneInput.value;
+        const processedDigits = processedValue.replace(/\D/g, '');
         if (validateWhatsAppBtn) {
-            validateWhatsAppBtn.disabled = initialValue.length < 10;
+            validateWhatsAppBtn.disabled = processedDigits.length < 8;
         }
         
         // Show status section if phone exists
-        if (initialValue.length >= 10 && whatsappStatusSection) {
+        if (processedDigits.length >= 8 && whatsappStatusSection) {
             whatsappStatusSection.style.display = 'block';
             if (lastCheckedElement) {
                 lastCheckedElement.style.display = 'block';
@@ -232,13 +224,17 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        const phoneValue = phoneInput.value.replace(/\D/g, '');
-        if (phoneValue.length < 10) {
-            showWhatsAppError('El número debe tener al menos 10 dígitos');
+        let phoneValue = phoneInput.value;
+        phoneValue = (!phoneValue.startsWith('+54')) ? '+54' + phoneValue : phoneValue;
+
+        const digitsOnly = phoneValue.replace(/\D/g, '');
+        
+        if (!phoneValue.startsWith('+54') || digitsOnly.length < 10) {
+            showWhatsAppError('El número debe ser +54 seguido de al menos 8 dígitos');
             return;
         }
 
-        const fullPhone = '+54' + phoneValue;
+        const fullPhone = phoneValue; // Ya tiene el formato correcto
 
         // Actualizar botón a estado de carga
         const verifyButton = document.getElementById('verify-whatsapp-btn');
@@ -264,15 +260,14 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                updateWhatsAppStatus(data);
-            } else {
+            if (!data.success) {
                 showWhatsAppError(data.message || data.error || 'Error al verificar estado de WhatsApp');
                 // Restaurar botón a estado normal
                 if (verifyButton) {
                     updateVerifyButton(verifyButton, 'verify');
                 }
             }
+            updateWhatsAppStatus(data);
         })
         .catch(error => {
             console.error('Error:', error);
@@ -310,6 +305,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     break;
                 case 'initializing':
                     statusElement.innerHTML = '<span class="badge bg-info">Inicializando...</span>';
+                    break;
+                case 'error':
+                    statusElement.innerHTML = '<span class="badge bg-danger">Error</span>';
                     break;
                 default:
                     statusElement.innerHTML = '<span class="badge bg-secondary">Sin verificar</span>';
@@ -435,6 +433,64 @@ document.addEventListener('DOMContentLoaded', function() {
                 section.style.display = 'none';
             }
         });
+    }
+
+    // ===== FUNCIONALIDAD DE TOGGLES DE CONTACTO =====
+    const requireContactData = document.getElementById('company_requireContactData');
+    const contactOptionsContainer = document.getElementById('contactOptionsContainer');
+    const requireEmail = document.getElementById('company_requireEmail');
+    const requirePhone = document.getElementById('company_requirePhone');
+
+    // Función para mostrar/ocultar las opciones de contacto
+    function toggleContactOptions() {
+        if (requireContactData && requireContactData.checked) {
+            if (contactOptionsContainer) {
+                contactOptionsContainer.style.display = 'block';
+            }
+            // Si se activa requireContactData y ninguna opción está seleccionada, activar email por defecto
+            if (requireEmail && requirePhone && !requireEmail.checked && !requirePhone.checked) {
+                requireEmail.checked = true;
+            }
+        } else {
+            if (contactOptionsContainer) {
+                contactOptionsContainer.style.display = 'none';
+            }
+            // Si se desactiva requireContactData, desactivar ambas opciones
+            if (requireEmail) requireEmail.checked = false;
+            if (requirePhone) requirePhone.checked = false;
+        }
+    }
+
+    // Función para asegurar que al menos una opción esté seleccionada
+    function ensureAtLeastOneSelected() {
+        if (requireContactData && requireContactData.checked) {
+            // Si ninguna está seleccionada, activar la otra
+            if (requireEmail && requirePhone) {
+                // Si se desactivó email, activar phone
+                if (this === requireEmail) {
+                    requirePhone.checked = true;
+                } else {
+                    // Si se desactivó phone, activar email
+                    requireEmail.checked = true;
+                }
+            }
+        }
+    }
+
+    // Inicializar el estado al cargar la página
+    if (requireContactData) {
+        toggleContactOptions();
+
+        // Event listeners
+        requireContactData.addEventListener('change', toggleContactOptions);
+    }
+
+    if (requireEmail) {
+        requireEmail.addEventListener('change', ensureAtLeastOneSelected);
+    }
+
+    if (requirePhone) {
+        requirePhone.addEventListener('change', ensureAtLeastOneSelected);
     }
 });
 

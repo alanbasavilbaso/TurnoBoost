@@ -54,27 +54,29 @@ class CompanyController extends AbstractController
                 $whatsappStatus = ['error' => $e->getMessage()];
             }
         }
-
+        
         $form = $this->createForm(CompanyType::class, $company);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
+            // Lógica para manejar la dependencia entre requireContactData y los campos específicos
+            if (!$company->isRequireContactData()) {
+                // Si requireContactData está desactivado, desactivar ambos campos específicos
+                $company->setRequireEmail(false);
+                $company->setRequirePhone(false);
+            } else {
+                // Si requireContactData está activado, asegurar que al menos uno esté activado
+                if (!$company->isRequireEmail() && !$company->isRequirePhone()) {
+                    // Si ninguno está activado, activar email por defecto
+                    $company->setRequireEmail(true);
+                }
+            }
+
             // Manejar conversión del teléfono
             $phoneValue = $form->get('phone')->getData();
             if ($phoneValue) {
-                // Limpiar el valor (remover espacios y caracteres no numéricos)
-                $cleanPhone = preg_replace('/\D/', '', $phoneValue);
-                
-                if (!empty($cleanPhone)) {
-                    // Agregar el prefijo +54 si no lo tiene
-                    if (!str_starts_with($cleanPhone, '54')) {
-                        $company->setPhone('+54' . $cleanPhone);
-                    } else {
-                        $company->setPhone('+' . $cleanPhone);
-                    }
-                } else {
-                    $company->setPhone(null);
-                }
+                // El formulario ya validó que son 8-12 dígitos
+                $company->setPhone('+54' . $phoneValue);
             } else {
                 $company->setPhone(null);
             }
@@ -110,7 +112,7 @@ class CompanyController extends AbstractController
                     $this->addFlash('error', 'Error al subir la portada: ' . $e->getMessage());
                 }
             }
-
+            
             $company->setUpdatedAt(new \DateTime());
             $entityManager->flush();
 
@@ -169,18 +171,27 @@ class CompanyController extends AbstractController
 
         try {
             $qrStatus = $this->whatsappService->getQRStatus($phoneToCheck);
-            
+            // var_dump($qrStatus);exit;
             // Actualizar estado de conexión en la empresa
-            if (isset($qrStatus['state'])) {
-                $status = $qrStatus['state'];
-                $company->setWhatsappConnectionStatus($status);
+            if ($qrStatus['success'] ?? false) {
+                // Si la verificación fue exitosa, usar el estado devuelto
+                if (isset($qrStatus['state'])) {
+                    $status = $qrStatus['state'];
+                    $company->setWhatsappConnectionStatus($status);
+                    $company->setWhatsappLastChecked(new \DateTime());
+                    $entityManager->flush();
+                }
+            } else {
+                // Si hubo error, marcar como error o usar el estado del data
+                $errorStatus = $qrStatus['data']['state'] ?? 'error';
+                $company->setWhatsappConnectionStatus($errorStatus);
                 $company->setWhatsappLastChecked(new \DateTime());
                 $entityManager->flush();
             }
 
             return new JsonResponse([
-                'success' => true,
-                'phone' => $company->getFormattedPhone(),
+                'success' => $qrStatus['success'] ?? false,
+                'phone' => $company->getPhoneDigitsOnly(),
                 'connectionStatus' => $company->getWhatsappConnectionStatus(),
                 'lastChecked' => $company->getWhatsappLastChecked()?->format('Y-m-d H:i:s'),
                 'qrData' => $qrStatus

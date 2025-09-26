@@ -107,9 +107,28 @@ class ServiceType extends AbstractType
                 'label' => 'Reserva online disponible',
                 'required' => false,
                 'attr' => [
-                    'class' => 'form-check-input'
+                    'class' => 'form-check-input',
+                    'id' => 'onlineBookingEnabled'
                 ],
                 // 'help' => 'Permitir que los clientes reserven este servicio en línea'
+            ])
+            ->add('showPriceOnBooking', CheckboxType::class, [
+                'label' => 'Mostrar precio en reservas online',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input booking-option',
+                    'data-depends-on' => 'onlineBookingEnabled'
+                ],
+                'help' => 'El precio será visible para los clientes al reservar online'
+            ])
+            ->add('showDurationOnBooking', CheckboxType::class, [
+                'label' => 'Mostrar duración en reservas online',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input booking-option',
+                    'data-depends-on' => 'onlineBookingEnabled'
+                ],
+                'help' => 'La duración será visible para los clientes al reservar online'
             ])
             ->add('reminderNote', TextareaType::class, [
                 'label' => 'Aclaraciones para recordatorios',

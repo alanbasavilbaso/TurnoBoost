@@ -39,6 +39,12 @@ class Service
     #[ORM\Column(type: 'boolean', options: ['default' => true])]
     private bool $onlineBookingEnabled = true;
 
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $showPriceOnBooking = true;
+
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $showDurationOnBooking = true;
+    
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $reminderNote = null;
 
@@ -268,6 +274,44 @@ class Service
     public function setOnlineBookingEnabled(bool $onlineBookingEnabled): self
     {
         $this->onlineBookingEnabled = $onlineBookingEnabled;
+        return $this;
+    }
+
+    /**
+     * Verifica si debe mostrar el precio en la página de reservas
+     */
+    public function shouldShowPriceOnBooking(): bool
+    {
+        return $this->onlineBookingEnabled && $this->showPriceOnBooking;
+    }
+
+    /**
+     * Verifica si debe mostrar la duración en la página de reservas
+     */
+    public function shouldShowDurationOnBooking(): bool
+    {
+        return $this->onlineBookingEnabled && $this->showDurationOnBooking;
+    }
+
+    public function getShowPriceOnBooking(): bool
+    {
+        return $this->showPriceOnBooking;
+    }
+
+    public function setShowPriceOnBooking(bool $showPriceOnBooking): self
+    {
+        $this->showPriceOnBooking = $showPriceOnBooking;
+        return $this;
+    }
+
+    public function getShowDurationOnBooking(): bool
+    {
+        return $this->showDurationOnBooking;
+    }
+
+    public function setShowDurationOnBooking(bool $showDurationOnBooking): self
+    {
+        $this->showDurationOnBooking = $showDurationOnBooking;
         return $this;
     }
 
