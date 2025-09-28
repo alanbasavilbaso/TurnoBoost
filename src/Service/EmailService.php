@@ -12,7 +12,8 @@ class EmailService
     public function __construct(
         private MailerInterface $mailer,
         private Environment $twig,
-        private AppointmentService $appointmentService
+        private AppointmentService $appointmentService,
+        private UrlGeneratorService $urlGenerator
     ) {}
 
     public function sendAppointmentConfirmation(Appointment $appointment, ?int $notificationId = null): void
@@ -62,8 +63,8 @@ class EmailService
             'editable_bookings' => $company->isEditableBookings(),
             'minimum_edit_hours' => round($company->getMinimumEditTime() / 60),
             'maximum_edits' => $company->getMaximumEdits(),
-            'confirm_url' => $this->generateConfirmUrl($appointment), // Usar el ID original para los enlaces
-            'cancel_url' => $this->generateCancelUrl($appointment),
+            'confirm_url' => $this->urlGenerator->generateConfirmUrl($appointment), // Usar el ID original para los enlaces
+            'cancel_url' => $this->urlGenerator->generateCancelUrl($appointment),
             'modify_url' => $canBeModified ? $this->generateModifyUrl($appointment) : null,
             
             'reschedule_website_url' => $_ENV['APP_URL']  . $company->getDomain(),
@@ -160,10 +161,10 @@ class EmailService
             'type' => $type,
             'appointment_id' => $activeAppointment->getId(),
             // AGREGAR LAS URLs QUE FALTAN:
-            'cancel_url' => $this->generateCancelUrl($appointment),
+            'cancel_url' => $this->urlGenerator->generateCancelUrl($appointment),
             'modify_url' => $canBeModified ? $this->generateModifyUrl($appointment) : null,
 
-            'confirm_url' => $this->generateConfirmUrl($appointment),
+            'confirm_url' => $this->urlGenerator->generateConfirmUrl($appointment),
             'can_be_modified' => $canBeModified,
             'reschedule_website_url' => $_ENV['APP_URL'] . $company->getDomain(),
         ]);
@@ -262,39 +263,6 @@ class EmailService
     }
 
     /**
-     * Generar token de seguridad para una cita
-     */
-    private function generateAppointmentToken(Appointment $appointment): string
-    {
-        $data = $appointment->getId() . 
-                $appointment->getPatient()->getEmail() . 
-                $appointment->getScheduledAt()->format('Y-m-d H:i:s') .
-                $appointment->getCompany()->getId();
-        
-        return hash('sha256', $data . ($_ENV['APP_SECRET'] ?? 'default_secret'));
-    }
-
-    /**
-     * Generar URL de confirmación
-     */
-    private function generateConfirmUrl(Appointment $appointment): string
-    {
-        $domain = $appointment->getCompany()->getDomain();
-        $token = $this->generateAppointmentToken($appointment);
-        return $_ENV['APP_URL'] . "{$domain}/confirm/{$appointment->getId()}/{$token}";
-    }
-
-    /**
-     * Generar URL de cancelación
-     */
-    private function generateCancelUrl(Appointment $appointment): string
-    {
-        $domain = $appointment->getCompany()->getDomain();
-        $token = $this->generateAppointmentToken($appointment);
-        return $_ENV['APP_URL'] . "{$domain}/cancel/{$appointment->getId()}/{$token}";
-    }
-
-    /**
      * Generar URL de modificación
      */
     private function generateModifyUrl(Appointment $appointment): string
@@ -302,7 +270,7 @@ class EmailService
         $domain = $appointment->getCompany()->getDomain();
         // Usar la cita original para generar el token
         $rootAppointment = $appointment->getRootAppointment();
-        $token = $this->generateAppointmentToken($rootAppointment);
+        $token = $this->urlGenerator->generateAppointmentToken($rootAppointment);
         return $_ENV['APP_URL'] . "{$domain}/modify/{$rootAppointment->getId()}/{$token}";
     }
 }

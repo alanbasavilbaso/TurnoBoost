@@ -1239,9 +1239,16 @@ class BookingController extends AbstractController
                 // Limpiar el teléfono: remover espacios, guiones, paréntesis
                 $cleanPhone = preg_replace('/[^\d+]/', '', $data['phone']);
                 
+                // Asegurar que el número empiece con +549
+                // Primero removemos cualquier prefijo existente
+                $cleanPhone = preg_replace('/^\+?54?9?/', '', $cleanPhone);
+                
+                // Ahora agregamos el prefijo correcto
+                $cleanPhone = '+549' . $cleanPhone;
+
                 // Validar formato de teléfono argentino
                 // Puede empezar con +54 o no, y tener entre 8 y 12 dígitos después del código de país
-                if (!preg_match('/^(\+54)?[0-9]{8,12}$/', $cleanPhone)) {
+                if (!preg_match('/^\+549[0-9]{8,10}$/', $cleanPhone)) {
                     return new JsonResponse([
                         'success' => false, 
                         'message' => 'El teléfono no es válido. Debe contener entre 8 y 12 dígitos'

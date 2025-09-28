@@ -479,12 +479,28 @@
                                                     <input type="text" class="form-control" id="patient-lastname" name="lastname" required>
                                                 </div>
                                                 <div class="col-12 col-md-6">
-                                                    <label for="patient-phone" class="form-label">Teléfono *</label>
-                                                    <input type="tel" class="form-control" id="patient-phone" name="phone" required>
+                                                    <label for="patient-phone" class="form-label">
+                                                    Teléfono
+                                                    {% if company.isRequirePhone() or (company.isRequireContactData() and not company.isRequireEmail()) %}
+                                                        <span>*</span>
+                                                    {% endif %}
+                                                    </label>
+                                                    <input type="tel" class="form-control" id="patient-phone" name="phone" 
+                                                    {% if company.isRequirePhone() or (company.isRequireContactData() and not company.isRequireEmail()) %}
+                                                        required
+                                                    {% endif %}>
                                                 </div>
                                                 <div class="col-12 col-md-6">
-                                                    <label for="patient-email" class="form-label">Email</label>
-                                                    <input type="email" class="form-control" id="patient-email" name="email">
+                                                    <label for="patient-email" class="form-label">
+                                                    Email
+                                                    {% if company.isRequireEmail() or (company.isRequireContactData() and not company.isRequirePhone()) %}
+                                                        <span>*</span>
+                                                    {% endif %}
+                                                    </label>
+                                                    <input type="email" class="form-control" id="patient-email" name="email"
+                                                     {% if company.isRequireEmail() or (company.isRequireContactData() and not company.isRequirePhone()) %}
+                                                        required
+                                                    {% endif %}>
                                                 </div>
                                                 <!-- En el formulario de contacto, después del campo de notas -->
                                                 <div class="col-12">

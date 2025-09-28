@@ -7,12 +7,14 @@ use Psr\Log\LoggerInterface;
 use App\Entity\Appointment;
 use App\Entity\Location;
 use App\Service\AppointmentService;
+use App\Service\UrlGeneratorService;
 
 class WhatsAppService
 {
     private HttpClientInterface $httpClient;
     private LoggerInterface $logger;
     private AppointmentService $appointmentService;
+    private UrlGeneratorService $urlGenerator;
     private string $whatsappServiceUrl;
     private string $apiAuthHeader;
     private string $userAgentHeader;
@@ -21,6 +23,7 @@ class WhatsAppService
         HttpClientInterface $httpClient,
         LoggerInterface $logger,
         AppointmentService $appointmentService,
+        UrlGeneratorService $urlGenerator,
         string $whatsappServiceUrl,
         string $apiAuthHeader,
         string $userAgentHeader
@@ -28,6 +31,7 @@ class WhatsAppService
         $this->httpClient = $httpClient;
         $this->logger = $logger;
         $this->appointmentService = $appointmentService;
+        $this->urlGenerator = $urlGenerator;
         $this->whatsappServiceUrl = $whatsappServiceUrl;
         $this->apiAuthHeader = $apiAuthHeader;
         $this->userAgentHeader = $userAgentHeader;
@@ -59,28 +63,30 @@ class WhatsAppService
     public function sendAppointmentNotification(array $appointmentData, string $messageType = 'reminder'): bool
     {
         $appointmentId = $appointmentData['id'];
-        $domain = $appointmentData['location']['domain'];
-        $baseUrl = $_ENV['APP_URL'] ?? 'https://turnoboost.com';
         
-        // Generar tokens seguros
-        $confirmToken = $this->appointmentService->generateSecureToken($appointmentId, 'confirm');
-        $cancelToken = $this->appointmentService->generateSecureToken($appointmentId, 'cancel');
-        
+        $appointment = $this->appointmentService->findActiveAppointmentFromChain($appointmentId);
+        if (!$appointment) {
+            throw new \InvalidArgumentException("Appointment with ID {$appointmentId} not found");
+        }
+
         try {
             // Limpiar números de teléfono eliminando el símbolo +
-            $locationPhone = $this->cleanPhoneNumber($appointmentData['location']['phone']);
+            $companyPhone = $this->cleanPhoneNumber($appointmentData['company']['phone']);
             $patientPhone = $this->cleanPhoneNumber($appointmentData['patient']['phone']);
             
+            $confirmUrl = $this->urlGenerator->generateConfirmUrl($appointment);
+            $cancelUrl = $this->urlGenerator->generateCancelUrl($appointment);
+
             $response = $this->httpClient->request('POST', 
-                $this->whatsappServiceUrl . '/api/whatsapp/session/' . $locationPhone . '/send-template', [
+                $this->whatsappServiceUrl . '/api/whatsapp/session/' . $companyPhone . '/send-template', [
                 'headers' => $this->getCommonHeaders(),
                 'json' => [
                     'phone' => $patientPhone,
                     'appointmentId' => $appointmentId,
-                    'appointmentData' => $appointmentData,
+                    'appointmentData' => $appointmentData['appointmentData'],
                     'messageType' => $messageType,
-                    'confirmUrl' => $baseUrl . '/reservas/' . $domain . '/appointment/' . $appointmentId . '/confirm/' . $confirmToken,
-                    'cancelUrl' => $baseUrl . '/reservas/' . $domain . '/appointment/' . $appointmentId . '/cancel/' . $cancelToken
+                    'confirmUrl' => $confirmUrl,
+                    'cancelUrl' => $cancelUrl
                 ],
                 'timeout' => 30
             ]);
@@ -92,7 +98,7 @@ class WhatsAppService
                     'appointment_id' => $appointmentId,
                     'message_type' => $messageType,
                     'message_id' => $data['messageId'] ?? null,
-                    'location_phone' => $locationPhone,
+                    'location_phone' => $companyPhone,
                     'patient_phone' => $patientPhone
                 ]);
                 
@@ -101,7 +107,7 @@ class WhatsAppService
                 $this->logger->error('Failed to send WhatsApp template message', [
                     'appointment_id' => $appointmentId,
                     'error' => $data['error'] ?? 'Unknown error',
-                    'location_phone' => $locationPhone,
+                    'location_phone' => $companyPhone,
                     'patient_phone' => $patientPhone
                 ]);
                 
@@ -120,76 +126,16 @@ class WhatsAppService
     }
 
     /**
-     * Verifica el estado de conexión de WhatsApp para una location
-     */
-    public function getWhatsAppSessionStatus(string $locationPhone): array
-    {
-        try {
-            $cleanPhone = $this->cleanPhoneNumber($locationPhone);
-            
-            $response = $this->httpClient->request('GET', 
-                $this->whatsappServiceUrl . '/api/whatsapp/session/' . $cleanPhone . '/status', [
-                'headers' => $this->getCommonHeaders(),
-                'timeout' => 30
-            ]);
-            
-            return $response->toArray();
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to get WhatsApp session status', [
-                'location_phone' => $this->cleanPhoneNumber($locationPhone),
-                'error' => $e->getMessage()
-            ]);
-            return [
-                'success' => false,
-                'error' => $e->getMessage(),
-                'data' => [
-                    'isConnected' => false,
-                    'state' => 'error',
-                    'phoneNumber' => $this->cleanPhoneNumber($locationPhone)
-                ]
-            ];
-        }
-    }
-
-    /**
-     * Obtiene el código QR para conectar WhatsApp
-     */
-    public function getWhatsAppQRCode(string $locationPhone): array
-    {
-        try {
-            $cleanPhone = $this->cleanPhoneNumber($locationPhone);
-            
-            $response = $this->httpClient->request('GET', 
-                $this->whatsappServiceUrl . '/api/whatsapp/session/' . $cleanPhone . '/qr', [
-                'headers' => $this->getCommonHeaders(),
-                'timeout' => 30
-            ]);
-            
-            return $response->toArray();
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to get WhatsApp QR code', [
-                'location_phone' => $this->cleanPhoneNumber($locationPhone),
-                'error' => $e->getMessage()
-            ]);
-            return [
-                'success' => false,
-                'message' => 'Error al obtener QR: ' . $e->getMessage(),
-                'state' => 'error'
-            ];
-        }
-    }
-
-    /**
      * Envía un mensaje de prueba
      */
-    public function sendTestMessage(string $locationPhone, string $toPhone, string $message): array
+    public function sendTestMessage(string $companyPhone, string $toPhone, string $message): array
     {
         try {
-            $cleanLocationPhone = $this->cleanPhoneNumber($locationPhone);
+            $cleanCompanyPhone = $this->cleanPhoneNumber($companyPhone);
             $cleanToPhone = $this->cleanPhoneNumber($toPhone);
             
             $response = $this->httpClient->request('POST', 
-                $this->whatsappServiceUrl . '/api/whatsapp/session/' . $cleanLocationPhone . '/send-message', [
+                $this->whatsappServiceUrl . '/api/whatsapp/session/' . $cleanCompanyPhone . '/send-message', [
                 'headers' => $this->getCommonHeaders(),
                 'json' => [
                     'to' => $cleanToPhone,
@@ -201,7 +147,7 @@ class WhatsAppService
             $data = $response->toArray();
             
             $this->logger->info('WhatsApp test message sent', [
-                'location_phone' => $cleanLocationPhone,
+                'location_phone' => $cleanCompanyPhone,
                 'to_phone' => $cleanToPhone,
                 'success' => $data['success'] ?? false
             ]);
@@ -209,7 +155,7 @@ class WhatsAppService
             return $data;
         } catch (\Exception $e) {
             $this->logger->error('Failed to send WhatsApp test message', [
-                'location_phone' => $this->cleanPhoneNumber($locationPhone),
+                'location_phone' => $this->cleanPhoneNumber($companyPhone),
                 'to_phone' => $this->cleanPhoneNumber($toPhone),
                 'error' => $e->getMessage()
             ]);
@@ -262,28 +208,5 @@ class WhatsAppService
                 'qrCode' => null
             ];
         }
-    }
-
-    /**
-     * Valida que el teléfono sea argentino
-     */
-    public function validateArgentinePhone(string $phone): bool
-    {
-        $cleanPhone = $this->cleanPhoneNumber($phone);
-        return preg_match('/^54[0-9]{10}$/', $cleanPhone) === 1;
-    }
-
-    /**
-     * Formatea un teléfono argentino
-     */
-    public function formatArgentinePhone(string $phone): string
-    {
-        $cleanPhone = $this->cleanPhoneNumber($phone);
-        
-        if (!$this->validateArgentinePhone($cleanPhone)) {
-            throw new \InvalidArgumentException('El teléfono debe ser argentino (54 + 10 dígitos)');
-        }
-        
-        return $cleanPhone;
     }
 }

@@ -944,11 +944,9 @@ class BookingWizard {
 
         const firstname = this.elements.contactForm.querySelector('#patient-firstname');
         const lastname = this.elements.contactForm.querySelector('#patient-lastname');
-        const phone = this.elements.contactForm.querySelector('#patient-phone');
 
         return firstname && firstname.value.trim() !== '' && 
-               lastname && lastname.value.trim() !== '' &&
-               phone && phone.value.trim() !== '';
+               lastname && lastname.value.trim() !== '';
     }
 
 
