@@ -129,9 +129,9 @@
             <i class="fas fa-check-circle success-icon"></i>
             <h3>
                 {% if action == 'confirm' %}
-                    ¡Cita Confirmada!
+                    Turno Confirmado!
                 {% elseif action == 'cancel' %}
-                    Cita Cancelada
+                    Turno Cancelado
                 {% else %}
                     ¡Listo!
                 {% endif %}
@@ -150,7 +150,7 @@
         </div>
         
         <div class="appointment-summary">
-            <h5 class="mb-3">Resumen de tu cita:</h5>
+            <h5 class="mb-3">Resumen de tu turno:</h5>
             
             <div class="summary-row">
                 <span class="summary-label">
@@ -194,7 +194,7 @@
                 <span class="summary-label">
                     <i class="fas fa-map-marker-alt me-2"></i>Ubicación:
                 </span>
-                <span class="summary-value">{{ appointment.location.name }}</span>
+                <span class="summary-value">{{ appointment.location.address }}</span>
             </div>
             {% endif %}
         </div>
@@ -203,17 +203,17 @@
             {% if action == 'confirm' %}
                 <p class="text-muted small">
                     <i class="fas fa-info-circle me-2"></i>
-                    Te recomendamos llegar 10 minutos antes de tu cita.
+                    Te recomendamos llegar 10 minutos antes de tu turno.
                 </p>
             {% elseif action == 'cancel' %}
                 <p class="text-muted small">
                     <i class="fas fa-info-circle me-2"></i>
-                    Puedes agendar una nueva cita cuando lo desees.
+                    Puedes agendar una nuevo turno cuando lo desees.
                 </p>
             {% endif %}
             
             <a href="/{{ domain }}" class="btn btn-primary text-decoration-none">
-                <i class="fas fa-calendar-plus me-2"></i>Agendar Nueva Cita
+                <i class="fas fa-calendar-plus me-2"></i>Agendar Nueva Turno
             </a>
             
             {# {% if company.website %}
