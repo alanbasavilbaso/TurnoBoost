@@ -241,3 +241,10 @@ php bin/console messenger:failed:remove --all --force
 
 # Reiniciar el worker limpio
 php bin/console messenger:consume async
+
+
+
+
+
+
+------------------------------ TEST ------------------------------

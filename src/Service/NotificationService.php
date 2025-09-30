@@ -54,14 +54,15 @@ class NotificationService
         }
         
         // Primer recordatorio (si al menos uno de los canales está habilitado)
-        if ($company->isReminderEmailEnabled() || $company->isReminderWhatsappEnabled()) {
+        if (($company->isReminderEmailEnabled() && $company->isEmailNotificationsEnabled()) || 
+            ($company->isReminderWhatsappEnabled() && $company->isWhatsappNotificationsEnabled())) {
             $firstReminderTime = clone $scheduledAt;
             $firstReminderTime->modify('-' . $company->getFirstReminderHoursBeforeAppointment() . ' hours');
             
             // Solo programar recordatorio si es en el futuro
             if ($firstReminderTime > new \DateTime()) {
-                // Primer recordatorio por email (si está habilitado)
-                if ($company->isReminderEmailEnabled()) {
+                // Primer recordatorio por email (si está habilitado Y las notificaciones email están habilitadas)
+                if ($company->isReminderEmailEnabled() && $company->isEmailNotificationsEnabled()) {
                     $this->createAndDispatchEmailNotification(
                         $appointment, 
                         NotificationTypeEnum::REMINDER->value, 
@@ -69,8 +70,8 @@ class NotificationService
                     );
                 }
                 
-                // Primer recordatorio por WhatsApp (si está habilitado)
-                if ($company->isReminderWhatsappEnabled()) {
+                // Primer recordatorio por WhatsApp (si está habilitado Y las notificaciones WhatsApp están habilitadas)
+                if ($company->isReminderWhatsappEnabled() && $company->isWhatsappNotificationsEnabled()) {
                     $this->createAndDispatchWhatsAppNotification(
                         $appointment, 
                         NotificationTypeEnum::REMINDER->value,  
@@ -80,18 +81,30 @@ class NotificationService
             }
         }
         
-        // Segundo recordatorio (solo si está habilitado y WhatsApp está activo)
-        if ($company->isSecondReminderEnabled() && $company->isReminderWhatsappEnabled()) {
+        // Segundo recordatorio
+        if ($company->isSecondReminderEnabled()) {
             $secondReminderTime = clone $scheduledAt;
             $secondReminderTime->modify('-' . $company->getSecondReminderHoursBeforeAppointment() . ' hours');
             
             // Solo programar si es en el futuro
             if ($secondReminderTime > new \DateTime()) {
-                $this->createAndDispatchWhatsAppNotification(
-                    $appointment, 
-                    NotificationTypeEnum::URGENT_REMINDER->value, 
-                    $secondReminderTime
-                );
+                // Segundo recordatorio por email (si está habilitado)
+                if ($company->isReminderEmailEnabled() && $company->isEmailNotificationsEnabled()) {
+                    $this->createAndDispatchEmailNotification(
+                        $appointment, 
+                        NotificationTypeEnum::URGENT_REMINDER->value, 
+                        $secondReminderTime
+                    );
+                }
+                
+                // Segundo recordatorio por WhatsApp (si está habilitado)
+                if ($company->isReminderWhatsappEnabled() && $company->isWhatsappNotificationsEnabled()) {
+                    $this->createAndDispatchWhatsAppNotification(
+                        $appointment, 
+                        NotificationTypeEnum::URGENT_REMINDER->value, 
+                        $secondReminderTime
+                    );
+                }
             }
         }
     }
@@ -252,9 +265,12 @@ class NotificationService
         $this->entityManager->persist($notification);
         $this->entityManager->flush();
         
-        // Despachar mensaje a la cola
-        $message = new SendWhatsAppNotification($notification->getId());
-        $this->messageBus->dispatch($message);
+        // Solo despachar inmediatamente si es una confirmación o si la fecha ya llegó
+        if ($type === NotificationTypeEnum::CONFIRMATION->value || $scheduledAt <= new \DateTime()) {
+            $message = new SendWhatsAppNotification($notification->getId(), $type);
+            $this->messageBus->dispatch($message);
+        }
+        // Para reminders futuros, solo se guarda en BD y se procesará con el comando cron
     }
 
     public function modifyAppointmentNotifications(Appointment $appointment): void

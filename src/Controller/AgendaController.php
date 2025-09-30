@@ -91,7 +91,7 @@ class AgendaController extends AbstractController
             'services' => $services,
             'locations' => $locations,
             'company' => $company,
-            'app_domain' => $_ENV['APP_URL'] . $company->getDomain()
+            'app_domain' => $_ENV['APP_URL'] . '/' . $company->getDomain()
         ]);
     }
 
@@ -921,7 +921,7 @@ class AgendaController extends AbstractController
                 $professionalService->getService(),
                 $location
             );
-
+            $available = is_null($available) ? true : false;
             return new JsonResponse([
                 'available' => $available,
                 'message' => $available ? 

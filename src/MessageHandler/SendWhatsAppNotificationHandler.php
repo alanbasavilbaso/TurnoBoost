@@ -17,15 +17,18 @@ class SendWhatsAppNotificationHandler
     private WhatsAppService $whatsappService;
     private EntityManagerInterface $entityManager;
     private LoggerInterface $logger;
+    private string $whatsappTestPhoneNumber;
 
     public function __construct(
         WhatsAppService $whatsappService,
         EntityManagerInterface $entityManager,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        ?string $whatsappTestPhoneNumber = null
     ) {
         $this->whatsappService = $whatsappService;
         $this->entityManager = $entityManager;
         $this->logger = $logger;
+        $this->whatsappTestPhoneNumber = $whatsappTestPhoneNumber ?? '';
     }
 
     public function __invoke(SendWhatsAppNotification $message): void
@@ -52,6 +55,18 @@ class SendWhatsAppNotificationHandler
         try {
             // Convertir la entidad Appointment a array para WhatsApp
             $appointmentData = $this->convertAppointmentToWhatsAppArray($appointment);
+            
+            // Si hay un número de testing configurado, usarlo en lugar del número real
+            if (!empty($this->whatsappTestPhoneNumber)) {
+                $originalPhone = $appointmentData['patient']['phone'];
+                $appointmentData['patient']['phone'] = $this->whatsappTestPhoneNumber;
+                
+                $this->logger->info('Using test phone number for WhatsApp', [
+                    'notification_id' => $notification->getId(),
+                    'original_phone' => $originalPhone,
+                    'test_phone' => $this->whatsappTestPhoneNumber
+                ]);
+            }
             
             $success = $this->whatsappService->sendAppointmentNotification(
                 $appointmentData, 

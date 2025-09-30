@@ -48,6 +48,13 @@ services:
             $messageBus: '@messenger.default_bus'
             $logger: '@logger'
     
+    App\MessageHandler\SendWhatsAppNotificationHandler:
+        arguments:
+            $whatsappService: '@App\Service\WhatsAppService'
+            $entityManager: '@doctrine.orm.entity_manager'
+            $logger: '@logger'
+            $whatsappTestPhoneNumber: '%env(default::WHATSAPP_TEST_PHONE_NUMBER)%'
+    
     App\Service\ImageUploadService:
         arguments:
             $httpClient: '@http_client'

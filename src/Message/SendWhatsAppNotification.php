@@ -4,15 +4,18 @@ namespace App\Message;
 
 class SendWhatsAppNotification
 {
-    private int $notificationId;
-
-    public function __construct(int $notificationId)
-    {
-        $this->notificationId = $notificationId;
-    }
+    public function __construct(
+        private int $notificationId,
+        private string $type
+    ) {}
 
     public function getNotificationId(): int
     {
         return $this->notificationId;
+    }
+    
+    public function getType(): string
+    {
+        return $this->type;
     }
 }

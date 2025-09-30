@@ -1288,6 +1288,12 @@ class BookingWizard {
         if (emailElement && result.appointment) {
             emailElement.textContent = result.appointment?.patientEmail || 'N/A';
         }
+
+        // Phone
+        const phoneElement = document.getElementById('success-phone');
+        if (phoneElement && result.appointment) {
+            phoneElement.textContent = result.appointment?.patientPhone || 'N/A';
+        }
     }
 
     /**

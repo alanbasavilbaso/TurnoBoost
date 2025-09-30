@@ -4,10 +4,10 @@ namespace App\Service;
 
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Psr\Log\LoggerInterface;
-use App\Entity\Appointment;
-use App\Entity\Location;
 use App\Service\AppointmentService;
 use App\Service\UrlGeneratorService;
+use App\Entity\WhatsAppApiLog;
+use Doctrine\ORM\EntityManagerInterface;
 
 class WhatsAppService
 {
@@ -18,12 +18,14 @@ class WhatsAppService
     private string $whatsappServiceUrl;
     private string $apiAuthHeader;
     private string $userAgentHeader;
+    private EntityManagerInterface $entityManager;
 
     public function __construct(
         HttpClientInterface $httpClient,
         LoggerInterface $logger,
         AppointmentService $appointmentService,
         UrlGeneratorService $urlGenerator,
+        EntityManagerInterface $entityManager,
         string $whatsappServiceUrl,
         string $apiAuthHeader,
         string $userAgentHeader
@@ -35,6 +37,7 @@ class WhatsAppService
         $this->whatsappServiceUrl = $whatsappServiceUrl;
         $this->apiAuthHeader = $apiAuthHeader;
         $this->userAgentHeader = $userAgentHeader;
+        $this->entityManager = $entityManager;
     }
 
     /**
@@ -69,6 +72,9 @@ class WhatsAppService
             throw new \InvalidArgumentException("Appointment with ID {$appointmentId} not found");
         }
 
+        $startTime = microtime(true);
+        $apiLog = new WhatsAppApiLog();
+
         try {
             // Limpiar números de teléfono eliminando el símbolo +
             $companyPhone = $this->cleanPhoneNumber($appointmentData['company']['phone']);
@@ -77,22 +83,48 @@ class WhatsAppService
             $confirmUrl = $this->urlGenerator->generateConfirmUrl($appointment);
             $cancelUrl = $this->urlGenerator->generateCancelUrl($appointment);
 
-            $response = $this->httpClient->request('POST', 
-                $this->whatsappServiceUrl . '/api/whatsapp/session/' . $companyPhone . '/send-template', [
+            $endpoint = $this->whatsappServiceUrl . '/api/whatsapp/session/' . $companyPhone . '/send-template';
+            $payload = [
+                'phone' => $patientPhone,
+                'appointmentId' => $appointmentId,
+                'appointmentData' => $appointmentData['appointmentData'],
+                'messageType' => $messageType,
+            ];
+
+            // Solo agregar URLs si no son null
+            if ($confirmUrl !== null) {
+                $payload['confirmUrl'] = $confirmUrl;
+            }
+            
+            if ($cancelUrl !== null) {
+                $payload['cancelUrl'] = $cancelUrl;
+            }
+
+            $apiLog->setEndpoint($endpoint)
+                   ->setMethod('POST')
+                   ->setRequestPayload($payload)
+                   ->setPhoneNumber($patientPhone)
+                   ->setAppointmentId($appointmentId)
+                   ->setMessageType($messageType);
+                   
+            $response = $this->httpClient->request('POST', $endpoint, [
                 'headers' => $this->getCommonHeaders(),
-                'json' => [
-                    'phone' => $patientPhone,
-                    'appointmentId' => $appointmentId,
-                    'appointmentData' => $appointmentData['appointmentData'],
-                    'messageType' => $messageType,
-                    'confirmUrl' => $confirmUrl,
-                    'cancelUrl' => $cancelUrl
-                ],
+                'json' => $payload,
                 'timeout' => 30
             ]);
 
+            $responseTime = (int)((microtime(true) - $startTime) * 1000);
             $data = $response->toArray();
             
+             // Completar el log
+            $apiLog->setHttpStatus($response->getStatusCode())
+                   ->setResponseData($data)
+                   ->setResponseTimeMs($responseTime);
+
+            if (isset($data['messageId'])) {
+                $apiLog->setMessageId($data['messageId']);
+            }
+
             if ($data['success']) {
                 $this->logger->info('WhatsApp template message sent successfully', [
                     'appointment_id' => $appointmentId,
@@ -102,24 +134,55 @@ class WhatsAppService
                     'patient_phone' => $patientPhone
                 ]);
                 
+                $this->entityManager->persist($apiLog);
+                $this->entityManager->flush();
+                
                 return true;
             } else {
+                $errorMessage = $data['error'] ?? 'Unknown error';
+                $apiLog->setErrorMessage($errorMessage);
+                
                 $this->logger->error('Failed to send WhatsApp template message', [
                     'appointment_id' => $appointmentId,
-                    'error' => $data['error'] ?? 'Unknown error',
+                    'error' => $errorMessage,
                     'location_phone' => $companyPhone,
                     'patient_phone' => $patientPhone
                 ]);
                 
+                $this->entityManager->persist($apiLog);
+                $this->entityManager->flush();
+                
                 return false;
             }
-            
         } catch (\Exception $e) {
+            $responseTime = (int)((microtime(true) - $startTime) * 1000);
+            
+            // Intentar obtener más detalles del error si es una excepción HTTP
+            $errorMessage = $e->getMessage();
+            if ($e instanceof \Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface) {
+                try {
+                    $errorResponse = $e->getResponse()->toArray(false);
+                    if (isset($errorResponse['error'])) {
+                        $errorMessage = $errorResponse['error'];
+                    } elseif (isset($errorResponse['message'])) {
+                        $errorMessage = $errorResponse['message'];
+                    }
+                } catch (\Exception $parseException) {
+                    // Si no se puede parsear la respuesta, mantener el mensaje original
+                }
+            }
+            
+            $apiLog->setErrorMessage($errorMessage)
+                   ->setResponseTimeMs($responseTime);
+
             $this->logger->error('Exception sending WhatsApp template message', [
                 'appointment_id' => $appointmentId,
-                'error' => $e->getMessage(),
-                'location_phone' => $this->cleanPhoneNumber($appointmentData['location']['phone'] ?? 'unknown')
+                'error' => $errorMessage,
+                'location_phone' => $this->cleanPhoneNumber($appointmentData['company']['phone'] ?? 'unknown')
             ]);
+
+            $this->entityManager->persist($apiLog);
+            $this->entityManager->flush();
             
             return false;
         }

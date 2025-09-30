@@ -138,7 +138,7 @@ class AppointmentRepository extends ServiceEntityRepository
         $stmt = $this->getEntityManager()->getConnection()->prepare($sql);
         // $result = $stmt->executeQuery($params)->fetchAssociative();
         $result = $stmt->executeQuery($params)->fetchAssociative();
-        // var_dump($result === false)
+
         // $finalSql = $sql;
         // foreach ($params as $key => $value) {
         //     $finalSql = str_replace(":$key", "'$value'", $finalSql);
@@ -147,6 +147,12 @@ class AppointmentRepository extends ServiceEntityRepository
         // exit;
 
         $hasInvalidResult = $result === false;
+        // var_dump($hasInvalidResult);
+        // var_dump($this->isSlotAvailable($result));
+        // var_dump($result['appointments']);
+        // var_dump($result['has_special_schedules']);
+        // var_dump($result['professional_availability']);
+        // exit;
         return [
             'available' => $hasInvalidResult ? false : $this->isSlotAvailable($result),
             'hasConflicts' => $hasInvalidResult ? true : (int)$result['appointments'] > 0,

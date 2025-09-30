@@ -630,7 +630,15 @@
                     </div>
                     
                     <div class="notification-info">
-                        <p class="mb-0">Enviamos la información de tu reserva a <strong id="success-email"></strong></p>
+                        {% if company.emailNotificationsEnabled and company.whatsappNotificationsEnabled %}
+                            <p class="mb-0">Enviamos la información de tu reserva a <strong id="success-email"></strong> y <strong id="success-phone"></strong></p>
+                        {% elseif company.emailNotificationsEnabled %}
+                            <p class="mb-0">Enviamos la información de tu reserva a <strong id="success-email"></strong></p>
+                        {% elseif company.whatsappNotificationsEnabled %}
+                            <p class="mb-0">Enviamos la información de tu reserva a <strong id="success-phone"></strong></p>
+                        {% else %}
+                            <p class="mb-0">Tu reserva fue realizada</p>
+                        {% endif %}
                     </div>
                     
                     <!-- Botón para agendar otro turno -->

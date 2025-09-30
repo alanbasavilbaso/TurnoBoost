@@ -42,6 +42,10 @@ class EmailService
         // Calcular el número de modificaciones realizadas
         $modificationCount = $activeAppointment->getModificationCount();
         
+        // Generar URLs solo si son válidas
+        $confirmUrl = $this->urlGenerator->generateConfirmUrl($appointment);
+        $cancelUrl = $this->urlGenerator->generateCancelUrl($appointment);
+
         $htmlContent = $this->twig->render('emails/appointment_confirmation.html.twig', [
             'business_name' => $company->getName(),
             'service_name' => $service->getName(),
@@ -63,8 +67,8 @@ class EmailService
             'editable_bookings' => $company->isEditableBookings(),
             'minimum_edit_hours' => round($company->getMinimumEditTime() / 60),
             'maximum_edits' => $company->getMaximumEdits(),
-            'confirm_url' => $this->urlGenerator->generateConfirmUrl($appointment), // Usar el ID original para los enlaces
-            'cancel_url' => $this->urlGenerator->generateCancelUrl($appointment),
+            'confirm_url' => $confirmUrl,
+            'cancel_url' => $cancelUrl,
             'modify_url' => $canBeModified ? $this->generateModifyUrl($appointment) : null,
             
             'reschedule_website_url' => $_ENV['APP_URL']  . $company->getDomain(),
@@ -136,6 +140,10 @@ class EmailService
         $scheduledAt = $activeAppointment->getScheduledAt();
         $formattedDate = $this->formatDateInSpanish($scheduledAt);
 
+        // Generar URLs solo si son válidas
+        $confirmUrl = $this->urlGenerator->generateConfirmUrl($appointment);
+        $cancelUrl = $this->urlGenerator->generateCancelUrl($appointment);
+
         $htmlContent = $this->twig->render($template, [
             'business_name' => $company->getName(),
             'service_name' => $service->getName(),
@@ -160,11 +168,9 @@ class EmailService
             'modification_count' => $modificationCount,
             'type' => $type,
             'appointment_id' => $activeAppointment->getId(),
-            // AGREGAR LAS URLs QUE FALTAN:
-            'cancel_url' => $this->urlGenerator->generateCancelUrl($appointment),
+            'cancel_url' => $cancelUrl,
             'modify_url' => $canBeModified ? $this->generateModifyUrl($appointment) : null,
-
-            'confirm_url' => $this->urlGenerator->generateConfirmUrl($appointment),
+            'confirm_url' => $confirmUrl,
             'can_be_modified' => $canBeModified,
             'reschedule_website_url' => $_ENV['APP_URL'] . $company->getDomain(),
         ]);

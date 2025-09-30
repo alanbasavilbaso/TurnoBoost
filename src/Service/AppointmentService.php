@@ -327,7 +327,7 @@ class AppointmentService
             $service->getId(),
             null
         );
-      
+        
         if (!$available['available']) {
             if (isset($available['details']['appointments']) && $available['details']['appointments'] > 0) {
                 throw new \InvalidArgumentException(
@@ -340,7 +340,7 @@ class AppointmentService
                 );
             }
         }
-
+        
         $endTime = (clone $scheduledAt)->add(new \DateInterval('PT' . $durationMinutes . 'M'));
         
         // Verificar bloqueos
@@ -359,6 +359,7 @@ class AppointmentService
         $appointmentStartTime = $scheduledAt->format('H:i:s');
         $appointmentEndTime = $endTime->format('H:i:s');
         $dayOfWeek = (int)$scheduledAt->format('N'); // 0=Lunes, 6=Domingo
+
         // var_dump($appointmentDate);
         // var_dump($dayOfWeek);
         // exit;
