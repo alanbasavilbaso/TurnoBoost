@@ -3205,6 +3205,8 @@ function initFloatingActionButton() {
     // Opción de bloqueo horario
     blockOption.addEventListener('click', function() {
         closeFloatingMenu();
+        // Resetear modal antes de abrirlo
+        resetBlockModal();
         // Abrir modal de bloqueo
         const blockModal = new bootstrap.Modal(document.getElementById('blockModal'));
         blockModal.show();
@@ -3297,6 +3299,64 @@ function updateMonthlyPreview() {
     
     previewList.innerHTML = previewHtml;
     previewDiv.style.display = 'block';
+}
+
+function resetBlockModal() {
+    const blockForm = document.getElementById('blockForm');
+    const blockTypeSelect = document.getElementById('blockType');
+    
+    if (!blockForm || !blockTypeSelect) return;
+    
+    // Resetear el formulario
+    blockForm.reset();
+    
+    // Establecer el primer tipo de bloqueo como seleccionado
+    blockTypeSelect.value = 'single_day';
+    
+    // Resetear checkboxes de días de la semana
+    ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].forEach(day => {
+        const checkbox = document.getElementById(day);
+        if (checkbox) {
+            checkbox.checked = false;
+        }
+    });
+    
+    // Resetear selects de tiempo a valores por defecto
+    const startHourSelect = document.getElementById('startTime-hour');
+    const startMinuteSelect = document.getElementById('startTime-minute');
+    const endHourSelect = document.getElementById('endTime-hour');
+    const endMinuteSelect = document.getElementById('endTime-minute');
+    
+    if (startHourSelect) startHourSelect.value = '09';
+    if (startMinuteSelect) startMinuteSelect.value = '00';
+    if (endHourSelect) endHourSelect.value = '18';
+    if (endMinuteSelect) endMinuteSelect.value = '00';
+    
+    // Resetear checkbox "Todo el día"
+    const allDayCheckbox = document.getElementById('allDay');
+    const timeRangeDiv = document.getElementById('timeRange');
+    if (allDayCheckbox) {
+        allDayCheckbox.checked = true;
+        if (timeRangeDiv) {
+            timeRangeDiv.style.display = 'none';
+        }
+    }
+    
+    // Mostrar solo los campos del primer tipo de bloqueo
+    toggleBlockTypeFields('single_day');
+    updateExampleText('single_day');
+    
+    // Limpiar vista previa mensual
+    const monthlyPreviewDiv = document.getElementById('monthlyPreview');
+    if (monthlyPreviewDiv) {
+        monthlyPreviewDiv.style.display = 'none';
+    }
+    
+    // Resetear checkbox de vista previa mensual
+    const showMonthlyPreview = document.getElementById('showMonthlyPreview');
+    if (showMonthlyPreview) {
+        showMonthlyPreview.checked = false;
+    }
 }
 
 function saveBlock() {
@@ -3478,6 +3538,11 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.log('Block modal elements not found');
             return;
         }
+        
+        // Agregar event listener para resetear el modal cuando se abre
+        blockModal.addEventListener('show.bs.modal', function() {
+            resetBlockModal();
+        });
         
         // Manejar cambios en el tipo de bloqueo
         if (blockTypeSelect) {
