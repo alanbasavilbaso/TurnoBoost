@@ -17,6 +17,15 @@ class PatientService
 
     public function findOrCreatePatient(array $patientData, Company $company): Patient
     {
+        // Limpiar y validar el teléfono si está presente
+        if (isset($patientData['phone']) && !empty($patientData['phone'])) {
+            $cleanPhone = $this->cleanAndValidatePhone($patientData['phone']);
+            if ($cleanPhone === null) {
+                throw new \InvalidArgumentException('El teléfono no es válido. Debe contener entre 8 y 10 dígitos');
+            }
+            $patientData['phone'] = $cleanPhone;
+        }
+
         if (isset($patientData['id']) && $patientData['id']) {
             $patient = $this->entityManager->getRepository(Patient::class)->find($patientData['id']);
             
@@ -66,6 +75,33 @@ class PatientService
         $this->entityManager->persist($patient);
         
         return $patient;
+    }
+
+    /**
+     * Limpia y valida un número de teléfono argentino
+     * 
+     * @param string $phone El número de teléfono a limpiar
+     * @return string|null El teléfono limpio en formato +549XXXXXXXXX o null si es inválido
+     */
+    private function cleanAndValidatePhone(string $phone): ?string
+    {
+        // Limpiar el teléfono removiendo caracteres no numéricos excepto el +
+        $cleanPhone = preg_replace('/[^\d+]/', '', $phone);
+        
+        // Asegurar que el número empiece con +549
+        // Primero removemos cualquier prefijo existente
+        $cleanPhone = preg_replace('/^\+?54?9?/', '', $cleanPhone);
+        
+        // Ahora agregamos el prefijo correcto
+        $cleanPhone = '+549' . $cleanPhone;
+
+        // Validar formato de teléfono argentino
+        // Debe empezar con +549 y tener entre 8 y 10 dígitos después del código
+        if (!preg_match('/^\+549[0-9]{8,10}$/', $cleanPhone)) {
+            return null;
+        }
+        
+        return $cleanPhone;
     }
 
     /**
