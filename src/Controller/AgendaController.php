@@ -27,6 +27,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use App\Service\TimeSlot;
 use App\Service\NotificationService;
 use App\Service\PhoneUtilityService;
+use PHPUnit\Framework\Constraint\IsEmpty;
 
 #[Route('/agenda')]
 #[IsGranted('ROLE_ADMIN')]
@@ -684,30 +685,44 @@ class AgendaController extends AbstractController
             return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
         }
     
-        $query = $request->query->get('q', '');
+        $query = strtolower($request->query->get('q', ''));
         
         if (strlen($query) < 2) {
             return new JsonResponse([]);
         }
-    
-        $patients = $this->entityManager->getRepository(Patient::class)
+
+        // Construir la consulta de búsqueda dinámicamente según la configuración de la empresa
+        $qb = $this->entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
             ->where('p.company = :company')
             ->andWhere('p.deletedAt IS NULL') // Solo pacientes no eliminados
-            ->andWhere('(
-                p.firstName LIKE :query OR 
-                p.lastName LIKE :query OR
-                p.idDocument LIKE :query OR
-                p.email LIKE :query OR 
-                p.phone LIKE :query
-            )')
-            ->setParameter('company', $company)
-            ->setParameter('query', '%' . $query . '%')
-            ->orderBy('p.firstName', 'ASC')
-            ->addOrderBy('p.lastName', 'ASC')
-            ->setMaxResults(10)
-            ->getQuery()
-            ->getResult();
+            ->setParameter('company', $company);
+
+        // Construir las condiciones de búsqueda dinámicamente
+        $searchConditions = [
+            'LOWER(p.firstName) LIKE :query',
+            'LOWER(p.lastName) LIKE :query',
+            'LOWER(p.idDocument) LIKE :query'
+        ];
+
+        // Agregar email solo si la empresa lo requiere
+        if ($company->isRequireEmail()) {
+            $searchConditions[] = 'LOWER(p.email) LIKE :query';
+        }
+
+        // Agregar teléfono solo si la empresa lo requiere
+        if ($company->isRequirePhone()) {
+            $searchConditions[] = 'LOWER(p.phone) LIKE :query';
+        }
+
+        // Aplicar las condiciones de búsqueda
+        $qb->andWhere('(' . implode(' OR ', $searchConditions) . ')')
+           ->setParameter('query', '%' . $query . '%')
+           ->orderBy('p.firstName', 'ASC')
+           ->addOrderBy('p.lastName', 'ASC')
+           ->setMaxResults(10);
+
+        $patients = $qb->getQuery()->getResult();
     
         $result = [];
         foreach ($patients as $patient) {
@@ -1062,7 +1077,18 @@ class AgendaController extends AbstractController
                     
                 case 'date_range':
                     $block->setStartDate(new \DateTime($data['start_date']));
-                    $block->setEndDate(new \DateTime($data['end_date']));
+                    // Validar end_date más robustamente
+                    if (!empty($data['end_date']) && trim($data['end_date']) !== '') {
+                        $endDate = new \DateTime($data['end_date']);
+                        // Validar que la fecha de fin sea posterior a la de inicio
+                        if ($endDate >= $block->getStartDate()) {
+                            $block->setEndDate($endDate);
+                        } else {
+                            return new JsonResponse(['error' => 'La fecha de fin debe ser posterior a la fecha de inicio'], 400);
+                        }
+                    } else {
+                        $block->setEndDate(null);
+                    }
                     break;
                     
                 case 'weekdays_pattern':

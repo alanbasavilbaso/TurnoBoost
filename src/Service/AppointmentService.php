@@ -960,7 +960,7 @@ class AppointmentService
 
         // Obtener todos los bloques activos para este profesional y fecha
         $blocks = $this->getActiveBlocks($professionalId, $appointmentDate);
-        // var_dump($blocks);exit;
+        
         if (empty($blocks)) {
             return $slots;
         }
@@ -989,7 +989,7 @@ class AppointmentService
                         
                     case 'date_range':
                         // Verificar si la fecha de la cita está dentro del rango
-                        if ($appointmentDate >= $block['start_date'] && $appointmentDate <= $block['end_date']) {
+                        if ($appointmentDate >= $block['start_date'] && ($block['end_date'] === null || $appointmentDate <= $block['end_date'])) {
                             $blockAffectsSlot = $this->checkSlotTimeOverlap($block, $slotStart, $slotEnd);
                         }
                         break;
@@ -1069,7 +1069,7 @@ class AppointmentService
             AND ( 
                 (pb.block_type = 'single_day' AND pb.start_date = :appointment_date) 
             OR 
-                (pb.block_type = 'date_range' AND pb.start_date <= :appointment_date AND pb.end_date >= :appointment_date) 
+                (pb.block_type = 'date_range' AND pb.start_date <= :appointment_date AND (pb.end_date IS NULL OR pb.end_date >= :appointment_date)) 
             OR 
                 ( 
                     pb.block_type = 'weekdays_pattern' 
@@ -1092,6 +1092,12 @@ class AppointmentService
             'appointment_date' => $appointmentDate,
             'day_of_week' => $dayOfWeek
         ];
+
+        // $debugSql = $sql;
+        // foreach ($params as $key => $value) {
+        //     $debugSql = str_replace(':' . $key, "'" . $value . "'", $debugSql);
+        // }
+        // var_dump($debugSql);exit;
         
         return $this->entityManager->getConnection()->fetchAllAssociative($sql, $params);
     }

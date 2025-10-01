@@ -36,8 +36,8 @@ class PersonController extends AbstractController
         $offset = ($page - 1) * $limit;
         
         // Obtener el parámetro de búsqueda
-        $search = $request->query->get('search', '');
-        
+        $search = strtolower($request->query->get('search', ''));
+
         // Query base para contar total de clientes (solo activos)
         $countQueryBuilder = $entityManager->getRepository(Patient::class)
             ->createQueryBuilder('p')
@@ -47,7 +47,7 @@ class PersonController extends AbstractController
             ->setParameter('company', $company);
             
         if (!empty($search)) {
-            $countQueryBuilder->andWhere('p.firstName LIKE :search OR p.lastName LIKE :search OR p.email LIKE :search OR p.phone LIKE :search OR p.idDocument LIKE :search')
+            $countQueryBuilder->andWhere('LOWER(p.firstName) LIKE :search OR LOWER(p.lastName) LIKE :search OR LOWER(p.email) LIKE :search OR LOWER(p.phone) LIKE :search OR LOWER(p.idDocument) LIKE :search')
                 ->setParameter('search', '%' . $search . '%');
         }
         
@@ -65,7 +65,7 @@ class PersonController extends AbstractController
             ->setMaxResults($limit);
             
         if (!empty($search)) {
-            $queryBuilder->andWhere('p.firstName LIKE :search OR p.lastName LIKE :search OR p.email LIKE :search OR p.phone LIKE :search OR p.idDocument LIKE :search')
+            $queryBuilder->andWhere('LOWER(p.firstName) LIKE :search OR LOWER(p.lastName) LIKE :search OR LOWER(p.email) LIKE :search OR LOWER(p.phone) LIKE :search OR LOWER(p.idDocument) LIKE :search')
                 ->setParameter('search', '%' . $search . '%');
         }
         
