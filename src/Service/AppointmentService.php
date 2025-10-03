@@ -86,7 +86,7 @@ class AppointmentService
         }
 
         // Crear o buscar paciente
-        $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $company);
+        $patient = $this->patientService->findOrCreatePatient($appointmentData['patientData'], $company, $source);
                 
         // Crear la cita
         $appointment = new Appointment();
@@ -318,14 +318,15 @@ class AppointmentService
         int $durationMinutes, 
         Professional $professional,
         Service $service,
-        Location $location
+        Location $location,
+        ?int $appointmentId = null
     ): void {
         $available = $this->appointmentRepository->validateSlotAvailability(
             $scheduledAt,
             $durationMinutes,
             $professional->getId(),
             $service->getId(),
-            null
+            $appointmentId
         );
         
         if (!$available['available']) {

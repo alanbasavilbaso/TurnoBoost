@@ -934,7 +934,8 @@ class AgendaController extends AbstractController
                 $professionalService->getEffectiveDuration(),
                 $professionalService->getProfessional(),
                 $professionalService->getService(),
-                $location
+                $location,
+                $appointmentId
             );
             $available = is_null($available) ? true : false;
             return new JsonResponse([

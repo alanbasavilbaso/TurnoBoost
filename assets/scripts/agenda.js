@@ -21,6 +21,7 @@ class AgendaManager {
         };
         this.businessHoursCache = null;
         this.lastBusinessHoursUpdate = null;
+        this.isSaving = false; // Agregar flag para prevenir doble clic
     }
 
     async init() {
@@ -919,6 +920,10 @@ class AgendaManager {
         const saveAppointment = document.getElementById('save-appointment');
         if (saveAppointment) {
             saveAppointment.addEventListener('click', () => {
+                // Prevenir doble clic
+                if (this.isSaving) {
+                    return;
+                }
                 this.saveAppointment();
             });
         }
@@ -2665,6 +2670,19 @@ class AgendaManager {
             return;
         }
         
+        // Prevenir múltiples envíos
+        if (this.isSaving) {
+            return;
+        }
+        
+        this.isSaving = true;
+        const saveButton = document.getElementById('save-appointment');
+        const originalText = saveButton.textContent;
+        
+        // Deshabilitar botón y cambiar texto
+        saveButton.disabled = true;
+        saveButton.textContent = 'Guardando...';
+        
         const appointmentData = this.getAppointmentFormData();
         const isEditing = appointmentData.id && appointmentData.id.trim() !== '';
         
@@ -2712,6 +2730,11 @@ class AgendaManager {
             console.error('Error saving appointment:', error);
             const errorMessage = isEditing ? 'Error de conexión al actualizar la cita' : 'Error de conexión al guardar la cita';
             this.showAlert(errorMessage, 'error');
+        } finally {
+            // Rehabilitar botón y restaurar texto
+            this.isSaving = false;
+            saveButton.disabled = false;
+            saveButton.textContent = originalText;
         }
     }
 

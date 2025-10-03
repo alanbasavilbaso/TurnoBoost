@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Entity\Patient;
 use App\Entity\Company;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Entity\AppointmentSourceEnum;
 
 class PatientService
 {
@@ -15,7 +16,7 @@ class PatientService
         $this->entityManager = $entityManager;
     }
 
-    public function findOrCreatePatient(array $patientData, Company $company): Patient
+    public function findOrCreatePatient(array $patientData, Company $company, AppointmentSourceEnum $source = AppointmentSourceEnum::USER): Patient
     {
         // Limpiar y validar el teléfono si está presente
         if (isset($patientData['phone']) && !empty($patientData['phone'])) {
@@ -28,30 +29,41 @@ class PatientService
 
         if (isset($patientData['id']) && $patientData['id']) {
             $patient = $this->entityManager->getRepository(Patient::class)->find($patientData['id']);
-            
             if ($patient && $patient->getCompany() === $company && !$patient->isDeleted()) {
-                // Si el paciente existe y no está eliminado, simplemente lo devolvemos sin modificar nada
+                // Actualizar los datos del paciente con la información proporcionada
+                if (isset($patientData['email']) && !empty($patientData['email'])) {
+                    $patient->setEmail($patientData['email']);
+                }
+                if (isset($patientData['phone']) && !empty($patientData['phone'])) {
+                    $patient->setPhone($patientData['phone']);
+                }
+                if (isset($patientData['birth_date']) && !empty($patientData['birth_date'])) {
+                    $patient->setBirthDate($patientData['birth_date']);
+                }
+                
                 return $patient;
             }
         }
         
         // Buscar paciente existente por email o teléfono (solo pacientes no eliminados)
-        if (isset($patientData['email']) || isset($patientData['phone'])) {
+        if ((isset($patientData['email']) && !empty($patientData['email'])) ||
+             (isset($patientData['phone']) && !empty($patientData['phone'])) ) {
             $qb = $this->entityManager->getRepository(Patient::class)->createQueryBuilder('p')
                 ->where('p.company = :company')
                 ->andWhere('p.deletedAt IS NULL') // Solo pacientes no eliminados
                 ->setParameter('company', $company);
             
-            if (isset($patientData['email']) && isset($patientData['phone'])) {
+            if (isset($patientData['email']) && !empty($patientData['email']) && 
+                isset($patientData['phone']) && !empty($patientData['phone'])) {
                 // Si tenemos ambos, buscar por ambos campos
                 $qb->andWhere('p.email = :email AND p.phone = :phone')
                    ->setParameter('email', $patientData['email'])
                    ->setParameter('phone', $patientData['phone']);
-            } elseif (isset($patientData['email'])) {
+            } elseif (isset($patientData['email']) && !empty($patientData['email'])) {
                 // Solo email
                 $qb->andWhere('p.email = :email')
                    ->setParameter('email', $patientData['email']);
-            } elseif (isset($patientData['phone'])) {
+            } elseif (isset($patientData['phone']) && !empty($patientData['phone'])) {
                 // Solo teléfono
                 $qb->andWhere('p.phone = :phone')
                    ->setParameter('phone', $patientData['phone']);
