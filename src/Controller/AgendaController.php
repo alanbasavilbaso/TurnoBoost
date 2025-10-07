@@ -1804,7 +1804,7 @@ class AgendaController extends AbstractController
             ->leftJoin('a.service', 's')
             ->where('a.company = :company')
             ->andWhere('n.status = :status')
-            ->andWhere('n.scheduledAt > :now')
+            ->andWhere('a.scheduledAt > :now')
             ->andWhere('n.templateUsed LIKE :whatsapp')
             ->setParameter('company', $company)
             ->setParameter('status', \App\Entity\NotificationStatusEnum::FAILED)
@@ -1834,17 +1834,21 @@ class AgendaController extends AbstractController
             $notification = $this->entityManager->getRepository('App\Entity\Notification')
                 ->createQueryBuilder('n')
                 ->join('n.appointment', 'a')
+                ->join('a.patient', 'pt')
                 ->where('n.id = :id')
                 ->andWhere('a.company = :company')
                 ->andWhere('n.status = :status')
+                ->andWhere('pt.phone IS NOT NULL')
+                ->andWhere('pt.phone != :emptyString')
                 ->setParameter('id', $id)
                 ->setParameter('company', $company)
                 ->setParameter('status', \App\Entity\NotificationStatusEnum::FAILED)
+                ->setParameter('emptyString', '')
                 ->getQuery()
                 ->getOneOrNullResult();
 
             if (!$notification) {
-                return new JsonResponse(['error' => 'Notificación no encontrada'], 404);
+                return new JsonResponse(['error' => 'Notificación no encontrada o sin número de teléfono'], 404);
             }
 
             // Resetear el estado para reenvío
@@ -1883,14 +1887,18 @@ class AgendaController extends AbstractController
                 ->select('n.id')
                 ->from('App\Entity\Notification', 'n')
                 ->join('n.appointment', 'a')
+                ->join('a.patient', 'pt')
                 ->where('a.company = :company')
                 ->andWhere('n.status = :failedStatus')
                 ->andWhere('n.scheduledAt > :now')
                 ->andWhere('n.templateUsed LIKE :whatsapp')
+                ->andWhere('pt.phone IS NOT NULL')
+                ->andWhere('pt.phone != :emptyString')
                 ->setParameter('company', $company)
                 ->setParameter('failedStatus', \App\Entity\NotificationStatusEnum::FAILED)
                 ->setParameter('now', $now)
                 ->setParameter('whatsapp', 'whatsapp_%')
+                ->setParameter('emptyString', '')
                 ->getQuery()
                 ->getArrayResult();
 
@@ -1899,7 +1907,7 @@ class AgendaController extends AbstractController
             if (empty($ids)) {
                 return new JsonResponse([
                     'success' => true,
-                    'message' => 'No hay notificaciones para reenviar'
+                    'message' => 'No hay notificaciones para reenviar o sin número de teléfono'
                 ]);
             }
 

@@ -119,7 +119,12 @@
                             </td>
                             <td>
                                 <small class="text-danger">
-                                    {{ notification.errorMessage|slice(0, 50) }}{% if notification.errorMessage|length > 50 %}...{% endif %}
+                                    ({{notification.appointment.id}})
+                                    {% if notification.appointment.patient.phone is empty %}
+                                        Sin número de teléfono
+                                    {% else %}
+                                        {{ notification.errorMessage|slice(0, 17) }}{% if notification.errorMessage|length > 16 %}...{% endif %}
+                                    {% endif %}
                                 </small>
                             </td>
                             <td>
