@@ -273,6 +273,11 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
+#calendar .fc-event.whatsapp-error,
+.whatsapp-error {
+    border: 2px solid #dc3545;
+}
+
 #appointment-status-container {
     display: flex;
     align-items: center;
@@ -881,4 +886,28 @@
 /* Para FullCalendar */
 .fc-event-title .source-icon {
     margin-right: 3px;
+}
+
+/* Estilos para iconos de notificaciones de WhatsApp */
+.whatsapp-notification-icon {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 14px;
+    cursor: help;
+}
+
+.patient-first-name .whatsapp-notification-icon {
+    margin-left: 8px;
+    font-size: 16px;
+}
+
+.shipping-status {
+    font-size: 13px;
+}
+
+.show-failed-notifications {
+    color: #dc3545;
+    font-size: 13px;
+    float: right;
+    text-decoration: none;
 }

@@ -1,0 +1,287 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Notificaciones Fallidas - TurnoBoost{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link href="{{ asset('assets/styles/agenda.css') }}" rel="stylesheet">
+    <style>
+        .failed-notifications-container {
+            padding: 20px;
+        }
+        .notification-row {
+            transition: opacity 0.3s ease;
+        }
+        .notification-row.processing {
+            opacity: 0.6;
+        }
+        .btn-retry {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+        .notification-type-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .table-responsive {
+            border-radius: 0.375rem;
+            overflow: hidden;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        .alert-info {
+            border-left: 4px solid #0dcaf0;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+<div class="failed-notifications-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                Notificaciones Fallidas
+            </h2>
+            <p class="text-muted mb-0">
+                Notificaciones de WhatsApp que fallaron
+            </p>
+        </div>
+        <div>
+            {% if failedNotifications|length > 0 %}
+                <button type="button" class="btn btn-warning" id="retryAllBtn">
+                    <i class="fas fa-redo me-1"></i>
+                    Reenviar Todo
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if failedNotifications|length == 0 %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            No hay notificaciones fallidas.
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Se encontraron <strong>{{ failedNotifications|length }}</strong> notificaciones fallidas.
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha del Turno</th>
+                        <th>Paciente</th>
+                        <th>Tipo de Recordatorio</th>
+                        <th>Programado para</th>
+                        <th>Error</th>
+                        <th width="120">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for notification in failedNotifications %}
+                        <tr class="notification-row" data-notification-id="{{ notification.id }}">
+                            <td>
+                                <div class="fw-semibold">
+                                    {{ notification.appointment.scheduledAt|date('d/m/Y') }}
+                                </div>
+                                <small class="text-muted">
+                                    {{ notification.appointment.scheduledAt|date('H:i') }}
+                                </small>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">
+                                    {{ notification.appointment.patient.name }}
+                                </div>
+                                <small class="text-muted">
+                                    {{ notification.appointment.service ? notification.appointment.service.name : 'Sin servicio' }}
+                                </small>
+                            </td>
+                            <td>
+                                {% set typeMap = {
+                                    'whatsapp_confirmation': { label: 'Confirmación', class: 'bg-primary' },
+                                    'whatsapp_reminder': { label: 'Recordatorio', class: 'bg-info' },
+                                    'whatsapp_urgent': { label: 'Urgente', class: 'bg-warning text-dark' }
+                                } %}
+                                {% set type = typeMap[notification.templateUsed] ?? { label: notification.templateUsed, class: 'bg-secondary' } %}
+                                <span class="badge notification-type-badge {{ type.class }}">
+                                    {{ type.label }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">
+                                    {{ notification.scheduledAt|date('d/m/Y') }}
+                                </div>
+                                <small class="text-muted">
+                                    {{ notification.scheduledAt|date('H:i') }}
+                                </small>
+                            </td>
+                            <td>
+                                <small class="text-danger">
+                                    {{ notification.errorMessage|slice(0, 50) }}{% if notification.errorMessage|length > 50 %}...{% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-success btn-retry" 
+                                        data-notification-id="{{ notification.id }}"
+                                        title="Forzar reenvío">
+                                    <i class="fas fa-redo me-1"></i>
+                                    Reenviar
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Procesando...</span>
+                </div>
+                <div>Procesando reenvío...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+            
+            // Reenvío individual
+            document.querySelectorAll('.btn-retry').forEach(button => {
+                button.addEventListener('click', function() {
+                    const notificationId = this.dataset.notificationId;
+                    const row = document.querySelector(`tr[data-notification-id="${notificationId}"]`);
+                    
+                    retryNotification(notificationId, row);
+                });
+            });
+            
+            // Reenvío masivo
+            const retryAllBtn = document.getElementById('retryAllBtn');
+            if (retryAllBtn) {
+                retryAllBtn.addEventListener('click', function() {
+                    if (confirm('¿Estás seguro de que quieres reenviar todas las notificaciones fallidas?')) {
+                        retryAllNotifications();
+                    }
+                });
+            }
+            
+            function retryNotification(notificationId, row) {
+                loadingModal.show();
+                row.classList.add('processing');
+                
+                fetch(`/agenda/failednotifications/retry/${notificationId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingModal.hide();
+                    
+                    if (data.success) {
+                        // Remover la fila con animación
+                        row.style.transition = 'opacity 0.3s ease';
+                        row.style.opacity = '0';
+                        setTimeout(() => {
+                            row.remove();
+                            checkIfEmpty();
+                        }, 300);
+                        
+                        showAlert('success', data.message);
+                    } else {
+                        row.classList.remove('processing');
+                        showAlert('danger', data.error || 'Error al procesar el reenvío');
+                    }
+                })
+                .catch(error => {
+                    loadingModal.hide();
+                    row.classList.remove('processing');
+                    showAlert('danger', 'Error de conexión');
+                    console.error('Error:', error);
+                });
+            }
+            
+            function retryAllNotifications() {
+                loadingModal.show();
+                
+                fetch('/agenda/failednotifications/retry-all', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingModal.hide();
+                    
+                    if (data.success) {
+                        // Remover todas las filas
+                        document.querySelectorAll('.notification-row').forEach(row => {
+                            row.style.transition = 'opacity 0.3s ease';
+                            row.style.opacity = '0';
+                        });
+                        
+                        setTimeout(() => {
+                            document.querySelectorAll('.notification-row').forEach(row => row.remove());
+                            checkIfEmpty();
+                        }, 300);
+                        
+                        showAlert('success', data.message);
+                    } else {
+                        showAlert('danger', data.error || 'Error al procesar el reenvío masivo');
+                    }
+                })
+                .catch(error => {
+                    loadingModal.hide();
+                    showAlert('danger', 'Error de conexión');
+                    console.error('Error:', error);
+                });
+            }
+            
+            function checkIfEmpty() {
+                const tbody = document.querySelector('tbody');
+                if (tbody && tbody.children.length === 0) {
+                    location.reload(); // Recargar para mostrar el mensaje de "no hay notificaciones"
+                }
+            }
+            
+            function showAlert(type, message) {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+                alertDiv.innerHTML = `
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                
+                const container = document.querySelector('.failed-notifications-container');
+                container.insertBefore(alertDiv, container.firstChild);
+                
+                // Auto-remover después de 5 segundos
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.remove();
+                    }
+                }, 5000);
+            }
+        });
+    </script>
+{% endblock %}

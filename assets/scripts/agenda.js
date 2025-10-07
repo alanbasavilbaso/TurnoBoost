@@ -372,9 +372,9 @@ class AgendaManager {
             selectMirror: true,
             
             // Agregar eventContent para personalizar la renderización
-            eventContent: function(arg) {
+            eventContent: (arg) => {
                 const sourceIcon = arg.event.extendedProps?.source === 'user' ? '<span class="source-icon" title="Reservado desde la web">💻</span>' : '';
-                
+
                 return {
                     html: `
                         <div class="fc-event-main">
@@ -387,6 +387,13 @@ class AgendaManager {
                         </div>
                     `
                 };
+            },
+
+            eventClassNames: (arg) => {
+                const hasErrorInAnyNotification = arg.event.extendedProps?.whatsappNotifications ? 
+                    this.hasErrorInAnyNotification(arg.event.extendedProps?.whatsappNotifications) : false;
+                
+                return hasErrorInAnyNotification ? ['whatsapp-error'] : [];
             },
             
             // Configuración específica por vista
@@ -514,8 +521,10 @@ class AgendaManager {
                 // Buscar citas en este slot
                 const appointments = this.getAppointmentsForSlot(date, time, prof.id, appointmentsToRender);
                 appointments.forEach(apt => {
+                    const hasErrorInAnyNotification = this.hasErrorInAnyNotification(apt.extendedProps?.whatsappNotifications);
+
                     const aptBlock = document.createElement('div');
-                    aptBlock.className = 'appointment-block';
+                    aptBlock.className = 'appointment-block' + (hasErrorInAnyNotification ? ' whatsapp-error' : '');
                     aptBlock.dataset.id = apt.id;
 
                     // Aplicar colores dinámicos desde el backend
@@ -1396,7 +1405,8 @@ class AgendaManager {
                 blockType: info.event.extendedProps?.blockType,
                 blockId: info.event.extendedProps?.blockId,
                 professionalId: info.event.extendedProps?.professionalId,
-                extendedProps: info.event.extendedProps
+                extendedProps: info.event.extendedProps,
+                whatsappNotifications: info.event.extendedProps?.whatsappNotifications
             };
             
             this.showBlockDetails(blockData, info.jsEvent);
@@ -1416,7 +1426,8 @@ class AgendaManager {
                 patientEmail: info.event.extendedProps?.patientEmail,
                 patientPhone: info.event.extendedProps?.patientPhone,
                 professionalName: info.event.extendedProps?.professionalName,
-                serviceName: info.event.extendedProps?.serviceName
+                serviceName: info.event.extendedProps?.serviceName,
+                whatsappNotifications: info.event.extendedProps?.whatsappNotifications
             };
             
             this.showAppointmentDetails(eventData, info.jsEvent);
@@ -1457,6 +1468,7 @@ class AgendaManager {
             duration: durationText,
             status: eventData.status,
             notes: eventData.notes,
+            whatsappNotifications: eventData.whatsappNotifications,
             appointmentData: eventData
         });
         // Posicionar el tooltip
@@ -1471,6 +1483,68 @@ class AgendaManager {
         this.setupTooltipCloseEventsOfAppointment(tooltip);
     }
 
+    // Función para generar iconos de notificaciones de WhatsApp
+    generateWhatsAppNotificationIcons(notifications, showAll = false) {
+        if (!notifications) return '';
+        
+        const icons = [];
+        const types = ['confirmation', 'reminder', 'urgent_reminder'];
+        const typeNumbers = {
+            'confirmation': '1️⃣',
+            'reminder': '2️⃣', 
+            'urgent_reminder': '3️⃣'
+        };
+        const typeLabels = {
+            'confirmation': 'Confirmación',
+            'reminder': 'Recordatorio', 
+            'urgent_reminder': 'Recordatorio urgente'
+        };
+        
+        const statusIcons = {
+            'SENT': '✅',
+            'PENDING': '⏳',
+            'FAILED': '❌',
+            'CANCELLED': '🚫'
+        };
+        let hasFailed = false;
+        types.forEach(type => {
+            const notification = notifications[type];
+            if (notification || showAll) {
+                const status = notification?.status?.toUpperCase() || 'PENDING';
+                if (status === 'FAILED') {
+                    hasFailed = true;
+                }
+                const icon = statusIcons[status] || '⏳';
+                const number = typeNumbers[type];
+                const label = typeLabels[type];
+                icons.push(`<span class="whatsapp-notification-icon" title="${label}: ${status}" data-type="${type}">${number} ${icon}</span>`);
+            }
+        });
+        
+        // Si hay iconos, agregar "Envíos" al principio
+        if (icons.length > 0) {
+            const showSends = hasFailed ? 
+            '<a href="/agenda/failednotifications" class="show-failed-notifications" target="_blank"><i class="fas fa-exclamation-triangle me-1"></i>Ver fallidos</a>' : '';
+            return `Envíos: ${icons.join(' ')} ${showSends}`;
+        }
+        
+        return '';
+    }
+
+    // Función que determina si hay algún error en alguna notificación
+    hasErrorInAnyNotification(notifications) {
+        if (!notifications) return false;
+        
+        const keys = Object.keys(notifications);
+        for (const key of keys) {
+            const notification = notifications[key];
+            if (notification?.status.toUpperCase() === 'FAILED') {
+                return true;
+            }
+        }
+        return false;
+    }
+
     createAppointmentTooltip(data) {
         const tooltip = document.createElement('div');
         tooltip.className = 'appointment-tooltip';
@@ -1478,6 +1552,9 @@ class AgendaManager {
         const statusBadge = this.getStatusText(data.status);
         const statusClass = this.getStatusBadgeClass(data.status);
         
+        // Generar iconos de notificaciones para el tooltip (mostrar todos los tipos)
+        const whatsappIcons = this.generateWhatsAppNotificationIcons(data.appointmentData?.whatsappNotifications, true);
+
         tooltip.innerHTML = `
             <div class="tooltip-header">
                 <div class="status-container">
@@ -1499,6 +1576,7 @@ class AgendaManager {
             <div class="tooltip-content">
                 <div class="patient-info">
                     <h4 class="patient-first-name">${data.patientFirstName} ${data.patientLastName}</h4>
+                    <div class="shipping-status">${whatsappIcons}</div>
                     <div class="service-info">
                         <span class="service-name">${data.serviceName}</span>
                     </div>

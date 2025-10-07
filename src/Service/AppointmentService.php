@@ -335,10 +335,25 @@ class AppointmentService
                     'El horario seleccionado se superpone con una cita existente'
                 );
             } else {
-                throw new \InvalidArgumentException(
-                    'El horario seleccionado está fuera de la disponibilidad del profesional.',
-                    1
-                );
+                // NUEVA VALIDACIÓN: Verificar si está dentro del horario de la location
+                $weekDay = (int)$scheduledAt->format('w');
+                $endTime = (clone $scheduledAt)->add(new \DateInterval('PT' . $durationMinutes . 'M'));
+                
+                // Verificar si el turno está dentro del horario de trabajo de la location
+                if ($this->isAppointmentWithinLocationHours($scheduledAt, $endTime, $location, $weekDay)) {
+                    // El turno está dentro del horario de la location, pero fuera del profesional
+                    // Devolver código 2 para permitir que el profesional lo guarde de todas formas
+                    throw new \InvalidArgumentException(
+                        'El horario seleccionado está fuera de la disponibilidad del profesional.',
+                        2
+                    );
+                } else {
+                    // El turno está completamente fuera del horario de la location
+                    throw new \InvalidArgumentException(
+                        'El horario seleccionado está fuera de la disponibilidad del profesional.',
+                        1
+                    );
+                }
             }
         }
         
@@ -351,6 +366,33 @@ class AppointmentService
     /**
      * Valida que no haya bloqueos que interfieran con la cita
      */
+    /**
+     * Verifica si una cita está dentro del horario de trabajo de la location
+     */
+    private function isAppointmentWithinLocationHours(
+        \DateTime $startTime, 
+        \DateTime $endTime, 
+        Location $location, 
+        int $weekDay
+    ): bool {
+        $dayAvailabilities = $location->getAvailabilitiesForWeekDay($weekDay);
+        
+        if ($dayAvailabilities->isEmpty()) {
+            return false; // No hay horarios definidos para este día
+        }
+        
+        foreach ($dayAvailabilities as $availability) {
+            // Verificar si el inicio del turno está dentro del horario del local
+            if ($availability->isTimeInRange($startTime)) {
+            // Verificar si tanto el inicio como el fin de la cita están dentro de este horario
+            // if ($availability->isTimeInRange($startTime) && $availability->isTimeInRange($endTime)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
     private function validateBlockConflicts(
         \DateTime $scheduledAt,
         \DateTime $endTime,

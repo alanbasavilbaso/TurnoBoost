@@ -97,9 +97,7 @@ class AgendaController extends AbstractController
     }
 
     #[Route('/appointments', name: 'app_agenda_appointments', methods: ['GET'])]
-    // En el método getAppointments, agregar filtro de fecha
-    public function getAppointments(Request $request): JsonResponse
-    {
+    public function getAppointments(Request $request): JsonResponse {
         $user = $this->getUser();
         $company = $user->getCompany();
         
@@ -127,11 +125,12 @@ class AgendaController extends AbstractController
         $serviceId = $request->query->get('service');
     
         $queryBuilder = $this->entityManager->createQueryBuilder()
-            ->select('a', 'p', 's', 'pat')
+            ->select('a', 'p', 's', 'pat', 'n')
             ->from(Appointment::class, 'a')
             ->leftJoin('a.professional', 'p')
             ->leftJoin('a.service', 's')
             ->leftJoin('a.patient', 'pat')
+            ->leftJoin('a.notifications', 'n')
             ->where('a.company = :company')
             ->andWhere('a.scheduledAt BETWEEN :start AND :end')
             ->andWhere('a.status NOT IN (:cancelStatus)')
@@ -173,6 +172,9 @@ class AgendaController extends AbstractController
                 $patientFullName .= ' (eliminado)';
             }
 
+            // Procesar notificaciones de WhatsApp
+            $whatsappNotifications = $this->processWhatsAppNotifications($appointment->getNotifications());
+
             $events[] = [
                 'id' => $appointment->getId(),
                 'title' => sprintf('%s (%s)', 
@@ -197,12 +199,58 @@ class AgendaController extends AbstractController
                     'status' => $appointment->getStatus(),
                     'phone' => $appointment->getPatient()->getPhone(),
                     'notes' => $appointment->getNotes(),
-                    'source' => $appointment->getSource()->value
+                    'source' => $appointment->getSource()->value,
+                    'whatsappNotifications' => $whatsappNotifications
                 ]
             ];
         }
 
         return new JsonResponse($events);
+    }
+
+        /**
+     * Procesa las notificaciones de WhatsApp de una cita y devuelve el estado de cada tipo
+     */
+    private function processWhatsAppNotifications($notifications): array
+    {
+        $whatsappNotifications = [
+            'confirmation' => null,
+            'reminder' => null,
+            'urgent' => null
+        ];
+
+        foreach ($notifications as $notification) {
+            // Solo procesar notificaciones de WhatsApp
+            if (!$notification->getTemplateUsed() || !str_contains($notification->getTemplateUsed(), 'whatsapp_')) {
+                continue;
+            }
+
+            $type = $notification->getType()->value;
+            $status = $notification->getStatus()->value;
+            
+            $notificationData = [
+                'status' => $status,
+                'sentAt' => $notification->getSentAt()?->format('Y-m-d H:i:s'),
+                'scheduledAt' => $notification->getScheduledAt()?->format('Y-m-d H:i:s'),
+                'errorMessage' => $notification->getErrorMessage()
+            ];
+
+            // Mapear los tipos de notificación
+            switch ($type) {
+                case 'confirmation':
+                    $whatsappNotifications['confirmation'] = $notificationData;
+                    break;
+                case 'reminder':
+                    $whatsappNotifications['reminder'] = $notificationData;
+                    break;
+                case 'urgent':
+                case 'urgent_reminder':
+                    $whatsappNotifications['urgent'] = $notificationData;
+                    break;
+            }
+        }
+
+        return $whatsappNotifications;
     }
     
     #[Route('/business-hours', name: 'app_agenda_business_hours', methods: ['GET'])]
@@ -330,7 +378,12 @@ class AgendaController extends AbstractController
             
             $errorType = 'validation';
             if ($e->getCode() == 1) {
+                // El horario seleccionado está fuera de la disponibilidad del profesional.
                 $errorType = 'not_force';
+            } else if ($e->getCode() == 2) {
+                // El horario seleccionado está fuera de la disponibilidad del profesional, 
+                // pero dentro del horario de la ubicación.
+                $errorType = 'availability';
             } else {
                 if ($isAvailabilityError) {
                     $errorType = 'availability';
@@ -362,7 +415,20 @@ class AgendaController extends AbstractController
             return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
         }
 
-        $appointment = $this->entityManager->getRepository(Appointment::class)->find($id);
+        // Consulta optimizada con notificaciones incluidas
+        $appointment = $this->entityManager->createQueryBuilder()
+            ->select('a', 'p', 's', 'pat', 'n')
+            ->from(Appointment::class, 'a')
+            ->leftJoin('a.professional', 'p')
+            ->leftJoin('a.service', 's')
+            ->leftJoin('a.patient', 'pat')
+            ->leftJoin('a.notifications', 'n')
+            ->where('a.id = :id')
+            ->andWhere('a.company = :company')
+            ->setParameter('id', $id)
+            ->setParameter('company', $company)
+            ->getQuery()
+            ->getOneOrNullResult();
         
         if (!$appointment) {
             return new JsonResponse(['error' => 'Turno no encontrado'], 404);
@@ -386,6 +452,9 @@ class AgendaController extends AbstractController
         // Calcular hora de finalización
         $endTime = clone $appointment->getScheduledAt();
         $endTime->modify('+' . $appointment->getDurationMinutes() . ' minutes');
+
+         // Procesar notificaciones de WhatsApp
+        $whatsappNotifications = $this->processWhatsAppNotifications($appointment->getNotifications());
 
         return new JsonResponse([
             'id' => $appointment->getId(),
@@ -412,7 +481,8 @@ class AgendaController extends AbstractController
             'notes' => $appointment->getNotes(),
             'scheduledAt' => $appointment->getScheduledAt()->format('Y-m-d\\TH:i:s'),
             'createdAt' => $appointment->getCreatedAt()->format('Y-m-d\\TH:i:s'),
-            'updatedAt' => $appointment->getUpdatedAt()?->format('Y-m-d\\TH:i:s')
+            'updatedAt' => $appointment->getUpdatedAt()?->format('Y-m-d\\TH:i:s'),
+            'whatsappNotifications' => $whatsappNotifications
         ]);
     }
 
@@ -1712,5 +1782,149 @@ class AgendaController extends AbstractController
             return new JsonResponse(['success' => false, 'message' => 'Error interno del servidor'], 500);
         }
     }
+    
+    #[Route('/failednotifications', name: 'app_agenda_failed_notifications', methods: ['GET'])]
+    public function failedNotifications(): Response
+    {
+        $user = $this->getUser();
+        $company = $user->getCompany();
+        
+        if (!$company) {
+            throw $this->createNotFoundException('No se encontró la empresa');
+        }
+
+        // Obtener notificaciones fallidas con scheduled_at > ahora
+        $now = new \DateTime();
+        $queryBuilder = $this->entityManager->createQueryBuilder()
+            ->select('n', 'a', 'p', 'pt', 's')
+            ->from('App\Entity\Notification', 'n')
+            ->join('n.appointment', 'a')
+            ->join('a.professional', 'p')
+            ->join('a.patient', 'pt')
+            ->leftJoin('a.service', 's')
+            ->where('a.company = :company')
+            ->andWhere('n.status = :status')
+            ->andWhere('n.scheduledAt > :now')
+            ->andWhere('n.templateUsed LIKE :whatsapp')
+            ->setParameter('company', $company)
+            ->setParameter('status', \App\Entity\NotificationStatusEnum::FAILED)
+            ->setParameter('now', $now)
+            ->setParameter('whatsapp', 'whatsapp_%')
+            ->orderBy('n.scheduledAt', 'ASC');
+
+        $failedNotifications = $queryBuilder->getQuery()->getResult();
+
+        return $this->render('agenda/failed_notifications.html.twig', [
+            'failedNotifications' => $failedNotifications,
+            'now' => $now
+        ]);
+    }
+
+    #[Route('/failednotifications/retry/{id}', name: 'app_agenda_retry_notification', methods: ['POST'])]
+    public function retryNotification(int $id): JsonResponse
+    {
+        $user = $this->getUser();
+        $company = $user->getCompany();
+        
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
+        }
+
+        try {
+            $notification = $this->entityManager->getRepository('App\Entity\Notification')
+                ->createQueryBuilder('n')
+                ->join('n.appointment', 'a')
+                ->where('n.id = :id')
+                ->andWhere('a.company = :company')
+                ->andWhere('n.status = :status')
+                ->setParameter('id', $id)
+                ->setParameter('company', $company)
+                ->setParameter('status', \App\Entity\NotificationStatusEnum::FAILED)
+                ->getQuery()
+                ->getOneOrNullResult();
+
+            if (!$notification) {
+                return new JsonResponse(['error' => 'Notificación no encontrada'], 404);
+            }
+
+            // Resetear el estado para reenvío
+            $notification->setStatus(\App\Entity\NotificationStatusEnum::PENDING);
+            $notification->setErrorMessage(null);
+
+            $this->entityManager->flush();
+
+            return new JsonResponse([
+                'success' => true,
+                'message' => 'Notificación marcada para reenvío'
+            ]);
+
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'error' => 'Error al procesar el reenvío: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    #[Route('/failednotifications/retry-all', name: 'app_agenda_retry_all_notifications', methods: ['POST'])]
+    public function retryAllNotifications(): JsonResponse
+    {
+        $user = $this->getUser();
+        $company = $user->getCompany();
+        
+        if (!$company) {
+            return new JsonResponse(['error' => 'No se encontró la empresa'], 404);
+        }
+
+        try {
+            $now = new \DateTime();
+            
+            // Obtener IDs de notificaciones a actualizar
+            $notificationIds = $this->entityManager->createQueryBuilder()
+                ->select('n.id')
+                ->from('App\Entity\Notification', 'n')
+                ->join('n.appointment', 'a')
+                ->where('a.company = :company')
+                ->andWhere('n.status = :failedStatus')
+                ->andWhere('n.scheduledAt > :now')
+                ->andWhere('n.templateUsed LIKE :whatsapp')
+                ->setParameter('company', $company)
+                ->setParameter('failedStatus', \App\Entity\NotificationStatusEnum::FAILED)
+                ->setParameter('now', $now)
+                ->setParameter('whatsapp', 'whatsapp_%')
+                ->getQuery()
+                ->getArrayResult();
+
+            $ids = array_column($notificationIds, 'id');
+            
+            if (empty($ids)) {
+                return new JsonResponse([
+                    'success' => true,
+                    'message' => 'No hay notificaciones para reenviar'
+                ]);
+            }
+
+            // Actualizar las notificaciones
+            $queryBuilder = $this->entityManager->createQueryBuilder()
+                ->update('App\Entity\Notification', 'n')
+                ->set('n.status', ':pendingStatus')
+                ->set('n.errorMessage', 'NULL')
+                ->where('n.id IN (:ids)')
+                ->setParameter('pendingStatus', \App\Entity\NotificationStatusEnum::PENDING)
+                ->setParameter('ids', $ids);
+
+            $updatedCount = $queryBuilder->getQuery()->execute();
+
+            return new JsonResponse([
+                'success' => true,
+                'message' => "Se marcaron {$updatedCount} notificaciones para reenvío"
+            ]);
+
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'error' => 'Error al procesar el reenvío masivo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 
 }
