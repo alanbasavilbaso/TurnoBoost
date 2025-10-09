@@ -200,16 +200,21 @@ class NotificationService
             ->getQuery()
             ->execute();
         
-        // Luego, obtener solo notificaciones de turnos activos
+        // Luego, obtener solo notificaciones de turnos activos, excluyendo notificaciones de empresa o de usuario
         $notifications = $this->entityManager->getRepository(Notification::class)
             ->createQueryBuilder('n')
             ->leftJoin('n.appointment', 'a')
             ->where('n.status = :status')
             ->andWhere('n.scheduledAt <= :now')
             ->andWhere('(n.appointment IS NULL OR a.status != :cancelledStatus)')
+            ->andWhere('n.type NOT IN (:companyTypes)')
             ->setParameter('status', NotificationStatusEnum::PENDING)
             ->setParameter('now', $now)
             ->setParameter('cancelledStatus', StatusEnum::CANCELLED)
+            ->setParameter('companyTypes', [
+                NotificationTypeEnum::COMPANY_NEW_BOOKING->value,
+                NotificationTypeEnum::COMPANY_CANCELLATION->value
+            ])
             ->getQuery()
             ->getResult();
 
@@ -294,5 +299,25 @@ class NotificationService
                 new \DateTime()
             );
         }
+    }
+
+    /**
+     * Envía notificación asíncrona a la empresa sobre nuevos turnos
+     */
+    public function sendCompanyNotification(Appointment $appointment, string $type): void
+    {
+        $company = $appointment->getCompany();
+        
+        // Verificar si la empresa quiere recibir notificaciones por email
+        if (!$company->getReceiveEmailNotifications()) {
+            return;
+        }
+
+        // Crear y despachar notificación de empresa de forma asíncrona
+        $this->createAndDispatchEmailNotification(
+            $appointment,
+            $type,
+            new \DateTime()
+        );
     }
 }

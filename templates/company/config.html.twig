@@ -265,6 +265,33 @@
                             </h2>
                             <div id="notificationCollapse" class="accordion-collapse collapse" aria-labelledby="notificationHeading" data-bs-parent="#notificationAccordion">
                                 <div class="accordion-body">
+                                    
+                                    <!-- Notificaciones para la Empresa -->
+                                    <h6 class="fw-bold mb-3">
+                                        <i class="fas fa-building me-2"></i>
+                                        Notificaciones para la Empresa
+                                        <div class="field-description">
+                                            Recibe notificaciones cuando los clientes reserven o cancelen turnos desde tu sitio web.
+                                        </div>
+                                    </h6>
+
+                                    <div class="config-field-group">
+                                        <div class="form-check form-switch">
+                                            {{ form_widget(form.receiveEmailNotifications, {
+                                                'attr': {
+                                                    'class': 'form-check-input',
+                                                    'role': 'switch'
+                                                }
+                                            }) }}
+                                            {{ form_label(form.receiveEmailNotifications, 'Recibir Notificaciones por Email', {
+                                                'label_attr': {'class': 'form-check-label fw-bold'}
+                                            }) }}
+                                        </div>
+                                        <small class="text-muted">Activa esta opción para recibir emails cuando los clientes reserven o cancelen turnos.</small>
+                                    </div>
+
+                                    <hr class="my-3">
+                                    
                                     <!-- Notificaciones de Email -->
                                     <h6 class="fw-bold mb-3">
                                         <i class="fas fa-bell me-2"></i>
@@ -301,7 +328,6 @@
                                     </div>
 
                                     <hr class="my-3">
-
                                     <!-- Recordatorios -->
                                     <h6 class="fw-bold mb-3">
                                         <i class="fas fa-clock me-2"></i>

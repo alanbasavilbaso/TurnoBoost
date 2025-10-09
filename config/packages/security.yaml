@@ -44,7 +44,7 @@ security:
         - { path: ^/booking/[a-z0-9-]+/, roles: PUBLIC_ACCESS }            # /booking/{domain}/...
         - { path: ^/reservas/[a-z0-9-]+/, roles: PUBLIC_ACCESS }           # /reservas/{domain}/...
         # Rutas administrativas requieren autenticación
-        - { path: ^/, roles: [ROLE_ADMIN, ROLE_PROFESIONAL, ROLE_RECEPCIONISTA, ROLE_PACIENTE] }
+        - { path: ^/, roles: [ROLE_SUPER, ROLE_ADMIN, ROLE_PROFESIONAL, ROLE_RECEPCIONISTA, ROLE_PACIENTE] }
 
 when@test:
     security:

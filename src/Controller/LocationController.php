@@ -16,9 +16,10 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use App\Entity\LocationAvailability;
 use App\Entity\Professional;
 use App\Entity\Company;
+use Symfony\Component\Security\Http\Attribute\Security;
 
 #[Route('/location')]
-#[IsGranted('ROLE_ADMIN')]
+#[Security("is_granted('ROLE_SUPER') or is_granted('ROLE_ADMIN')")]
 class LocationController extends AbstractController
 {
     public function __construct(

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recordatorio de Turno - {{ business_name }}</title>
+    <title>Turno Cancelado - {{ business_name }}</title>
 </head>
 <body style="font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
@@ -13,10 +13,10 @@
                     
                     <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(0deg, transparent, {{ primary_color|default('#f59e0b') }}dd); color: white; padding: 30px 20px; text-align: center;">
+                        <td style="background: linear-gradient(0deg, transparent, {{ primary_color|default('#667eea') }}dd); color: white; padding: 30px 20px; text-align: center;">
                             <h1 style="margin: 0; font-size: 24px; font-weight: 600; text-transform: capitalize;">{{ business_name }}</h1>
-                            <div style="background-color: #f59e0b; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; margin-top: 15px; display: inline-block;">
-                                ⏰ Recordatorio de tu turno
+                            <div style="background-color: #ef4444; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; margin-top: 15px; display: inline-block;">
+                                ❌ Turno cancelado
                             </div>
                         </td>
                     </tr>
@@ -24,73 +24,71 @@
                     <!-- Content -->
                     <tr>
                         <td style="padding: 30px 20px;">
-                            <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
-                                Hola <strong>{{ patient_first_name }}</strong>,
-                            </p>
                             
-                            <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
-                                Te recordamos que tienes un turno programado:
+                            <p style="font-size: 16px; color: #374151; margin: 0 0 20px 0; line-height: 1.5;">
+                                Se ha cancelado un turno en tu negocio:
                             </p>
                             
                             <!-- Appointment Card -->
-                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid {{ primary_color|default('#f59e0b') }}; border-right: 4px solid {{ primary_color|default('#f59e0b') }}">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #ef4444;">
                                 <tr>
                                     <td>
-                                        <h2 style="font-size: 18px; font-weight: 600; color: #1f2937; margin: 0 0 15px 0; text-transform: capitalize; border-bottom: 2px solid {{ primary_color|default('#f59e0b') }};">{{ service_name }}</h2>
+                                        <h2 style="font-size: 18px; font-weight: 600; color: #1f2937; margin: 0 0 15px 0; text-transform: capitalize;">{{ service_name }}</h2>
                                         
                                         <!-- Appointment Details -->
                                         <table width="100%" cellpadding="0" cellspacing="0">
                                             <tr>
-                                                <td style="padding: 8px 0; border-bottom: 2px solid {{ primary_color|default('#f59e0b') }};">
+                                                <td style="padding: 8px 0;">
                                                     <table width="100%" cellpadding="0" cellspacing="0">
                                                         <tr>
                                                             <td width="30" style="vertical-align: top; padding-right: 10px;">
                                                                 <span style="font-size: 16px;">📅</span>
                                                             </td>
                                                             <td style="color: #374151; font-size: 14px; vertical-align: top;">
-                                                                {{ appointment_date_formatted }}
+                                                                <strong>Fecha:</strong> {{ appointment_date_formatted }}
                                                             </td>
                                                         </tr>
                                                     </table>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 8px 0; border-bottom: 2px solid {{ primary_color|default('#f59e0b') }};">
+                                                <td style="padding: 8px 0;">
                                                     <table width="100%" cellpadding="0" cellspacing="0">
                                                         <tr>
                                                             <td width="30" style="vertical-align: top; padding-right: 10px;">
-                                                                <span style="font-size: 16px;">🕐</span>
+                                                                <span style="font-size: 16px;">⏰</span>
                                                             </td>
                                                             <td style="color: #374151; font-size: 14px; vertical-align: top;">
-                                                                {{ appointment_time }}
+                                                                <strong>Hora:</strong> {{ appointment_time }}
                                                             </td>
                                                         </tr>
                                                     </table>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 8px 0; border-bottom: 2px solid {{ primary_color|default('#f59e0b') }};">
+                                                <td style="padding: 8px 0;">
                                                     <table width="100%" cellpadding="0" cellspacing="0">
                                                         <tr>
                                                             <td width="30" style="vertical-align: top; padding-right: 10px;">
                                                                 <span style="font-size: 16px;">👨‍⚕️</span>
                                                             </td>
                                                             <td style="color: #374151; font-size: 14px; vertical-align: top;">
-                                                                Te atenderá: {{ professional_name }}
+                                                                <strong>Profesional:</strong> {{ professional_name }}
                                                             </td>
                                                         </tr>
                                                     </table>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 8px 0; border-bottom: 2px solid {{ primary_color|default('#667eea') }};">
+                                                <td style="padding: 8px 0;">
                                                     <table width="100%" cellpadding="0" cellspacing="0">
                                                         <tr>
                                                             <td width="30" style="vertical-align: top; padding-right: 10px;">
                                                                 <span style="font-size: 16px;">📍</span>
                                                             </td>
                                                             <td style="color: #374151; font-size: 14px; vertical-align: top;">
-                                                                {{ location_address }}
+                                                                <strong>Ubicación:</strong> {{ location_name }}<br>
+                                                                <span style="color: #6b7280; font-size: 12px;">{{ location_address }}</span>
                                                             </td>
                                                         </tr>
                                                     </table>
@@ -101,43 +99,54 @@
                                 </tr>
                             </table>
                             
-                            {% if (cancellable_bookings|default and cancel_url|default) or (editable_bookings|default and modify_url|default) %}
-                            <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 20px 0;">
-                                Si necesitas cancelar o reprogramar tu turno, puedes hacerlo desde el siguiente enlace:
-                            </p>
-                            
-                            <!-- Action Buttons -->
-                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                            <!-- Patient Info -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #6b7280;">
                                 <tr>
-                                    <td align="center">
-                                        {% if cancellable_bookings|default and cancel_url|default %}
-                                        <a href="{{ cancel_url }}" style="background-color: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500; margin-right: 10px; display: inline-block;">
-                                            Cancelar Turno
-                                        </a>
-                                        {% endif %}
-                                        {% if editable_bookings|default and modify_url|default %}
-                                        <a href="{{ modify_url }}" style="background-color: {{ primary_color|default('#f59e0b') }}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500; display: inline-block;">
-                                            Reprogramar
-                                        </a>
-                                        {% endif %}
+                                    <td>
+                                        <h3 style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 15px 0;">Datos del Cliente</h3>
+                                        
+                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="padding: 4px 0;">
+                                                    <span style="color: #374151; font-size: 14px;">
+                                                        <strong>Nombre:</strong> {{ patient_first_name }} {{ patient_last_name }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 4px 0;">
+                                                    <span style="color: #374151; font-size: 14px;">
+                                                        <strong>Email:</strong> {{ patient_email }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            {% if patient_phone %}
+                                            <tr>
+                                                <td style="padding: 4px 0;">
+                                                    <span style="color: #374151; font-size: 14px;">
+                                                        <strong>Teléfono:</strong> {{ patient_phone }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            {% endif %}
+                                        </table>
                                     </td>
                                 </tr>
                             </table>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    
-                    <!-- Footer -->
-                    <tr>
-                        <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-                            <p style="color: #6b7280; font-size: 12px; margin: 0;">
-                                Este es un recordatorio automático. Por favor no respondas a este email.
-                            </p>
-                            {% if phone_number|default %}
-                            <p style="color: #6b7280; font-size: 12px; margin: 5px 0 0 0;">
-                                Para consultas: {{ phone_number }}
-                            </p>
-                            {% endif %}
+                            
+                            <div style="background-color: #fef3c7; border-radius: 8px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+                                <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.5;">
+                                    💡 <strong>Recordatorio:</strong> Este horario ahora está disponible para nuevas reservas.
+                                </p>
+                            </div>
+                            
+                            <!-- Footer -->
+                            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                                <p style="color: #6b7280; font-size: 12px; margin: 0;">
+                                    Este email fue enviado automáticamente por TurnoBoost<br>
+                                    ID del turno: #{{ appointment_id }}
+                                </p>
+                            </div>
                         </td>
                     </tr>
                 </table>

@@ -2,13 +2,13 @@
 
 namespace App\MessageHandler;
 
-use App\Message\SendEmailNotification;
-use App\Service\EmailService;
 use App\Entity\Notification;
 use App\Entity\NotificationStatusEnum;
+use App\Message\SendEmailNotification;
+use App\Service\EmailService;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
 class SendEmailNotificationHandler
@@ -38,9 +38,10 @@ class SendEmailNotificationHandler
             
             $notification->setStatus(NotificationStatusEnum::SENT);
             $notification->setSentAt(new \DateTime());
+            $notification->setErrorMessage(null);
             
         } catch (\Exception $e) {
-            $this->logger->error('Failed to send notification', [
+            $this->logger->error('Failed to send email notification', [
                 'notification_id' => $notification->getId(),
                 'error' => $e->getMessage()
             ]);

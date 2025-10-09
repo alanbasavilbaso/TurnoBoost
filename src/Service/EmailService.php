@@ -3,18 +3,84 @@
 namespace App\Service;
 
 use App\Entity\Appointment;
-use Symfony\Component\Mailer\MailerInterface;
-use Symfony\Component\Mime\Email;
+use App\Entity\RoleEnum;
+use App\Service\BrevoEmailService;
+use Doctrine\ORM\EntityManagerInterface;
 use Twig\Environment;
 
 class EmailService
 {
     public function __construct(
-        private MailerInterface $mailer,
+        private BrevoEmailService $brevoEmailService,
         private Environment $twig,
         private AppointmentService $appointmentService,
-        private UrlGeneratorService $urlGenerator
+        private UrlGeneratorService $urlGenerator,
+        private EntityManagerInterface $entityManager
     ) {}
+
+    /**
+     * Enviar notificación a la empresa sobre nuevos turnos o cancelaciones
+     */
+    public function sendCompanyNotification(Appointment $appointment, string $type): void
+    {
+        $company = $appointment->getCompany();
+        
+        // Buscar el email del usuario owner con rol admin o super
+        $ownerEmail = $this->getCompanyOwnerEmail($company);
+        // Verificar si la empresa tiene email configurado y notificaciones habilitadas
+        if (!$ownerEmail || !$company->getReceiveEmailNotifications()) {
+            return; // No hay email de owner disponible
+        }
+        
+        $patient = $appointment->getPatient();
+        $professional = $appointment->getProfessional();
+        $service = $appointment->getService();
+        $location = $appointment->getLocation();
+        
+        // Formatear fecha en español
+        $scheduledAt = $appointment->getScheduledAt();
+        $formattedDate = $this->formatDateInSpanish($scheduledAt);
+        
+        $subject = match($type) {
+            'company_new_booking' => 'Nuevo turno reservado - ' . $service->getName(),
+            'company_cancellation' => 'Turno cancelado - ' . $service->getName(),
+            default => 'Notificación de turno'
+        };
+        
+        $template = match($type) {
+            'company_new_booking' => 'emails/company_new_booking.html.twig',
+            'company_cancellation' => 'emails/company_cancellation.html.twig',
+            default => 'emails/company_notification.html.twig'
+        };
+        
+        $htmlContent = $this->twig->render($template, [
+            'business_name' => $company->getName(),
+            'service_name' => $service->getName(),
+            'appointment_date' => $scheduledAt->format('d/m/Y'),
+            'appointment_date_formatted' => $formattedDate,
+            'appointment_time' => $scheduledAt->format('H:i'),
+            'professional_name' => $professional->getName(),
+            'location_name' => $location->getName(),
+            'location_address' => $location->getAddress(),
+            'patient_first_name' => $patient->getFirstName(),
+            'patient_last_name' => $patient->getLastName(),
+            'patient_email' => $patient->getEmail(),
+            'patient_phone' => $patient->getPhone(),
+            'primary_color' => $company->getPrimaryColor(),
+            'domain' => $company->getDomain(),
+            'appointment_id' => $appointment->getId(),
+            'type' => $type,
+        ]);
+        
+        $fromAddress = $_ENV['MAIL_FROM_ADDRESS'] ?? 'noreply@turnoboost.com';
+        
+        $this->brevoEmailService->sendEmail(
+            $ownerEmail,
+            $subject,
+            $htmlContent,
+            $fromAddress
+        );
+    }
 
     public function sendAppointmentConfirmation(Appointment $appointment, ?int $notificationId = null): void
     {
@@ -82,32 +148,26 @@ class EmailService
         $fromAddress = $_ENV['MAIL_FROM_ADDRESS'] ?? 'noreply@turnoboost.com';
         $toAddress = $_ENV['MAIL_TO_OVERRIDE'] ?? $patient->getEmail();
         
-        $email = (new Email())
-            ->from($fromAddress)
-            ->to($toAddress)
-            ->subject('Confirmación de tu cita - ' . $service->getName())
-            ->html($htmlContent);
+        $subject = 'Confirmación de tu cita - ' . $service->getName();
         
-        // Agregar header X-Notification-ID si se proporciona
-        if ($notificationId !== null) {
-            $email->getHeaders()->addTextHeader('X-Notification-ID', (string)$notificationId);
-        }
-
-        // Agregar BCC si está configurado en variable de entorno
-        if (!empty($_ENV['MAIL_BCC_DEBUG'])) {
-            $email->bcc($_ENV['MAIL_BCC_DEBUG']);
-        }
-            
-        try {
-            $this->mailer->send($email);
-        } catch (\Exception $e) {
-            // Re-lanzar la excepción para que el handler la capture
-            throw new \Exception('Failed to send email: ' . $e->getMessage(), 0, $e);
-        }
+        // Usar BrevoEmailService en lugar de MailerInterface
+        $this->brevoEmailService->sendEmail(
+            $toAddress,
+            $subject,
+            $htmlContent,
+            $fromAddress,
+            $notificationId
+        );
     }
 
     public function sendAppointmentNotification(Appointment $appointment, string $type, ?int $notificationId = null): void
     {
+        // Manejar notificaciones de empresa
+        if ($type === 'company_new_booking' || $type === 'company_cancellation') {
+            $this->sendCompanyNotification($appointment, $type);
+            return;
+        }
+
         // Mantener el método existente para compatibilidad
         if ($type === 'confirmation') {
             $this->sendAppointmentConfirmation($appointment, $notificationId);
@@ -179,28 +239,14 @@ class EmailService
         $fromAddress = $_ENV['MAIL_FROM_ADDRESS'] ?? 'noreply@turnoboost.com';
         $toAddress = $_ENV['MAIL_TO_OVERRIDE'] ?? $patient->getEmail();
         
-        $email = (new Email())
-            ->from($fromAddress)
-            ->to($toAddress)
-            ->subject($subject)
-            ->html($htmlContent);
-
-        // Agregar header X-Notification-ID si se proporciona
-        if ($notificationId !== null) {
-            $email->getHeaders()->addTextHeader('X-Notification-ID', (string)$notificationId);
-        }
-        
-        // Agregar BCC si está configurado en variable de entorno
-        if (!empty($_ENV['MAIL_BCC_DEBUG'])) {
-            $email->bcc($_ENV['MAIL_BCC_DEBUG']);
-        }
-            
-        try {
-            $this->mailer->send($email);
-        } catch (\Exception $e) {
-            // Re-lanzar la excepción para que el handler la capture
-            throw new \Exception('Failed to send email: ' . $e->getMessage(), 0, $e);
-        }
+        // Usar BrevoEmailService en lugar de MailerInterface
+        $this->brevoEmailService->sendEmail(
+            $toAddress,
+            $subject,
+            $htmlContent,
+            $fromAddress,
+            $notificationId
+        );
     }
 
     private function getSubjectForType(string $type): string
@@ -211,6 +257,8 @@ class EmailService
             'urgent_reminder' => 'Recordatorio urgente de tu turno',
             'cancellation' => 'Cancelación de tu turno',
             'modification' => 'Modificación de tu turno',
+            'company_new_booking' => 'Nuevo turno reservado',
+            'company_cancellation' => 'Turno cancelado',
             default => 'Notificación de turno'
         };
     }
@@ -223,6 +271,8 @@ class EmailService
             'urgent_reminder' => 'emails/appointment_urgent_reminder.html.twig',
             'cancellation' => 'emails/appointment_cancellation.html.twig',
             'modification' => 'emails/appointment_modification.html.twig',
+            'company_new_booking' => 'emails/company_new_booking.html.twig',
+            'company_cancellation' => 'emails/company_cancellation.html.twig',
             default => 'emails/appointment_confirmation.html.twig'
         };
     }
@@ -230,6 +280,26 @@ class EmailService
     /**
      * Formatea una fecha en español con formato completo
      */
+    /**
+     * Obtener el email del usuario owner con rol admin o super de la empresa
+     */
+    private function getCompanyOwnerEmail($company): ?string
+    {
+        $owner = $this->entityManager->getRepository(\App\Entity\User::class)
+            ->createQueryBuilder('u')
+            ->where('u.company = :company')
+            ->andWhere('u.isOwner = :isOwner')
+            ->andWhere('u.role IN (:roles)')
+            ->setParameter('company', $company)
+            ->setParameter('isOwner', true)
+            ->setParameter('roles', [RoleEnum::ADMIN])
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+            
+        return $owner?->getEmail();
+    }
+
     private function formatDateInSpanish(\DateTime $date): string
     {
         $dayNames = [

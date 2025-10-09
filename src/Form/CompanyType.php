@@ -248,6 +248,14 @@ class CompanyType extends AbstractType
                 ]
             ])
             // Campos de notificaciones
+             ->add('receiveEmailNotifications', CheckboxType::class, [
+                'label' => 'Recibir Notificaciones por Email cuando se crea/cancela un turno por parte del cliente',
+                'required' => false,
+                'attr' => [
+                    'class' => 'form-check-input'
+                ],
+                'help' => 'Recibir notificaciones por email cuando se crea o cancela un turno'
+            ])
             ->add('emailNotificationsEnabled', CheckboxType::class, [
                 'label' => 'Habilitar Notificaciones por Email',
                 'required' => false,

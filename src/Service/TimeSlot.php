@@ -332,7 +332,7 @@ class TimeSlot
     public function getNextAvailableSlot(
         Professional $professional,
         Service $service,
-        \DateTime $fromDate = null
+        ?\DateTime $fromDate = null
     ): ?array {
         $searchDate = $fromDate ?? new \DateTime();
         $maxDaysToSearch = 30; // Buscar hasta 30 días en el futuro

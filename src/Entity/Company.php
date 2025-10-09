@@ -271,6 +271,12 @@ class Company
     #[ORM\Column(type: 'datetime', nullable: true)]
     private ?\DateTime $whatsappLastChecked = null;
 
+    /**
+     * Indica si la empresa quiere recibir notificaciones por email cuando se crean turnos
+     */
+    #[ORM\Column(type: 'boolean', nullable: false, options: ['default' => true])]
+    private bool $receiveEmailNotifications = false;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -926,5 +932,16 @@ class Company
         }
         
         return $this->phone;
+    }
+
+    public function getReceiveEmailNotifications(): bool
+    {
+        return $this->receiveEmailNotifications;
+    }
+
+    public function setReceiveEmailNotifications(bool $receiveEmailNotifications): self
+    {
+        $this->receiveEmailNotifications = $receiveEmailNotifications;
+        return $this;
     }
 }

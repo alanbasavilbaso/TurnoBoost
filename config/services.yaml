@@ -59,3 +59,19 @@ services:
         arguments:
             $httpClient: '@http_client'
             $blobToken: '%env(BLOB_READ_WRITE_TOKEN)%'
+    
+    App\Service\BrevoEmailService:
+        arguments:
+            $httpClient: '@http_client'
+            $twig: '@twig'
+            $appointmentService: '@App\Service\AppointmentService'
+            $urlGenerator: '@App\Service\UrlGeneratorService'
+            $logger: '@logger'
+    
+    # EmailService ahora usa BrevoEmailService en lugar de MailerInterface
+    App\Service\EmailService:
+        arguments:
+            $brevoEmailService: '@App\Service\BrevoEmailService'
+            $twig: '@twig'
+            $appointmentService: '@App\Service\AppointmentService'
+            $urlGenerator: '@App\Service\UrlGeneratorService'

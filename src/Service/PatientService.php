@@ -101,8 +101,11 @@ class PatientService
         $cleanPhone = preg_replace('/[^\d+]/', '', $phone);
         
         // Asegurar que el número empiece con +549
-        // Primero removemos cualquier prefijo existente
+        // Primero removemos cualquier prefijo existente y el 0 inicial del código de área si existe
         $cleanPhone = preg_replace('/^\+?54?9?/', '', $cleanPhone);
+        
+        // Si después de remover los prefijos, el número empieza con 0, lo quitamos
+        $cleanPhone = preg_replace('/^0/', '', $cleanPhone);
         
         // Ahora agregamos el prefijo correcto
         $cleanPhone = '+549' . $cleanPhone;

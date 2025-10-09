@@ -20,9 +20,10 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use App\Service\ImageUploadService;
+use Symfony\Component\Security\Http\Attribute\Security;
 
 #[Route('/profesionales')]
-#[IsGranted('ROLE_ADMIN')]
+#[Security("is_granted('ROLE_SUPER') or is_granted('ROLE_ADMIN')")]
 class ProfessionalController extends AbstractController
 {
     private RequestStack $requestStack;

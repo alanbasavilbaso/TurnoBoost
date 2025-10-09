@@ -15,9 +15,10 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Security\Http\Attribute\Security;
 
 #[Route('/clients')]
-#[IsGranted('ROLE_ADMIN')]
+#[Security("is_granted('ROLE_SUPER') or is_granted('ROLE_ADMIN')")]
 class PersonController extends AbstractController
 {
     #[Route('/', name: 'app_person_index', methods: ['GET'])]

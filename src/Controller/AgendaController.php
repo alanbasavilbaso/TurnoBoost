@@ -28,9 +28,11 @@ use App\Service\TimeSlot;
 use App\Service\NotificationService;
 use App\Service\PhoneUtilityService;
 use PHPUnit\Framework\Constraint\IsEmpty;
+use Symfony\Component\Security\Http\Attribute\Security;
+
 
 #[Route('/agenda')]
-#[IsGranted('ROLE_ADMIN')]
+#[Security("is_granted('ROLE_SUPER') or is_granted('ROLE_ADMIN')")]
 class AgendaController extends AbstractController
 {
     private EntityManagerInterface $entityManager;

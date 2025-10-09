@@ -50,11 +50,12 @@ class CreateUserCommand extends Command
 
         // Validar rol
         $role = match($roleString) {
+            'super' => RoleEnum::SUPER,
             'admin' => RoleEnum::ADMIN,
             'profesional' => RoleEnum::PROFESIONAL,
             'recepcionista' => RoleEnum::RECEPCIONISTA,
             'paciente' => RoleEnum::PACIENTE,
-            default => throw new \InvalidArgumentException('Rol inválido. Usa: admin, profesional, recepcionista, paciente')
+            default => throw new \InvalidArgumentException('Rol inválido. Usa: super, admin, profesional, recepcionista, paciente')
         };
 
         // Verificar si el usuario ya existe

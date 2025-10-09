@@ -98,7 +98,7 @@ class ProfessionalRepository extends ServiceEntityRepository
             ->getResult();
     }
 
-    public function getProfessionalSchedulesForDay(Professional $professional, int $weekday, \DateTime $date = null): array
+    public function getProfessionalSchedulesForDay(Professional $professional, int $weekday, ?\DateTime $date = null): array
     {
         $sql = "
             SELECT 

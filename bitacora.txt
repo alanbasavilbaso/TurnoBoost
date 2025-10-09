@@ -5,6 +5,7 @@ symfony server:start
 composer install   
 
 php bin/console app:create-user
+php bin/console app:test-brevo  200     
 
 admin@turnoboost.com
 admin123
@@ -32,6 +33,20 @@ correr worker en local:
 configurar job cada pocos minutos para que ejecute las notificaiones scheduled:
         php bin/console app:process-notifications
 --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- 
+
+
+-----------------------------------------------------------
+                    test de emails
+-----------------------------------------------------------
+php bin/console app:test-all-emails 200 -t confirmation
+php bin/console app:test-all-emails 200 -t reminder  
+php bin/console app:test-all-emails 200 -t urgent_reminder
+php bin/console app:test-all-emails 200 -t cancellation
+php bin/console app:test-all-emails 200 -t modification
+-----------------------------------------------------------
+-----------------------------------------------------------
+
+
 
 
 # Secuencia completa de reset de BD

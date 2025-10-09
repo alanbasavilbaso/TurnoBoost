@@ -50,7 +50,7 @@
             
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    {{ form_label(form.name) }}
+                    {{ form_label(form.name, 'Nombre completo *') }}
                     {{ form_widget(form.name) }}
                     {{ form_errors(form.name) }}
                 </div>
@@ -63,7 +63,7 @@
             
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    {{ form_label(form.email) }}
+                    {{ form_label(form.email, 'Email *') }}
                     {{ form_widget(form.email) }}
                     {{ form_errors(form.email) }}
                 </div>

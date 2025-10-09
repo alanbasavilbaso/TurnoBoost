@@ -13,6 +13,8 @@ use App\Service\AppointmentService;
 use App\Service\TimeSlot;
 use App\Service\SettingsService;
 use App\Service\DomainRoutingService;
+use App\Service\EmailService;
+use App\Service\NotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,7 +24,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use App\Entity\AppointmentSourceEnum;
 use App\Service\AuditService;
-use phpDocumentor\Reflection\DocBlock\Tags\Var_;
+use App\Entity\NotificationTypeEnum;
 
 class BookingController extends AbstractController
 {
@@ -32,19 +34,25 @@ class BookingController extends AbstractController
     private DomainRoutingService $domainRoutingService;
     private AppointmentService $appointmentService;
     private AuditService $auditService;
+    private EmailService $emailService;
+    private NotificationService $notificationService;
 
     public function __construct(
         EntityManagerInterface $entityManager, 
         TimeSlot $timeSlotService,
         DomainRoutingService $domainRoutingService,
         AppointmentService $appointmentService,
-        AuditService $auditService
+        AuditService $auditService,
+        EmailService $emailService,
+        NotificationService $notificationService
     ) {
         $this->entityManager = $entityManager;
         $this->timeSlotService = $timeSlotService;
         $this->domainRoutingService = $domainRoutingService;
         $this->appointmentService = $appointmentService;
         $this->auditService = $auditService;
+        $this->emailService = $emailService;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -742,7 +750,10 @@ class BookingController extends AbstractController
             if ($actionPerformed) {
                 $appointment->setUpdatedAt(new \DateTime());
                 $this->entityManager->flush();
-                
+                if ($action === 'cancel') {
+                    // Enviar email a la empresa si está configurado
+                    $this->sendCompanyNotificationAsync($appointment, NotificationTypeEnum::COMPANY_CANCELLATION->value);
+                }
                 // Registrar en auditoría solo si se realizó la acción
                 $this->auditService->logChange(
                     'Appointment',
@@ -814,7 +825,7 @@ class BookingController extends AbstractController
     /**
      * Maneja las acciones de confirmación, cancelación y modificación de citas
      */
-    private function handleAppointmentAction(string $domain, int $appointmentId, string $token, string $action, Request $request = null): Response
+    private function handleAppointmentAction(string $domain, int $appointmentId, string $token, string $action, ?Request $request = null): Response
     {
         // Validaciones básicas
         $validationResult = $this->validateAppointmentAction($domain, $appointmentId, $token, $action);
@@ -1068,7 +1079,10 @@ class BookingController extends AbstractController
 
             $appointment->setUpdatedAt(new \DateTime());
             $this->entityManager->flush();
-
+            if ($action === 'cancel') {
+                // Enviar email a la empresa si está configurado
+                $this->sendCompanyNotificationAsync($appointment, NotificationTypeEnum::COMPANY_CANCELLATION->value);
+            }
             // Registrar en auditoría
             $this->auditService->logChange(
                 'Appointment',
@@ -1100,7 +1114,7 @@ class BookingController extends AbstractController
     /**
      * Genera las fechas disponibles basadas en location_availability y professional_availability
      */
-    private function generateAvailableDates(Professional $professional, Service $service, Location $location, \DateTime $startDate = null): array
+    private function generateAvailableDates(Professional $professional, Service $service, Location $location, ?\DateTime $startDate = null): array
     {
         $availableDates = [];
         $today = $startDate ?? new \DateTime();
@@ -1300,6 +1314,9 @@ class BookingController extends AbstractController
             $date = $scheduledAt->format('Y-m-d');
             $time = $scheduledAt->format('H:i:s');
 
+            // Enviar notificación a la empresa de forma asíncrona
+            $this->sendCompanyNotificationAsync($appointment, NotificationTypeEnum::COMPANY_NEW_BOOKING->value);
+
             return new JsonResponse([
                 'success' => true, 
                 'message' => 'Cita creada exitosamente',
@@ -1312,7 +1329,7 @@ class BookingController extends AbstractController
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['success' => false, 'message' => $e->getMessage()], 400);
         } catch (\Exception $e) {
-            var_dump($e->getMessage());
+            // var_dump($e->getMessage());
             return new JsonResponse(['success' => false, 'message' => 'Error interno del servidor'], 500);
         }
     }
@@ -1358,5 +1375,18 @@ class BookingController extends AbstractController
                 $appointment->getCompany()->getId();
         
         return hash('sha256', $data . $_ENV['APP_SECRET'] ?? 'default_secret');
+    }
+
+    /**
+     * Envía notificación a la empresa de forma asíncrona para no bloquear la respuesta
+     */
+    private function sendCompanyNotificationAsync(Appointment $appointment, string $type): void
+    {
+        try {
+            $this->notificationService->sendCompanyNotification($appointment, $type);
+        } catch (\Exception $e) {
+            // Log error but don't fail the booking process
+            error_log('Error dispatching company notification: ' . $e->getMessage());
+        }
     }
 }
